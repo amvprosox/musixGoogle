@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import { posix as path } from 'node:path';
 
 export interface AutostartEntryOptions {
   name: string;
