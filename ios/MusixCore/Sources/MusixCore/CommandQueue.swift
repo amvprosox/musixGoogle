@@ -22,6 +22,8 @@ public actor CommandQueue {
     private var generation: UInt64 = 0
     private var counter: UInt64 = 0
     private var pending: [String: CheckedContinuation<CommandResult, Never>] = [:]
+    private var awaiting: Set<String> = []
+    private var early: [String: CommandResult] = [:]
     private var readyWaiters: [UInt64: CheckedContinuation<Bool, Never>] = [:]
     private var waiterCounter: UInt64 = 0
     private var tails: [CommandLane: Task<Void, Never>] = [:]
@@ -50,6 +52,8 @@ public actor CommandQueue {
         generation &+= 1
         let waiting = pending
         pending.removeAll()
+        awaiting.removeAll()
+        early.removeAll()
         for continuation in waiting.values {
             continuation.resume(returning: .notReady)
         }
@@ -103,9 +107,16 @@ public actor CommandQueue {
         guard generation == startedGeneration else {
             return .notReady
         }
+        awaiting.insert(requestId)
         let delivered = await transport(payload)
         guard delivered, generation == startedGeneration else {
+            awaiting.remove(requestId)
+            early.removeValue(forKey: requestId)
             return .notReady
+        }
+        if let result = early.removeValue(forKey: requestId) {
+            awaiting.remove(requestId)
+            return result
         }
         let limit = timeout
         return await withCheckedContinuation { continuation in
@@ -141,10 +152,15 @@ public actor CommandQueue {
 
     @discardableResult
     private func complete(_ requestId: String, _ result: CommandResult) -> Bool {
-        guard let continuation = pending.removeValue(forKey: requestId) else {
-            return false
+        if let continuation = pending.removeValue(forKey: requestId) {
+            awaiting.remove(requestId)
+            continuation.resume(returning: result)
+            return true
         }
-        continuation.resume(returning: result)
-        return true
+        if awaiting.contains(requestId), result != .timedOut, early[requestId] == nil {
+            early[requestId] = result
+            return true
+        }
+        return false
     }
 }

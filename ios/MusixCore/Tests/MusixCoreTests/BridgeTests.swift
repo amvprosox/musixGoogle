@@ -176,6 +176,37 @@ final class CommandQueueTests: XCTestCase {
         XCTAssertEqual(outcome, .acknowledged)
     }
 
+    func testAcceptsAnAckThatArrivesBeforeDeliveryReturns() async {
+        let box = QueueBox()
+        let queue = CommandQueue(timeout: .milliseconds(300)) { json in
+            guard let object = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any],
+                  let id = object["requestId"] as? String,
+                  let queue = await box.get() else {
+                return false
+            }
+            await queue.handle(.ack(requestId: id))
+            return true
+        }
+        await box.set(queue)
+        await queue.markReady()
+        let outcome = await queue.send(.play)
+        XCTAssertEqual(outcome, .acknowledged)
+        let browse = await queue.send(.browse(nodeId: "home"))
+        XCTAssertEqual(browse, .acknowledged)
+    }
+
+    actor QueueBox {
+        private var queue: CommandQueue?
+
+        func set(_ value: CommandQueue) {
+            queue = value
+        }
+
+        func get() -> CommandQueue? {
+            queue
+        }
+    }
+
     func testNotReadyAfterTheReadyTimeout() async {
         let queue = CommandQueue(readyTimeout: .milliseconds(50)) { _ in true }
         let outcome = await queue.send(.pause)
