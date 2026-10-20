@@ -19,7 +19,9 @@ if (!which(xvfb)) {
   process.exit(2);
 }
 
-const server = spawn(xvfb, [display, '-screen', '0', '2600x1700x24', '-nolisten', 'tcp'], { stdio: 'ignore' });
+const server = spawn(xvfb, [display, '-screen', '0', '2600x1700x24', '-nolisten', 'tcp'], {
+  stdio: 'ignore',
+});
 const children = [server];
 await new Promise((resolve) => setTimeout(resolve, 800));
 

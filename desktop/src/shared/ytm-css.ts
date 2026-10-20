@@ -73,12 +73,11 @@ html {
 * {
   scrollbar-width: auto !important;
   scrollbar-color: auto !important;
-  overscroll-behavior: contain;
 }
 html, .scroller {
   transition: --musix-sb ${tokens.motion.scrollbarFadeOut / 2}ms ease;
 }
-html:hover, .scroller:hover, .musix-scrolling {
+html:hover, .scroller:hover, .musix-scrolling, .musix-scroll-hover {
   --musix-sb: ${dark.scrollbarThumb};
 }
 html:hover, .scroller:hover, html.musix-scrolling, .scroller.musix-scrolling {
@@ -97,6 +96,8 @@ html:hover, .scroller:hover, html.musix-scrolling, .scroller.musix-scrolling {
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
+  min-height: 48px;
+  min-width: 48px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background-color: ${dark.scrollbarThumbHover};
@@ -114,6 +115,15 @@ html:hover, .scroller:hover, html.musix-scrolling, .scroller.musix-scrolling {
 }
 ${SCROLLER_SELECTORS.join(',\n')} {
   scrollbar-width: none !important;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
+  cursor: grab;
+}
+.musix-dragging, .musix-dragging * {
+  cursor: grabbing !important;
+  scroll-snap-type: none !important;
+  scroll-behavior: auto !important;
+  user-select: none !important;
 }
 ${SCROLLER_SELECTORS.map((selector) => `${selector}::-webkit-scrollbar`).join(',\n')} {
   display: none;

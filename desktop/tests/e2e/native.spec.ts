@@ -230,6 +230,101 @@ test('scrollbars auto-hide and scroll areas fade at their edges', async ({ musix
     .toBe(false);
 });
 
+async function viewInput(app: ElectronApplication, events: Electron.InputEvent[]): Promise<void> {
+  await app.evaluate(
+    async ({ BrowserWindow }, list) => {
+      const win = BrowserWindow.getAllWindows().find((w) =>
+        w.webContents.getURL().endsWith('/renderer/index.html'),
+      );
+      const view = win?.contentView.children.find((child) => {
+        const candidate = child as unknown as { webContents?: { getURL(): string } };
+        return (
+          candidate.webContents !== undefined && !candidate.webContents.getURL().includes('overlay.html')
+        );
+      }) as unknown as { webContents: Electron.WebContents } | undefined;
+      if (!view) {
+        throw new Error('view missing');
+      }
+      for (const event of list) {
+        view.webContents.sendInputEvent(event as unknown as Electron.MouseInputEvent);
+        await new Promise((resolve) => setTimeout(resolve, 16));
+      }
+    },
+    events as unknown as Record<string, unknown>[],
+  );
+}
+
+async function carouselPoint(app: ElectronApplication): Promise<{ x: number; y: number }> {
+  return viewEval<{ x: number; y: number }>(
+    app,
+    `(() => { window.scrollTo(0, 0); const r = document.querySelector('#fixture-carousel #items').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`,
+  );
+}
+
+test('the mouse wheel scrolls the page while the pointer is over a shelf of cards', async ({ musix }) => {
+  const { app } = musix;
+  await setWindowSize(app, 1280, 800);
+  const point = await carouselPoint(app);
+  await viewInput(app, [
+    { type: 'mouseMove', x: point.x, y: point.y } as Electron.MouseInputEvent,
+    {
+      type: 'mouseWheel',
+      x: point.x,
+      y: point.y,
+      deltaX: 0,
+      deltaY: -240,
+      canScroll: true,
+    } as Electron.MouseWheelInputEvent,
+    {
+      type: 'mouseWheel',
+      x: point.x,
+      y: point.y,
+      deltaX: 0,
+      deltaY: -240,
+      canScroll: true,
+    } as Electron.MouseWheelInputEvent,
+  ]);
+  await expect.poll(() => viewEval<number>(app, 'window.scrollY')).toBeGreaterThan(100);
+});
+
+test('shelves scroll by click and drag without opening the card under the pointer', async ({ musix }) => {
+  const { app } = musix;
+  await setWindowSize(app, 1280, 800);
+  await viewEval(
+    app,
+    `(() => { window.__cardClicks = 0; document.querySelectorAll('#fixture-carousel #items li').forEach((li) => li.addEventListener('click', () => { window.__cardClicks += 1; })); document.querySelector('#fixture-carousel #items').scrollLeft = 0; return true; })()`,
+  );
+  const point = await carouselPoint(app);
+  const moves = Array.from({ length: 12 }, (_, i) => ({
+    type: 'mouseMove',
+    x: point.x - (i + 1) * 25,
+    y: point.y,
+    button: 'left',
+    modifiers: ['leftButtonDown'],
+  }));
+  await viewInput(app, [
+    { type: 'mouseMove', x: point.x, y: point.y } as Electron.MouseInputEvent,
+    { type: 'mouseDown', x: point.x, y: point.y, button: 'left', clickCount: 1 } as Electron.MouseInputEvent,
+    ...(moves as Electron.MouseInputEvent[]),
+    {
+      type: 'mouseUp',
+      x: point.x - 300,
+      y: point.y,
+      button: 'left',
+      clickCount: 1,
+    } as Electron.MouseInputEvent,
+  ]);
+  await expect
+    .poll(() => viewEval<number>(app, `document.querySelector('#fixture-carousel #items').scrollLeft`))
+    .toBeGreaterThan(200);
+  expect(await viewEval<number>(app, 'window.__cardClicks')).toBe(0);
+  await viewInput(app, [
+    { type: 'mouseDown', x: point.x, y: point.y, button: 'left', clickCount: 1 } as Electron.MouseInputEvent,
+    { type: 'mouseUp', x: point.x, y: point.y, button: 'left', clickCount: 1 } as Electron.MouseInputEvent,
+  ]);
+  await expect.poll(() => viewEval<number>(app, 'window.__cardClicks')).toBe(1);
+});
+
 test('horizontal shelves scroll page by page with chevrons', async ({ musix }) => {
   const { app } = musix;
   await setWindowSize(app, 1280, 800);

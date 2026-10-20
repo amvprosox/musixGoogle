@@ -266,6 +266,159 @@ function enhanceShelf(host: Element, scroller: HTMLElement): void {
   update();
 }
 
+function scrollableAncestor(start: Element | null): Element | null {
+  let node: Element | null = start;
+  let depth = 0;
+  while (node && node !== document.documentElement && depth < 12) {
+    if (node.scrollHeight > node.clientHeight + 1) {
+      const overflow = getComputedStyle(node).overflowY;
+      if (overflow === 'auto' || overflow === 'scroll') {
+        return node;
+      }
+    }
+    node = node.parentElement;
+    depth += 1;
+  }
+  return null;
+}
+
+function installScrollHover(): void {
+  let current: Element | null = null;
+  document.addEventListener(
+    'pointerover',
+    (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const next = scrollableAncestor(target);
+      if (next === current) {
+        return;
+      }
+      current?.classList.remove('musix-scroll-hover');
+      next?.classList.add('musix-scroll-hover');
+      current = next;
+    },
+    { capture: true, passive: true },
+  );
+  document.addEventListener('pointerleave', () => {
+    current?.classList.remove('musix-scroll-hover');
+    current = null;
+  });
+}
+
+function installShelfDrag(): void {
+  const selector = SCROLLER_SELECTORS.join(',');
+  let active: {
+    scroller: HTMLElement;
+    pointerId: number;
+    startX: number;
+    startLeft: number;
+    moved: boolean;
+  } | null = null;
+  let samples: { x: number; t: number }[] = [];
+  let suppressClick = false;
+  let glide = 0;
+  const stopGlide = (): void => {
+    if (glide !== 0) {
+      cancelAnimationFrame(glide);
+      glide = 0;
+    }
+  };
+  document.addEventListener(
+    'pointerdown',
+    (event) => {
+      stopGlide();
+      if (event.button !== 0 || event.pointerType !== 'mouse' || !(event.target instanceof Element)) {
+        return;
+      }
+      const scroller = event.target.closest(selector);
+      if (!(scroller instanceof HTMLElement) || scroller.scrollWidth <= scroller.clientWidth + 1) {
+        return;
+      }
+      if (event.target.closest('input, textarea, select, [contenteditable="true"]')) {
+        return;
+      }
+      active = {
+        scroller,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startLeft: scroller.scrollLeft,
+        moved: false,
+      };
+      samples = [{ x: event.clientX, t: event.timeStamp }];
+    },
+    { capture: true, passive: true },
+  );
+  document.addEventListener(
+    'pointermove',
+    (event) => {
+      if (!active || event.pointerId !== active.pointerId) {
+        return;
+      }
+      const dx = event.clientX - active.startX;
+      if (!active.moved) {
+        if (Math.abs(dx) < 6) {
+          return;
+        }
+        active.moved = true;
+        active.scroller.classList.add('musix-dragging');
+        try {
+          active.scroller.setPointerCapture(event.pointerId);
+        } catch {
+          active.moved = true;
+        }
+      }
+      active.scroller.scrollLeft = active.startLeft - dx;
+      samples.push({ x: event.clientX, t: event.timeStamp });
+      if (samples.length > 6) {
+        samples.shift();
+      }
+    },
+    { capture: true, passive: true },
+  );
+  const finish = (event: PointerEvent): void => {
+    if (!active || event.pointerId !== active.pointerId) {
+      return;
+    }
+    const { scroller, moved } = active;
+    active = null;
+    scroller.classList.remove('musix-dragging');
+    if (!moved) {
+      return;
+    }
+    suppressClick = true;
+    window.setTimeout(() => {
+      suppressClick = false;
+    }, 0);
+    const first = samples[0];
+    const last = samples[samples.length - 1];
+    if (!first || !last || last.t - first.t <= 0) {
+      return;
+    }
+    let velocity = (last.x - first.x) / (last.t - first.t);
+    let previous = performance.now();
+    const step = (now: number): void => {
+      const elapsed = now - previous;
+      previous = now;
+      scroller.scrollLeft -= velocity * elapsed;
+      velocity *= Math.pow(0.95, elapsed / 16);
+      glide = Math.abs(velocity) > 0.02 ? requestAnimationFrame(step) : 0;
+    };
+    glide = requestAnimationFrame(step);
+  };
+  document.addEventListener('pointerup', finish, { capture: true, passive: true });
+  document.addEventListener('pointercancel', finish, { capture: true, passive: true });
+  document.addEventListener(
+    'click',
+    (event) => {
+      if (suppressClick) {
+        event.preventDefault();
+        event.stopPropagation();
+        suppressClick = false;
+      }
+    },
+    { capture: true },
+  );
+}
+
 function installShelves(): void {
   const scan = (): void => {
     for (const selector of SCROLLER_SELECTORS.slice(0, 2)) {
@@ -507,7 +660,9 @@ if (isYtm) {
     watchHead();
     installTooltips();
     installScrollbars();
+    installScrollHover();
     installShelves();
+    installShelfDrag();
     installNavigationSignals();
   };
   if (document.readyState === 'loading') {

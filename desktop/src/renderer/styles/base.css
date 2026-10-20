@@ -209,6 +209,7 @@ svg {
   border-radius: var(--radius-pill);
   border: 2px solid transparent;
   background-clip: padding-box;
+  min-height: 48px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -227,10 +228,6 @@ svg {
   display: none;
   width: 0;
   height: 0;
-}
-
-* {
-  overscroll-behavior: contain;
 }
 
 [data-scroll]:hover,
