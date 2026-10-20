@@ -1,4 +1,4 @@
-import { AD_PLAYBACK_RATE_VALUE, PROGRESS_INTERVAL_MS } from './timing';
+import { AD_PLAYBACK_RATE_VALUE, PROGRESS_INTERVAL_MS, STATE_HEARTBEAT_MS } from './timing';
 import type { BridgeState, LikeStatus, QueueEntry, RepeatMode } from './contract';
 import { EMPTY_STATE } from './contract';
 import { BAR_SELECTORS, clickFirst, clip, DOC_SEL, queryFirst, SEL, textOfElement } from './dom';
@@ -86,6 +86,7 @@ export class PlayerObserver {
   private queueTimer: number | null = null;
   private lastSent: BridgeState | null = null;
   private lastProgressAt = 0;
+  private lastSentAt = 0;
   private progressTimer: number | null = null;
   private updateScheduled = false;
   private lastQueue: QueueEntry[] = [];
@@ -564,10 +565,15 @@ export class PlayerObserver {
     const state = this.readState();
     this.handleAd(state.isAd);
     const changed = diffState(this.lastSent, state);
+    const now = Date.now();
     if (changed.length === 0) {
+      if (now - this.lastSentAt < STATE_HEARTBEAT_MS) {
+        return;
+      }
+      this.lastSentAt = now;
+      this.sink.state(state);
       return;
     }
-    const now = Date.now();
     if (isProgressOnly(changed)) {
       const wait = PROGRESS_INTERVAL_MS - (now - this.lastProgressAt);
       if (wait > 0) {
@@ -585,6 +591,7 @@ export class PlayerObserver {
       this.progressTimer = null;
     }
     this.lastProgressAt = now;
+    this.lastSentAt = now;
     this.lastSent = state;
     this.sink.state(state);
   }

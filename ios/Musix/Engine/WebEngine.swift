@@ -35,6 +35,28 @@ final class WebEngine: NSObject, ObservableObject {
         case signIn
     }
 
+    enum Route: String, CaseIterable {
+        case home
+        case explore
+        case library
+
+        var browseId: String {
+            switch self {
+            case .home: return "FEmusic_home"
+            case .explore: return "FEmusic_explore"
+            case .library: return "FEmusic_library_landing"
+            }
+        }
+
+        var path: String {
+            switch self {
+            case .home: return ""
+            case .explore: return "explore"
+            case .library: return "library"
+            }
+        }
+    }
+
     static let homeAddress = "https://music.youtube.com/"
     static let allowedHost = "music.youtube.com"
     private static let navigationHosts: Set<String> = [
@@ -51,6 +73,7 @@ final class WebEngine: NSObject, ObservableObject {
     @Published private(set) var account: Account = .unknown
     @Published var presentation: Presentation = .background
     @Published private(set) var blockedRules = 0
+    @Published private(set) var canNavigateBack = false
 
     let errors = PassthroughSubject<String, Never>()
     let externalLinks = PassthroughSubject<URL, Never>()
@@ -66,6 +89,7 @@ final class WebEngine: NSObject, ObservableObject {
     private var pendingRestore: (ResumeSnapshot, Bool)?
     private var recoveryTask: Task<Void, Never>?
     private var started = false
+    private var backObservation: NSKeyValueObservation?
 
     init(settings: AppSettings) {
         let link = EngineLink()
@@ -128,6 +152,46 @@ final class WebEngine: NSObject, ObservableObject {
 
     func goBack() {
         webView?.goBack()
+    }
+
+    func navigate(_ route: Route) async {
+        let ok = await runNavigation(["browseEndpoint": ["browseId": route.browseId]])
+        if !ok {
+            load(Self.homeAddress + route.path)
+        }
+    }
+
+    func search(_ query: String) async {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return
+        }
+        let limited = String(trimmed.prefix(500))
+        let ok = await runNavigation(["searchEndpoint": ["query": limited]])
+        if !ok {
+            var components = URLComponents(string: Self.homeAddress + "search")
+            components?.queryItems = [URLQueryItem(name: "q", value: limited)]
+            if let address = components?.url?.absoluteString {
+                load(address)
+            }
+        }
+    }
+
+    private func runNavigation(_ endpoint: [String: Any]) async -> Bool {
+        guard let webView, webView.url?.host == Self.allowedHost else {
+            return false
+        }
+        do {
+            let result = try await webView.callAsyncJavaScript(
+                InjectedScripts.navigation(endpoint),
+                arguments: [:],
+                in: nil,
+                contentWorld: .page
+            )
+            return (result as? Bool) ?? false
+        } catch {
+            return false
+        }
     }
 
     func signOut() async {
@@ -263,6 +327,9 @@ final class WebEngine: NSObject, ObservableObject {
         if !scripts.cosmeticCSS.isEmpty {
             controller.addUserScript(WKUserScript(source: scripts.cosmeticInstaller, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .page))
         }
+        if !scripts.skinCSS.isEmpty {
+            controller.addUserScript(WKUserScript(source: scripts.skinInstaller, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .page))
+        }
         controller.addUserScript(WKUserScript(source: scripts.bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .page))
         if let list {
             controller.add(list)
@@ -275,8 +342,16 @@ final class WebEngine: NSObject, ObservableObject {
         view.isOpaque = false
         view.backgroundColor = .black
         view.scrollView.contentInsetAdjustmentBehavior = .never
+        view.allowsBackForwardNavigationGestures = true
+        view.allowsLinkPreview = false
         container.addSubview(view)
         webView = view
+        backObservation = view.observe(\.canGoBack, options: [.initial, .new]) { [weak self] _, change in
+            let value = change.newValue ?? false
+            Task { @MainActor in
+                self?.canNavigateBack = value
+            }
+        }
     }
 
     private func destroyWebView() {
@@ -284,6 +359,8 @@ final class WebEngine: NSObject, ObservableObject {
             return
         }
         webView = nil
+        backObservation = nil
+        canNavigateBack = false
         view.stopLoading()
         view.navigationDelegate = nil
         view.uiDelegate = nil

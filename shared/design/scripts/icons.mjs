@@ -44,11 +44,12 @@ const ICONS = {
   trash: 'Trash2',
   car: 'Car',
   thumbs_down: 'ThumbsDown',
+  compass: 'Compass',
 };
 
 const FILLED = new Set(['heart', 'play', 'pause']);
 
-const IOS_ONLY = new Set(['play', 'pause', 'thumbs_down']);
+const IOS_ONLY = new Set(['play', 'pause', 'thumbs_down', 'compass']);
 
 const LOGO_BARS = [
   [90, 196, 44, 120],
@@ -297,10 +298,28 @@ const squareLogo = readFileSync(path.join(repo, 'desktop', 'assets', 'icons', 'm
   'rx="0"',
 );
 const appIconPng = new Resvg(squareLogo, { fitTo: { mode: 'width', value: 1024 } }).render().asPng();
+const logoPng = new Resvg(readFileSync(path.join(repo, 'desktop', 'assets', 'icons', 'musix.svg'), 'utf8'), {
+  fitTo: { mode: 'width', value: 192 },
+})
+  .render()
+  .asPng();
+outputs.set(
+  path.join(assetCatalog, 'Logo.imageset', 'Contents.json'),
+  `${JSON.stringify(
+    {
+      images: [{ filename: 'Logo.png', idiom: 'universal', scale: '3x' }],
+      info: { author: 'xcode', version: 1 },
+      properties: { 'template-rendering-intent': 'original' },
+    },
+    null,
+    2,
+  )}\n`,
+);
 
 let stale = 0;
 const generatedBinaries = [
   [path.join(assetCatalog, 'AppIcon.appiconset', 'AppIcon.png'), Buffer.from(appIconPng)],
+  [path.join(assetCatalog, 'Logo.imageset', 'Logo.png'), Buffer.from(logoPng)],
 ];
 for (const [file, bytes] of generatedBinaries) {
   if (existsSync(file) && readFileSync(file).equals(bytes)) {

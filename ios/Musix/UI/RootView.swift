@@ -1,60 +1,73 @@
 import MusixCore
 import SwiftUI
 
+enum ShellTab: CaseIterable {
+    case home
+    case explore
+    case search
+    case library
+    case settings
+
+    var title: String {
+        switch self {
+        case .home: return "Home"
+        case .explore: return "Explore"
+        case .search: return "Search"
+        case .library: return "Library"
+        case .settings: return "Settings"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .home: return "home"
+        case .explore: return "compass"
+        case .search: return "search"
+        case .library: return "library"
+        case .settings: return "settings"
+        }
+    }
+
+    var route: WebEngine.Route? {
+        switch self {
+        case .home: return .home
+        case .explore: return .explore
+        case .library: return .library
+        case .search, .settings: return nil
+        }
+    }
+}
+
 struct RootView: View {
     @ObservedObject var engine: WebEngine
     @ObservedObject var player: PlayerController
     let library: LibraryService
     @ObservedObject var settings: AppSettings
 
-    @State private var tab: RootTab = .home
+    @State private var tab: ShellTab = .home
     @State private var showPlayer = false
     @State private var showSettings = false
-    @State private var showSearch = false
+    @State private var query = ""
+    @FocusState private var searchFocused: Bool
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        ZStack {
+        VStack(spacing: 0) {
+            topBar
+            EngineStatusBanner(engine: engine)
             EngineHost(engine: engine, role: .background)
-                .frame(width: 1, height: 1)
-                .opacity(0.01)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-            TabView(selection: $tab) {
-                ForEach(RootTab.allCases, id: \.self) { tab in
-                    NavigationStack {
-                        VStack(spacing: 0) {
-                            EngineStatusBanner(engine: engine)
-                            BrowseView(mediaId: MediaIds.tab(tab), library: library, player: player, onSignIn: signIn)
-                        }
-                        .navigationTitle(tab.title)
-                        .navigationDestination(for: LibraryEntry.self) { entry in
-                            FolderView(entry: entry, library: library, player: player, onSignIn: signIn)
-                        }
-                        .toolbar {
-                            ToolbarItem(placement: .navigationBarTrailing) {
-                                IconButton(icon: "search", label: "Search") { showSearch = true }
-                            }
-                            ToolbarItem(placement: .navigationBarTrailing) {
-                                IconButton(icon: "settings", label: "Settings") { showSettings = true }
-                            }
-                        }
-                    }
-                    .safeAreaInset(edge: .bottom) {
-                        MiniPlayer(player: player) { showPlayer = true }
-                    }
-                    .tabItem { Label(tab.title, image: Self.icon(for: tab)) }
-                    .tag(tab)
-                }
-            }
-            .tint(Palette.accent)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black)
+            Rectangle().fill(Palette.border).frame(height: 1)
+            MiniPlayer(player: player) { showPlayer = true }
+            Rectangle().fill(Palette.border).frame(height: 1)
+            tabBar
         }
-        .background(Palette.bg.ignoresSafeArea())
+        .background(Palette.surface.ignoresSafeArea())
+        .preferredColorScheme(.dark)
+        .tint(Palette.accent)
         .sheet(isPresented: $showPlayer) {
             NowPlayingView(player: player)
-        }
-        .sheet(isPresented: $showSearch) {
-            SearchView(library: library, player: player, onSignIn: signIn)
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(engine: engine, settings: settings, library: library, onSignIn: signIn)
@@ -73,6 +86,120 @@ struct RootView: View {
         .onChange(of: settings.adSkip) { enabled in
             Task { await player.send(.configure(adSkip: enabled)) }
         }
+    }
+
+    private var topBar: some View {
+        HStack(spacing: DesignTokens.space4) {
+            if tab == .search {
+                HStack(spacing: DesignTokens.space8) {
+                    Icon(name: "search", size: 20).foregroundStyle(Palette.textMuted)
+                    TextField("Search songs, albums, artists", text: $query)
+                        .font(.body(DesignTokens.text16))
+                        .foregroundStyle(Palette.text)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.search)
+                        .focused($searchFocused)
+                        .onSubmit(runSearch)
+                    if !query.isEmpty {
+                        IconButton(icon: "close", label: "Clear search", size: 20) {
+                            query = ""
+                            searchFocused = true
+                        }
+                    }
+                }
+                .padding(.leading, DesignTokens.space12)
+                .frame(height: DesignTokens.controlHeight + 4)
+                .background(Palette.surface2, in: RoundedRectangle(cornerRadius: DesignTokens.radiusCard))
+                .overlay(RoundedRectangle(cornerRadius: DesignTokens.radiusCard).stroke(Palette.border, lineWidth: 1))
+                .padding(.horizontal, DesignTokens.space12)
+            } else {
+                if engine.canNavigateBack {
+                    IconButton(icon: "back", label: "Back") { engine.goBack() }
+                } else {
+                    Image("Logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
+                        .padding(.leading, DesignTokens.space16)
+                        .padding(.trailing, DesignTokens.space8)
+                        .accessibilityHidden(true)
+                }
+                Text("Musix")
+                    .font(.heading(DesignTokens.text20, weight: .bold))
+                    .foregroundStyle(Palette.text)
+                Spacer(minLength: DesignTokens.space8)
+                IconButton(icon: "search", label: "Search") { select(.search) }
+                if engine.account == .signedIn {
+                    IconButton(icon: "user", label: "Account") { showSettings = true }
+                } else {
+                    Button(action: signIn) {
+                        HStack(spacing: DesignTokens.space8) {
+                            Icon(name: "log_in", size: 18)
+                            Text("Sign in").font(.body(DesignTokens.text14, weight: .semibold))
+                        }
+                        .foregroundStyle(Palette.text)
+                        .padding(.horizontal, DesignTokens.space12)
+                        .frame(height: DesignTokens.controlHeight)
+                        .overlay(RoundedRectangle(cornerRadius: DesignTokens.radiusControl).stroke(Palette.border, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, DesignTokens.space8)
+                }
+            }
+        }
+        .frame(height: 60)
+        .background(Palette.surface)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Palette.border).frame(height: 1)
+        }
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(ShellTab.allCases, id: \.self) { item in
+                Button {
+                    select(item)
+                } label: {
+                    VStack(spacing: DesignTokens.space4) {
+                        Icon(name: item.icon, size: 22)
+                        Text(item.title)
+                            .font(.body(DesignTokens.text14, weight: tab == item ? .semibold : .medium))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(tab == item ? Palette.accent : Palette.textMuted)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(item.title)
+                .accessibilityAddTraits(tab == item ? .isSelected : [])
+            }
+        }
+        .padding(.top, DesignTokens.space4)
+        .background(Palette.surface)
+    }
+
+    private func select(_ item: ShellTab) {
+        switch item {
+        case .settings:
+            showSettings = true
+        case .search:
+            tab = .search
+            searchFocused = true
+        case .home, .explore, .library:
+            searchFocused = false
+            tab = item
+            if let route = item.route {
+                Task { await engine.navigate(route) }
+            }
+        }
+    }
+
+    private func runSearch() {
+        let text = query
+        searchFocused = false
+        Task { await engine.search(text) }
     }
 
     private var signInBinding: Binding<Bool> {
@@ -99,17 +226,7 @@ struct RootView: View {
 
     private func signIn() {
         showSettings = false
-        showSearch = false
         engine.presentation = .signIn
-    }
-
-    private static func icon(for tab: RootTab) -> String {
-        switch tab {
-        case .home: return "home"
-        case .library: return "library"
-        case .playlists: return "list_music"
-        case .recent: return "history"
-        }
     }
 }
 

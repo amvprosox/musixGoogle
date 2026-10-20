@@ -7,6 +7,7 @@ struct InjectedScripts {
     let bridge: String
     let scriptlets: String
     let cosmeticCSS: String
+    let skinCSS: String
 
     var cosmeticInstaller: String {
         let literal = Self.jsonString(cosmeticCSS)
@@ -16,11 +17,35 @@ struct InjectedScripts {
             + "add();document.addEventListener('readystatechange',add);document.addEventListener('DOMContentLoaded',add);})();"
     }
 
+    var skinInstaller: String {
+        let literal = Self.jsonString(skinCSS)
+        return "(function(){if(location.hostname!=='music.youtube.com'){return;}var css=\(literal);var id='musix-skin';"
+            + "function viewport(){var head=document.head;if(!head){return;}var meta=document.querySelector('meta[name=viewport]');"
+            + "if(!meta){meta=document.createElement('meta');meta.name='viewport';head.appendChild(meta);}"
+            + "var wanted='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover';"
+            + "if(meta.content!==wanted){meta.content=wanted;}}"
+            + "function add(){viewport();if(document.getElementById(id)){return;}var root=document.head||document.documentElement;"
+            + "if(!root){return;}var style=document.createElement('style');style.id=id;style.textContent=css;root.appendChild(style);}"
+            + "add();document.addEventListener('readystatechange',add);document.addEventListener('DOMContentLoaded',add);"
+            + "new MutationObserver(add).observe(document.documentElement,{childList:true});})();"
+    }
+
+    static func navigation(_ endpoint: [String: Any]) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: endpoint),
+              let json = String(data: data, encoding: .utf8) else {
+            return "return false;"
+        }
+        return "const app = document.querySelector('ytmusic-app'); if (!app) { return false; } "
+            + "app.dispatchEvent(new CustomEvent('yt-navigate', { bubbles: true, composed: true, detail: { endpoint: \(json) } })); "
+            + "window.scrollTo(0, 0); return true;"
+    }
+
     static func load(bundle: Bundle = .main) -> InjectedScripts {
         InjectedScripts(
             bridge: read("ytm-bridge", "js", bundle),
             scriptlets: read("scriptlets", "js", bundle),
-            cosmeticCSS: read("cosmetic", "css", bundle)
+            cosmeticCSS: read("cosmetic", "css", bundle),
+            skinCSS: read("ytm-skin", "css", bundle)
         )
     }
 

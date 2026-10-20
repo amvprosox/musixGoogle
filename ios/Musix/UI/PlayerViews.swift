@@ -6,51 +6,67 @@ struct MiniPlayer: View {
     let onOpen: () -> Void
 
     var body: some View {
-        if let current = player.timeline.current {
-            VStack(spacing: 0) {
-                GeometryReader { proxy in
-                    let duration = current.durationSec ?? 0
-                    let fraction = duration > 0 ? min(1, max(0, player.positionSec / duration)) : 0
-                    ZStack(alignment: .leading) {
-                        Rectangle().fill(Palette.border)
-                        Rectangle().fill(Palette.accent).frame(width: proxy.size.width * fraction)
-                    }
+        let current = player.timeline.current
+        let duration = current?.durationSec ?? 0
+        let fraction = duration > 0 ? min(1, max(0, player.positionSec / duration)) : 0
+        VStack(spacing: 0) {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Rectangle().fill(Palette.surface2)
+                    Rectangle().fill(Palette.accent).frame(width: proxy.size.width * fraction)
                 }
-                .frame(height: 2)
-                HStack(spacing: DesignTokens.space12) {
-                    Button(action: onOpen) {
-                        HStack(spacing: DesignTokens.space12) {
-                            ArtworkView(address: current.artworkUrl, size: 44)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(current.title)
-                                    .font(.body(DesignTokens.text16, weight: .semibold))
-                                    .foregroundStyle(Palette.text)
-                                    .lineLimit(1)
-                                if !current.artist.isEmpty {
-                                    Text(current.artist)
-                                        .font(.body(DesignTokens.text14))
-                                        .foregroundStyle(Palette.textMuted)
-                                        .lineLimit(1)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Open player, \(current.title)")
-                    IconButton(icon: player.state.isPlaying ? "pause_filled" : "play_filled", label: player.state.isPlaying ? "Pause" : "Play") {
-                        player.togglePlay()
-                    }
-                    IconButton(icon: "skip_forward", label: "Next track", enabled: player.availability.next) {
-                        player.next()
-                    }
-                }
-                .padding(.horizontal, DesignTokens.space12)
-                .frame(height: DesignTokens.miniPlayerHeight)
             }
-            .background(Palette.surface)
+            .frame(height: 2)
+            HStack(spacing: DesignTokens.space12) {
+                Button(action: onOpen) {
+                    HStack(spacing: DesignTokens.space12) {
+                        ArtworkView(address: current?.artworkUrl ?? "", size: 48, corner: DesignTokens.radiusCard)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(current?.title ?? "Nothing playing")
+                                .font(.body(DesignTokens.text16, weight: .semibold))
+                                .foregroundStyle(Palette.text)
+                                .lineLimit(1)
+                            Text(subtitle(current))
+                                .font(.body(DesignTokens.text14))
+                                .foregroundStyle(Palette.textMuted)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(current == nil)
+                .accessibilityLabel(current.map { "Open player, \($0.title)" } ?? "Nothing playing")
+                Button {
+                    player.togglePlay()
+                } label: {
+                    Icon(name: player.state.isPlaying ? "pause_filled" : "play_filled", size: 20)
+                        .foregroundStyle(Palette.onAccent)
+                        .frame(width: 44, height: 44)
+                        .background(Palette.accent, in: Circle())
+                        .frame(width: 48, height: 48)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(current == nil)
+                .opacity(current == nil ? 0.6 : 1)
+                .accessibilityLabel(player.state.isPlaying ? "Pause" : "Play")
+                IconButton(icon: "skip_forward", label: "Next track", enabled: current != nil && player.availability.next) {
+                    player.next()
+                }
+            }
+            .padding(.horizontal, DesignTokens.space12)
+            .frame(height: DesignTokens.miniPlayerHeight + 8)
         }
+        .background(Palette.surface)
+    }
+
+    private func subtitle(_ current: TrackSpec?) -> String {
+        guard let current else {
+            return "Pick something to play in YouTube Music"
+        }
+        return current.artist.isEmpty ? " " : current.artist
     }
 }
 

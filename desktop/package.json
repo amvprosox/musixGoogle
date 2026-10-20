@@ -1,7 +1,7 @@
 {
   "name": "musix",
   "productName": "Musix",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Free and open-source YouTube Music desktop player with a built-in ad blocker",
   "desktopName": "musix.desktop",
   "main": "dist/main/index.mjs",
@@ -30,6 +30,7 @@
     "dist:deb": "npm run build && electron-builder --config build/electron-builder.yml --linux deb",
     "dist:appimage": "npm run build && electron-builder --config build/electron-builder.yml --linux AppImage",
     "dist": "npm run build && electron-builder --config build/electron-builder.yml --linux deb AppImage",
+    "ios-skin": "node scripts/ios-skin.mjs",
     "dist:win": "npm run build && electron-builder --config build/electron-builder.yml --win nsis portable"
   },
   "dependencies": {

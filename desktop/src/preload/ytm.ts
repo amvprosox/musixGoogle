@@ -25,10 +25,10 @@ const isYtm = isSameOrigin(location.href, base);
 const TOOLTIP_DELAY = 400;
 const SCROLL_IDLE = tokens.motion.scrollbarFadeOut;
 const TEXT_ACTIONS: MenuAction[] = ['cut', 'copy', 'paste', 'selectAll'];
-const CHEVRON_LEFT =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>';
-const CHEVRON_RIGHT =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>';
+const CHEVRON_LEFT = 'm15 18-6-6 6-6';
+const CHEVRON_RIGHT = 'm9 18 6-6-6-6';
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const DRAG_THRESHOLD = 10;
 
 function sendDesktop(event: DesktopViewEvent): void {
   ipcRenderer.send('ytm:desktop', event);
@@ -232,6 +232,21 @@ function installScrollbars(): void {
   );
 }
 
+function chevron(d: string): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', d);
+  svg.append(path);
+  return svg;
+}
+
 function enhanceShelf(host: Element, scroller: HTMLElement): void {
   if (host.getAttribute('data-musix-shelf') === 'true') {
     return;
@@ -244,7 +259,7 @@ function enhanceShelf(host: Element, scroller: HTMLElement): void {
     button.dataset.dir = dir;
     button.setAttribute('aria-label', dir === 'prev' ? 'Scroll back' : 'Scroll forward');
     button.setAttribute('data-musix-title', dir === 'prev' ? 'Scroll back' : 'Scroll forward');
-    button.innerHTML = dir === 'prev' ? CHEVRON_LEFT : CHEVRON_RIGHT;
+    button.append(chevron(dir === 'prev' ? CHEVRON_LEFT : CHEVRON_RIGHT));
     button.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -355,7 +370,7 @@ function installShelfDrag(): void {
       }
       const dx = event.clientX - active.startX;
       if (!active.moved) {
-        if (Math.abs(dx) < 6) {
+        if (Math.abs(dx) < DRAG_THRESHOLD) {
           return;
         }
         active.moved = true;
@@ -378,10 +393,10 @@ function installShelfDrag(): void {
     if (!active || event.pointerId !== active.pointerId) {
       return;
     }
-    const { scroller, moved } = active;
+    const { scroller, moved, startLeft } = active;
     active = null;
     scroller.classList.remove('musix-dragging');
-    if (!moved) {
+    if (!moved || Math.abs(scroller.scrollLeft - startLeft) < DRAG_THRESHOLD) {
       return;
     }
     suppressClick = true;
