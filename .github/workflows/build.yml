@@ -1,0 +1,79 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: iOS (unsigned IPA for AltStore)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Core unit tests
+        run: swift test --package-path ios/MusixCore
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build for iPhone
+        working-directory: ios
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild \
+            -project Musix.xcodeproj \
+            -scheme Musix \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build | tee build/xcodebuild.log
+
+      - name: Package the IPA
+        working-directory: ios
+        run: |
+          rm -rf Payload Musix-unsigned.ipa
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/Musix.app Payload/
+          zip -qry Musix-unsigned.ipa Payload
+          ls -la Musix-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Musix-iOS-unsigned-ipa
+          path: ios/Musix-unsigned.ipa
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ios-build-log
+          path: ios/build/xcodebuild.log
+          if-no-files-found: ignore

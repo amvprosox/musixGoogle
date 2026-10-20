@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="musix_text_14">14sp</dimen>
+    <dimen name="musix_text_16">16sp</dimen>
+    <dimen name="musix_text_18">18sp</dimen>
+    <dimen name="musix_text_20">20sp</dimen>
+    <dimen name="musix_text_24">24sp</dimen>
+    <dimen name="musix_text_30">30sp</dimen>
+    <dimen name="musix_text_36">36sp</dimen>
+    <dimen name="musix_space_4">4dp</dimen>
+    <dimen name="musix_space_8">8dp</dimen>
+    <dimen name="musix_space_12">12dp</dimen>
+    <dimen name="musix_space_16">16dp</dimen>
+    <dimen name="musix_space_24">24dp</dimen>
+    <dimen name="musix_space_32">32dp</dimen>
+    <dimen name="musix_space_48">48dp</dimen>
+    <dimen name="musix_radius_control">8dp</dimen>
+    <dimen name="musix_radius_card">12dp</dimen>
+    <dimen name="musix_control_height">40dp</dimen>
+    <dimen name="musix_icon_button">40dp</dimen>
+</resources>

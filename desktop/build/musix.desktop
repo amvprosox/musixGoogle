@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Musix
+GenericName=Music Player
+Comment=Listen to YouTube Music with a built-in ad blocker
+Exec=/opt/Musix/musix --ozone-platform-hint=auto %U
+Icon=musix
+StartupWMClass=musix
+StartupNotify=true
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=music;youtube;player;streaming;

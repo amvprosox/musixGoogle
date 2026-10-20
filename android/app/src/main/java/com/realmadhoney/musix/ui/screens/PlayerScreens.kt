@@ -1,0 +1,301 @@
+package com.realmadhoney.musix.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.media3.common.Player
+import com.realmadhoney.musix.R
+import com.realmadhoney.musix.ui.NowPlaying
+import com.realmadhoney.musix.ui.components.Artwork
+import com.realmadhoney.musix.ui.components.IconAction
+import com.realmadhoney.musix.ui.components.MusixIcon
+import com.realmadhoney.musix.ui.components.StateMessage
+import com.realmadhoney.musix.ui.components.formatTime
+import com.realmadhoney.musix.ui.theme.DesignTokens
+import com.realmadhoney.musix.ui.theme.Musix
+
+interface PlayerActions {
+    fun togglePlay()
+
+    fun next()
+
+    fun previous()
+
+    fun seekTo(positionMs: Long)
+
+    fun toggleLike()
+
+    fun toggleShuffle()
+
+    fun cycleRepeat()
+
+    fun retry()
+}
+
+@Composable
+fun MiniPlayer(
+    state: NowPlaying,
+    actions: PlayerActions,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (!state.hasTrack) {
+        return
+    }
+    val colors = Musix.colors
+    val openLabel = stringResource(R.string.action_open_player)
+    Column(modifier = modifier.fillMaxWidth().background(colors.surface)) {
+        val progress = if (state.durationMs > 0) (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f
+        Box(Modifier.fillMaxWidth().height(2.dp).background(colors.border)) {
+            Box(Modifier.fillMaxWidth(progress).height(2.dp).background(colors.accent))
+        }
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(DesignTokens.MiniPlayerHeight)
+                    .clickable(role = Role.Button, onClickLabel = openLabel, onClick = onOpen)
+                    .padding(horizontal = DesignTokens.Space12),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Artwork(state.artworkUri, 44.dp)
+            Spacer(Modifier.width(DesignTokens.Space12))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    state.title.ifEmpty { stringResource(R.string.playing_ad) },
+                    style = MaterialTheme.typography.titleSmall,
+                    color = colors.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (state.artist.isNotEmpty()) {
+                    Text(
+                        state.artist,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            IconAction(
+                if (state.isPlaying) R.drawable.ic_pause_filled else R.drawable.ic_play_filled,
+                stringResource(if (state.isPlaying) R.string.action_pause else R.string.action_play),
+                actions::togglePlay,
+            )
+            IconAction(R.drawable.ic_skip_forward, stringResource(R.string.action_next), actions::next, enabled = state.canSkip)
+        }
+    }
+}
+
+@Composable
+fun NowPlayingScreen(
+    state: NowPlaying,
+    actions: PlayerActions,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = Musix.colors
+    Column(modifier = modifier.fillMaxSize().background(colors.bg)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space4, vertical = DesignTokens.Space8),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconAction(R.drawable.ic_collapse, stringResource(R.string.action_collapse_player), onClose)
+        }
+        if (!state.hasTrack) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                StateMessage(
+                    R.drawable.ic_music,
+                    stringResource(R.string.nothing_playing),
+                    state.error ?: stringResource(R.string.nothing_playing_body),
+                    actionLabel = if (state.error != null) stringResource(R.string.action_retry) else null,
+                    onAction = if (state.error != null) actions::retry else null,
+                )
+            }
+            return
+        }
+        BoxWithConstraints(
+            Modifier.fillMaxWidth().weight(1f).padding(horizontal = DesignTokens.Space24),
+            contentAlignment = Alignment.Center,
+        ) {
+            val side = minOf(maxWidth, maxHeight, 420.dp)
+            Artwork(state.artworkUri, side, corner = DesignTokens.RadiusCard)
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space24)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        state.title.ifEmpty { stringResource(R.string.playing_ad) },
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = colors.text,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val subtitle = listOf(state.artist, state.album).filter { it.isNotEmpty() }.joinToString(" • ")
+                    if (subtitle.isNotEmpty()) {
+                        Text(
+                            subtitle,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = colors.textMuted,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                IconAction(
+                    if (state.liked) R.drawable.ic_heart_filled else R.drawable.ic_heart,
+                    stringResource(if (state.liked) R.string.action_unlike else R.string.action_like),
+                    actions::toggleLike,
+                    active = state.liked,
+                    enabled = state.canSeek,
+                )
+            }
+            Spacer(Modifier.height(DesignTokens.Space16))
+            SeekBar(state, actions)
+            Spacer(Modifier.height(DesignTokens.Space8))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconAction(
+                    R.drawable.ic_shuffle,
+                    stringResource(if (state.shuffle) R.string.action_shuffle_on else R.string.action_shuffle_off),
+                    actions::toggleShuffle,
+                    active = state.shuffle,
+                    enabled = state.canSeek,
+                )
+                IconAction(
+                    R.drawable.ic_skip_back,
+                    stringResource(R.string.action_previous),
+                    actions::previous,
+                    enabled = state.canSkip,
+                    iconSize = 28.dp,
+                )
+                val playLabel = stringResource(if (state.isPlaying) R.string.action_pause else R.string.action_play)
+                Box(
+                    modifier =
+                        Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(colors.accent)
+                            .clickable(role = Role.Button, onClick = actions::togglePlay)
+                            .semantics { contentDescription = playLabel },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    MusixIcon(
+                        if (state.isPlaying) R.drawable.ic_pause_filled else R.drawable.ic_play_filled,
+                        null,
+                        tint = colors.onAccent,
+                        size = 32.dp,
+                    )
+                }
+                IconAction(
+                    R.drawable.ic_skip_forward,
+                    stringResource(R.string.action_next),
+                    actions::next,
+                    enabled = state.canSkip,
+                    iconSize = 28.dp,
+                )
+                val repeatLabel =
+                    stringResource(
+                        when (state.repeatMode) {
+                            Player.REPEAT_MODE_ALL -> R.string.action_repeat_all
+                            Player.REPEAT_MODE_ONE -> R.string.action_repeat_one
+                            else -> R.string.action_repeat_off
+                        },
+                    )
+                IconAction(
+                    if (state.repeatMode == Player.REPEAT_MODE_ONE) R.drawable.ic_repeat_one else R.drawable.ic_repeat,
+                    repeatLabel,
+                    actions::cycleRepeat,
+                    active = state.repeatMode != Player.REPEAT_MODE_OFF,
+                    enabled = state.canSeek,
+                )
+            }
+            Spacer(Modifier.height(DesignTokens.Space32))
+        }
+    }
+}
+
+@Composable
+private fun SeekBar(
+    state: NowPlaying,
+    actions: PlayerActions,
+) {
+    val colors = Musix.colors
+    var dragging by remember { mutableStateOf<Float?>(null) }
+    val duration = state.durationMs.coerceAtLeast(1L)
+    val fraction = dragging ?: (state.positionMs.toFloat() / duration).coerceIn(0f, 1f)
+    val shownPosition = if (dragging != null) (fraction * duration).toLong() else state.positionMs
+    Slider(
+        value = fraction,
+        onValueChange = { dragging = it },
+        onValueChangeFinished = {
+            val target = dragging
+            dragging = null
+            if (target != null) {
+                actions.seekTo((target * duration).toLong())
+            }
+        },
+        enabled = state.canSeek && state.durationMs > 0,
+        colors =
+            SliderDefaults.colors(
+                thumbColor = colors.accent,
+                activeTrackColor = colors.accent,
+                inactiveTrackColor = colors.border,
+            ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics { stateDescription = "${formatTime(shownPosition)} of ${formatTime(state.durationMs)}" },
+    )
+    Row(Modifier.fillMaxWidth()) {
+        Text(
+            formatTime(shownPosition),
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textMuted,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            if (state.durationMs > 0) formatTime(state.durationMs) else "",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textMuted,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}

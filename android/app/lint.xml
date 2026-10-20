@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <issue id="UnusedResources">
+        <ignore path="src/main/res/values/colors_tokens.xml" />
+        <ignore path="src/main/res/values-night/colors_tokens.xml" />
+        <ignore path="src/main/res/values/dimens_tokens.xml" />
+    </issue>
+</lint>

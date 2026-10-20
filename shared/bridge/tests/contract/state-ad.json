@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "type": "state",
+  "state": {
+    "videoId": "",
+    "playlistId": "",
+    "title": "",
+    "artist": "",
+    "album": "",
+    "artworkUrl": "",
+    "durationSec": 0,
+    "positionSec": 0,
+    "bufferedSec": 0,
+    "isPlaying": true,
+    "isBuffering": false,
+    "volume": 1,
+    "isMuted": false,
+    "likeStatus": "INDIFFERENT",
+    "shuffle": false,
+    "repeatMode": "NONE",
+    "isAd": true,
+    "isSignedIn": false
+  }
+}

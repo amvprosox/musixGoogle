@@ -1,0 +1,456 @@
+{
+  "v": 1,
+  "type": "queue",
+  "items": [
+    {
+      "index": 0,
+      "videoId": "lYBUbBu4W08",
+      "title": "Never Gonna Give You Up",
+      "artist": "Rick Astley • Whenever You Need Somebody • 1987",
+      "artworkUrl": "https://yt3.googleusercontent.com/eC9DfRcYSk4FE-fvDCJSu_4xsKdVMKxwmFTYFZwP8OqB7R4TKxAjKoR-Kp1lXeRi2WddPFYulSte4eW-=w544-h544-l90-rj",
+      "durationSec": 214,
+      "isCurrent": true
+    },
+    {
+      "index": 1,
+      "videoId": "i_Q88T1HI_w",
+      "title": "Together Forever",
+      "artist": "Rick Astley • Whenever You Need Somebody • 1987",
+      "artworkUrl": "https://yt3.googleusercontent.com/eC9DfRcYSk4FE-fvDCJSu_4xsKdVMKxwmFTYFZwP8OqB7R4TKxAjKoR-Kp1lXeRi2WddPFYulSte4eW-=w544-h544-l90-rj",
+      "durationSec": 206,
+      "isCurrent": false
+    },
+    {
+      "index": 2,
+      "videoId": "HzdD8kbDzZA",
+      "title": "Take on Me",
+      "artist": "a-ha • Hunting High and Low • 1985",
+      "artworkUrl": "https://yt3.googleusercontent.com/8YZqnYRc52GUz0iyQTRZvzh8RSbCNTTC0NSrpRlKf8UfSyu87K7ziegM8aFfAyMgUXBisxT_weHb4pFE=w544-h544-l90-rj",
+      "durationSec": 226,
+      "isCurrent": false
+    },
+    {
+      "index": 3,
+      "videoId": "Kr4EQDVETuA",
+      "title": "Billie Jean",
+      "artist": "Michael Jackson • Thriller • 1982",
+      "artworkUrl": "https://yt3.googleusercontent.com/URvHCfI2iyGAlAwqqBFeaFhU9DeKk_iuX40OIIIj8Zp0wIT3BVsJ2JRMwLLbUB9EZS7t7oDlMrI2S3OvGA=w544-h544-l90-rj",
+      "durationSec": 295,
+      "isCurrent": false
+    },
+    {
+      "index": 4,
+      "videoId": "Y1-Qymcppps",
+      "title": "Everybody Wants To Rule The World",
+      "artist": "Tears For Fears • Songs From The Big Chair (Super Deluxe) • 1985",
+      "artworkUrl": "https://yt3.googleusercontent.com/_cIihjoSNsgJRwFfxAvEbkDTYn08-N5z4FYhhC1EkypKbdeGqK9P4s0re4ppApskUQZzvD33_jOneFQ=w544-h544-l90-rj",
+      "durationSec": 252,
+      "isCurrent": false
+    },
+    {
+      "index": 5,
+      "videoId": "c1ZCYY-4lAM",
+      "title": "Cheri Cheri Lady",
+      "artist": "Modern Talking • Let's Talk About Love • 1985",
+      "artworkUrl": "https://yt3.googleusercontent.com/31gQwmEGi5mGGnQf7jRHHl_mqQZPv1ZzlXigLwAWrPJmPIGHvIgXP8Ihh59aXLR7ycOqgf6Kj2XTtz-BnQ=w544-h544-l90-rj",
+      "durationSec": 227,
+      "isCurrent": false
+    },
+    {
+      "index": 6,
+      "videoId": "UZton86SuOg",
+      "title": "Material Girl",
+      "artist": "Madonna • The Immaculate Collection • 1990",
+      "artworkUrl": "https://yt3.googleusercontent.com/N18VzukYhmw_p-jlV1ito411Tbge1NlbJaNY7ukTEKfMRgmO97_OE-DxvDd77SMbtSE4kL-zfRakyTY9qg=w544-h544-l90-rj",
+      "durationSec": 234,
+      "isCurrent": false
+    },
+    {
+      "index": 7,
+      "videoId": "OBM0DO8Xt1c",
+      "title": "September",
+      "artist": "Earth, Wind & Fire • September (sped up + slowed) • 1978",
+      "artworkUrl": "https://yt3.googleusercontent.com/GkV0O58LmxhfcEfgWU35XbHlMiB33jRz9q7WXKxszDJxgg_MuFSNBr-1x0jNWcOU6rzU48rS96O2JFA=w544-h544-l90-rj",
+      "durationSec": 217,
+      "isCurrent": false
+    },
+    {
+      "index": 8,
+      "videoId": "raBobo3GZYA",
+      "title": "Whenever You Need Somebody",
+      "artist": "Rick Astley • Whenever You Need Somebody • 1987",
+      "artworkUrl": "https://yt3.googleusercontent.com/eC9DfRcYSk4FE-fvDCJSu_4xsKdVMKxwmFTYFZwP8OqB7R4TKxAjKoR-Kp1lXeRi2WddPFYulSte4eW-=w544-h544-l90-rj",
+      "durationSec": 234,
+      "isCurrent": false
+    },
+    {
+      "index": 9,
+      "videoId": "-SaUrDhp034",
+      "title": "Every Breath You Take",
+      "artist": "The Police • Synchronicity (Remastered 2003) • 1983",
+      "artworkUrl": "https://yt3.googleusercontent.com/Evml9zWq0msFXoyxZlyF6OLs7Wc9jliiAsSZi8ObmP5i0FJyiTr2-GI-rQDaAD6vDsEaK-28vJJPMQA=w544-h544-l90-rj",
+      "durationSec": 254,
+      "isCurrent": false
+    },
+    {
+      "index": 10,
+      "videoId": "dEOmR6b0IqM",
+      "title": "What Is Love (7\" Mix)",
+      "artist": "Haddaway • The Album • 1993",
+      "artworkUrl": "https://yt3.googleusercontent.com/Lz646ZvyuKh68QemdEz1-ZQFDe1DbGg3qeOLjQkPJjfWu9mikzqaA2M_CTYZFsQO8iVTBLzgiliDu7P2=w544-h544-l90-rj",
+      "durationSec": 271,
+      "isCurrent": false
+    },
+    {
+      "index": 11,
+      "videoId": "SZ_I0KZvezw",
+      "title": "Nothing's Gonna Stop Us Now",
+      "artist": "Starship • No Protection • 1987",
+      "artworkUrl": "https://yt3.googleusercontent.com/U0lxzJAMq69GrleMbzYiRFCyIaCKb9wVJQ5wL0LWDWaWXDpwJCmbdeIgBl5gfUgLSh13dwaAq0H86VoW=w544-h544-l90-rj",
+      "durationSec": 271,
+      "isCurrent": false
+    },
+    {
+      "index": 12,
+      "videoId": "LbJtwIMLeRc",
+      "title": "She Wants to Dance with Me",
+      "artist": "Rick Astley • Hold Me in Your Arms • 1988",
+      "artworkUrl": "https://yt3.googleusercontent.com/4FS5992ARiI40XJhH3F4-ximRbQ87gQEuZWvoaJdkjubCdaehwz0Zhg_Wh8_d83092wvyQqPho_A25qX-w=w544-h544-l90-rj",
+      "durationSec": 197,
+      "isCurrent": false
+    },
+    {
+      "index": 13,
+      "videoId": "4RKzNniUTQU",
+      "title": "You Got It All",
+      "artist": "The Jets • The Jets • 1985",
+      "artworkUrl": "https://yt3.googleusercontent.com/PRcXwNoEAEGgV7wQuef5eFzRYRrWkSV6kWaajBxlNXOH6x201V5JfyqEtJ6Df_0Boaw50JB5YHCPSnQ=w544-h544-l90-rj",
+      "durationSec": 251,
+      "isCurrent": false
+    },
+    {
+      "index": 14,
+      "videoId": "gvLMhpzYic0",
+      "title": "Girls Just Want to Have Fun",
+      "artist": "Cyndi Lauper • She's So Unusual • 1983",
+      "artworkUrl": "https://yt3.googleusercontent.com/N-U7_cNgPu9DCTWNP9HfqFbtmw1nQzbeIgWq7swQMNgqmjvj1GvpKBf-Um8tu9k5iA8LXHgDtiIoLe-j=w544-h544-l90-rj",
+      "durationSec": 239,
+      "isCurrent": false
+    },
+    {
+      "index": 15,
+      "videoId": "6GCNUeTFSbA",
+      "title": "Maniac",
+      "artist": "Michael Sembello • Flashdance • 1983",
+      "artworkUrl": "https://yt3.googleusercontent.com/3RHbLQp3270hlrgyttsjfcqxxhfb-pdSSfnkcHdXuNfD31iwLbu8o-4q2R-eC2u6_EfhpSMRv9nmN4mh=w544-h544-l90-rj",
+      "durationSec": 245,
+      "isCurrent": false
+    },
+    {
+      "index": 16,
+      "videoId": "dAPNM3-LyKY",
+      "title": "I Don't Want to Lose Her",
+      "artist": "Rick Astley • Hold Me in Your Arms • 1988",
+      "artworkUrl": "https://yt3.googleusercontent.com/4FS5992ARiI40XJhH3F4-ximRbQ87gQEuZWvoaJdkjubCdaehwz0Zhg_Wh8_d83092wvyQqPho_A25qX-w=w544-h544-l90-rj",
+      "durationSec": 214,
+      "isCurrent": false
+    },
+    {
+      "index": 17,
+      "videoId": "9OUurVdRGsc",
+      "title": "Forever Young",
+      "artist": "Alphaville • Forever Young (Super Deluxe Edition; 2019 Remaster) • 1984",
+      "artworkUrl": "https://yt3.googleusercontent.com/HEzEItN1YX2pm4ubdKidbyuH_dZVovn7Go-MtSvN8-3_lHc59QBTaELNJjDjY-c2fEvrU4048ZI_loqu=w544-h544-l90-rj",
+      "durationSec": 226,
+      "isCurrent": false
+    },
+    {
+      "index": 18,
+      "videoId": "Ucmo6hDZRSY",
+      "title": "Self Control",
+      "artist": "Laura Branigan • Self Control • 1984",
+      "artworkUrl": "https://yt3.googleusercontent.com/97oA6pOe0ROO08afj2Ci_kjb2z-bQ-V5GDK3FPryIRbVLBoKXHJTBMWUClaU6Vm4KcWPLkO8JisLvymrWg=w544-h544-l90-rj",
+      "durationSec": 247,
+      "isCurrent": false
+    },
+    {
+      "index": 19,
+      "videoId": "s_-QRNVbNM8",
+      "title": "Every Time You Go Away (Single Version)",
+      "artist": "Paul Young • The Secret Of Association • 1985",
+      "artworkUrl": "https://yt3.googleusercontent.com/D5gKKRsX25xH1klQ0ZlnqNQh2o6G1OWve1lIdy6e-gZQoPvqAXaztAnxK7nMnLwCyYcJSfx_ay-wuPph=w544-h544-l90-rj",
+      "durationSec": 258,
+      "isCurrent": false
+    },
+    {
+      "index": 20,
+      "videoId": "OFMthc9YkOw",
+      "title": "Take Me to Your Heart",
+      "artist": "Rick Astley • Hold Me in Your Arms • 1988",
+      "artworkUrl": "https://yt3.googleusercontent.com/4FS5992ARiI40XJhH3F4-ximRbQ87gQEuZWvoaJdkjubCdaehwz0Zhg_Wh8_d83092wvyQqPho_A25qX-w=w544-h544-l90-rj",
+      "durationSec": 210,
+      "isCurrent": false
+    },
+    {
+      "index": 21,
+      "videoId": "YkLLcIKhJ64",
+      "title": "Dancing Queen",
+      "artist": "ABBA • Arrival • 1976",
+      "artworkUrl": "https://yt3.googleusercontent.com/uwZJDAz4hZnM_CYZS3Lgcibm1UFShAVDQqqCN4wZytyZAbFPqk-bB4MvIahp4Egszu0ulGncj459bB0b=w544-h544-l90-rj",
+      "durationSec": 231,
+      "isCurrent": false
+    },
+    {
+      "index": 22,
+      "videoId": "z2qoihbzc3E",
+      "title": "Stayin Alive",
+      "artist": "Bee Gees • The Ultimate Bee Gees • 2009",
+      "artworkUrl": "https://yt3.googleusercontent.com/oB_Qkdo3-SX6vLVS1hyCKw87WNA9UbU7-BtFSPl3BYjeWY9KRmbOvulllXbp6tAMwF22QRnye1ITT092KA=w544-h544-l90-rj",
+      "durationSec": 284,
+      "isCurrent": false
+    },
+    {
+      "index": 23,
+      "videoId": "1eQWdpWjXlk",
+      "title": "Glory of Love",
+      "artist": "Peter Cetera • Solitude / Solitaire • 1986",
+      "artworkUrl": "https://yt3.googleusercontent.com/1znQESmysh9E0xJYTs-D0Tc2eJ-jLWcEaS7ykiF23GwIXWCF9UKrm5SH3Hsol-iysJwv9XydfGDkdqzL=w544-h544-l90-rj",
+      "durationSec": 259,
+      "isCurrent": false
+    },
+    {
+      "index": 24,
+      "videoId": "7PWsIld-QoU",
+      "title": "Danger Zone (From \"Top Gun\" Original Soundtrack)",
+      "artist": "Kenny Loggins • TOP GUN/SOUNDTRACK • 1986",
+      "artworkUrl": "https://yt3.googleusercontent.com/ma7NNwzNMhR9Z69iI53CLLujrqxOK7Ha1qcsRM41GIwNMojTtLYSlBDhNpQABs8vNDaoYXKBRassktecxw=w544-h544-l90-rj",
+      "durationSec": 212,
+      "isCurrent": false
+    },
+    {
+      "index": 25,
+      "videoId": "x_XS5q0EUQs",
+      "title": "Another Day in Paradise",
+      "artist": "Phil Collins • ...But Seriously • 1989",
+      "artworkUrl": "https://yt3.googleusercontent.com/bkxOMITkIh_wKpKM58b52_xO0-upGLCtC_HlBSHijNx6JO7QxMLUcFX3zhVGRkbi10uu2vatkL9hJtjJ=w544-h544-l90-rj",
+      "durationSec": 324,
+      "isCurrent": false
+    },
+    {
+      "index": 26,
+      "videoId": "J7dPCeE_uis",
+      "title": "Tarzan Boy",
+      "artist": "Baltimora • ITALIAN HITS • 2021",
+      "artworkUrl": "https://yt3.googleusercontent.com/dnRO1Dewj505jEM2_HhmPV9kRuGLyK7t4REk7eUIQzX22EkMOqyFTU2xr-bCs5ngGl-mX9pM_UnbdrzB=w544-h544-l90-rj",
+      "durationSec": 205,
+      "isCurrent": false
+    },
+    {
+      "index": 27,
+      "videoId": "6xzN8Nt0Pok",
+      "title": "I Wanna Dance with Somebody (Who Loves Me)",
+      "artist": "Whitney Houston • Whitney • 1987",
+      "artworkUrl": "https://yt3.googleusercontent.com/bu3-T2ZQxF8fLFpfq5mm6Bs5oeI5l2CNIe9UkoRQzNpd6wNjTTgu1FrUFZF9PbcZRrykJLeQlhhSdSxv=w544-h544-l90-rj",
+      "durationSec": 292,
+      "isCurrent": false
+    },
+    {
+      "index": 28,
+      "videoId": "-AkxUirASIQ",
+      "title": "Give It Up (7\" Version)",
+      "artist": "KC & The Sunshine Band • All In a Night's Work (Expanded Version) • 1982",
+      "artworkUrl": "https://yt3.googleusercontent.com/qR274Q7QSagopnx5CFzR_-__mifxqKGDKZVA5oMukLwXyfRjxiJUTHhoYcdgFzMrI8aaejKiDxEoWakz=w544-h544-l90-rj",
+      "durationSec": 246,
+      "isCurrent": false
+    },
+    {
+      "index": 29,
+      "videoId": "wnKc4zi0MLA",
+      "title": "Super Freak",
+      "artist": "Rick James • Street Songs (Expanded Edition) • 1981",
+      "artworkUrl": "https://yt3.googleusercontent.com/h9I-1k85uJQHQM6-6orv3Bng0qGaGqNc7w16qOOFT9eHOsRen6Tf0kMCwLRGkq6cVUf1wYRDq0Qlcq-GBQ=w544-h544-l90-rj",
+      "durationSec": 205,
+      "isCurrent": false
+    },
+    {
+      "index": 30,
+      "videoId": "A4MrL7ncX9M",
+      "title": "Heart Of Glass (Single Version / Remastered)",
+      "artist": "Blondie • Heart Of Glass • 1979",
+      "artworkUrl": "https://yt3.googleusercontent.com/66mo79XGh6xczE-N3neDx8SErqQ7wRMA5g0HHXjyquzb_qDLT_DMInR-ava5pxebZ_d-kIQqT4LGfy9oPA=w544-h544-l90-rj",
+      "durationSec": 253,
+      "isCurrent": false
+    },
+    {
+      "index": 31,
+      "videoId": "sNEwl_XFzNI",
+      "title": "Boys Do Fall In Love",
+      "artist": "Robin Gibb • Secret Agent • 1984",
+      "artworkUrl": "https://yt3.googleusercontent.com/A8WEb29eVOBkkDPtJkeMph0vtViPeoP85-7djCQrcmCH2heWOTakDHe2uVoq3Xp_qYR8lBOAST60ivaO=w544-h544-l90-rj",
+      "durationSec": 228,
+      "isCurrent": false
+    },
+    {
+      "index": 32,
+      "videoId": "nh6PN50tlRg",
+      "title": "Square Rooms (Radio Mix)",
+      "artist": "Al Corley • Square Rooms (Radio Mix) • 2020",
+      "artworkUrl": "https://yt3.googleusercontent.com/JRVhcKi7NWviaYz-arqglwA9uvlCHnZ4180KEeLXzOwHlVtvpOxUuil1YSqTscxvI3OI3E8YkIn3aV0q=w544-h544-l90-rj",
+      "durationSec": 218,
+      "isCurrent": false
+    },
+    {
+      "index": 33,
+      "videoId": "8Va1IendJsA",
+      "title": "Heaven Is a Place on Earth",
+      "artist": "Belinda Carlisle • Heaven on Earth (Deluxe Edition) • 1987",
+      "artworkUrl": "https://yt3.googleusercontent.com/tOcvMIhJ-ZjeUpfGaru-RGrU3a3g1YDO3hUoSdetYX5n0Dz5TOiltliSLhPFGE96EDBEsiVPbiPbk3oX=w544-h544-l90-rj",
+      "durationSec": 248,
+      "isCurrent": false
+    },
+    {
+      "index": 34,
+      "videoId": "_T7Mb3hj1Ls",
+      "title": "Take My Breath Away (Love Theme from \"Top Gun\")",
+      "artist": "Berlin • TOP GUN/SOUNDTRACK • 1986",
+      "artworkUrl": "https://yt3.googleusercontent.com/ma7NNwzNMhR9Z69iI53CLLujrqxOK7Ha1qcsRM41GIwNMojTtLYSlBDhNpQABs8vNDaoYXKBRassktecxw=w544-h544-l90-rj",
+      "durationSec": 252,
+      "isCurrent": false
+    },
+    {
+      "index": 35,
+      "videoId": "i5_asj1BGFs",
+      "title": "Sweet Dreams (Are Made of This)",
+      "artist": "Eurythmics • Sweet Dreams (Are Made Of This) • 1983",
+      "artworkUrl": "https://yt3.googleusercontent.com/6OEV1ScmH99GPkUTHNbjDkdsuQOJGciJwyXbvOR7Nhi3aAyBNfX4G196wOp_k-bkBskfZiRk-JLoQJj9TA=w544-h544-l90-rj",
+      "durationSec": 218,
+      "isCurrent": false
+    },
+    {
+      "index": 36,
+      "videoId": "wyXNQiRCfRg",
+      "title": "I Just Called To Say I Love You",
+      "artist": "Stevie Wonder • Selections From The Original Soundtrack The Woman In Red • 1984",
+      "artworkUrl": "https://yt3.googleusercontent.com/KqBgk_LZGVXrrdtjoclrqfJqHkPN5XJ_ANqUjcK3g_0XhDHb0qJhTJbm8PvUs_9Osum_mgN6_jFoAd08=w544-h544-l90-rj",
+      "durationSec": 377,
+      "isCurrent": false
+    },
+    {
+      "index": 37,
+      "videoId": "xuHwv07G3qE",
+      "title": "Flashdance... What a Feeling (Radio Mix)",
+      "artist": "Irene Cara • What a Feelin' • 1983",
+      "artworkUrl": "https://yt3.googleusercontent.com/LEr0T5bwVTl8bwyEshFCc7lVYrlVj8RH7QrFIFbVEFHlXUhGWx-0nWhbZlKjrbCHCTBcWYpuhmzc3YVf=w544-h544-l90-rj",
+      "durationSec": 238,
+      "isCurrent": false
+    },
+    {
+      "index": 38,
+      "videoId": "IL5TvxJqRBU",
+      "title": "Don't You (Forget About Me) [2001 Remastered Version]",
+      "artist": "Simple Minds • Driving • 2008",
+      "artworkUrl": "https://yt3.googleusercontent.com/pVnwnKSQfBKDCq6OUsZWcYxgf8096p1wQU7EzXBcF7QGRmhPn7o5PxFa8xfaaqD_tqoH6WW0MRJ8CDzi=w544-h544-l90-rj",
+      "durationSec": 261,
+      "isCurrent": false
+    },
+    {
+      "index": 39,
+      "videoId": "pWTUc_nZKG8",
+      "title": "State Of The Nation",
+      "artist": "Industry • Lost Hits Of The 80's (Vol. 2) • 2012",
+      "artworkUrl": "https://yt3.googleusercontent.com/rIwvyheV59wXndLwHlz6ZFyzRRNMierTEgj0eiy36HbqrLrHZH0kxISCgEyJdbkm0FGzKGL0wQwVkF0EtA=w544-h544-l90-rj",
+      "durationSec": 275,
+      "isCurrent": false
+    },
+    {
+      "index": 40,
+      "videoId": "2wf-MNzSbpA",
+      "title": "(I Just) Died In Your Arms",
+      "artist": "Cutting Crew • Broadcast • 1986",
+      "artworkUrl": "https://yt3.googleusercontent.com/xVk_y8e7_tCdPuTqlbhawo5_9h6IaRQJX7TTW_-G-ycd6N6iMHwkzPPD-JlKXmNIhrnD7Sq7f7v5PCJk=w544-h544-l90-rj",
+      "durationSec": 281,
+      "isCurrent": false
+    },
+    {
+      "index": 41,
+      "videoId": "MtHV9ti4W34",
+      "title": "When Doves Cry (2015 Paisley Park Remaster)",
+      "artist": "Prince & The Revolution • Purple Rain (Deluxe Expanded Edition) • 1984",
+      "artworkUrl": "https://yt3.googleusercontent.com/SCE6YCgDRJAR6zbrwj3Mpv_1uLtAOEiKuE3JL3zB8-7Wua0lFnksBdUrzWjgg9e-xjtRHx3gp0WXrwmO=w544-h544-l90-rj",
+      "durationSec": 354,
+      "isCurrent": false
+    },
+    {
+      "index": 42,
+      "videoId": "T3FG_YQOW5k",
+      "title": "The Way You Make Me Feel",
+      "artist": "Michael Jackson • HIStory: PAST, PRESENT AND FUTURE, BOOK I • 1995",
+      "artworkUrl": "https://yt3.googleusercontent.com/R7pwf7-lcPvK3dxv8jMkUd4SlbVmrM-nZOFEJqnHGLQFBl4lqj1gyeWSFO5X9HZxgUhTh4KM8n0l7j_k=w544-h544-l90-rj",
+      "durationSec": 298,
+      "isCurrent": false
+    },
+    {
+      "index": 43,
+      "videoId": "ZuX2V76g2lk",
+      "title": "True",
+      "artist": "Spandau Ballet • 80s: Música para Conducir de Noche • 2026",
+      "artworkUrl": "https://yt3.googleusercontent.com/XFfps1pjer7sUY7WHYAQ-PLCjJeG0lui1ec2JsI3BD9o9kYoNuTcnteak_PAPGVK1_EhJGaL7gNHRFA4=w544-h544-l90-rj",
+      "durationSec": 329,
+      "isCurrent": false
+    },
+    {
+      "index": 44,
+      "videoId": "O7CaEWR_Kdk",
+      "title": "Axel F",
+      "artist": "Harold Faltermeyer • Harold F • 1988",
+      "artworkUrl": "https://yt3.googleusercontent.com/0HMsLXMcYxEC0v1ULlVtmXi-N6Go3q07eLkVZ4ZZu7PYL001ypDDlYWagMjU6vnj40GjwCi4RYLLKQNagA=w544-h544-l90-rj",
+      "durationSec": 181,
+      "isCurrent": false
+    },
+    {
+      "index": 45,
+      "videoId": "12fJAnaif34",
+      "title": "I Was Made For Lovin' You",
+      "artist": "Kiss • Dynasty • 1979",
+      "artworkUrl": "https://yt3.googleusercontent.com/ObgPaYLRq5Ls-nLePedPEJtS1dPWm63vTfFZHE5KzpZk48Zk9ktY3fWu6ft8RiSMIc61xQzvZQ_b-UzyHQ=w544-h544-l90-rj",
+      "durationSec": 272,
+      "isCurrent": false
+    },
+    {
+      "index": 46,
+      "videoId": "XzNWRmqibNE",
+      "title": "Smooth Criminal",
+      "artist": "Michael Jackson • Bad (25th Anniversary) • 1987",
+      "artworkUrl": "https://yt3.googleusercontent.com/4IhR8db0ePRchdQgUzYcjxTgjBBn16vYi1bOVgf0Z0-tfjBN62-FSn6wtrxDm4eg-jQh9JVvHPyWUAvs=w544-h544-l90-rj",
+      "durationSec": 258,
+      "isCurrent": false
+    },
+    {
+      "index": 47,
+      "videoId": "EI6tEAPsk8E",
+      "title": "This Time I Know It's for Real",
+      "artist": "Donna Summer • Another Place & Time • 1989",
+      "artworkUrl": "https://yt3.googleusercontent.com/9KMq9MB95dAc3gaW8e7LiqmCZ765gR6O5OdZrFLaA_J5jGJXOsFXmAOVJ7FAnmK30G_obp8iUudPJSQ=w544-h544-l90-rj",
+      "durationSec": 219,
+      "isCurrent": false
+    },
+    {
+      "index": 48,
+      "videoId": "mg2PyuE4Iww",
+      "title": "My Arms Keep Missing You",
+      "artist": "Rick Astley • My Arms Keep Missing You • 2022",
+      "artworkUrl": "https://yt3.googleusercontent.com/xxyDtUF9srsQA0x14cIvCGCRaPlZ8Ynw1JqiX6-z6p-tv8e0n8lT1ZMTJS6YXReyP4Gn1Remhr5K9wzb=w544-h544-l90-rj",
+      "durationSec": 195,
+      "isCurrent": false
+    },
+    {
+      "index": 49,
+      "videoId": "qsfeg7k34c0",
+      "title": "What's Love Got to Do with It",
+      "artist": "Tina Turner • What's Love Got to Do with It? • 1993",
+      "artworkUrl": "https://yt3.googleusercontent.com/ZElAQxru_S__fZPpwu_ZbkO-IwA6qrHSNbj6uPluZpl49tB2-NXWtf4JgEzJhBUJVgBpTUGpAgW4Pyc=w544-h544-l90-rj",
+      "durationSec": 227,
+      "isCurrent": false
+    }
+  ]
+}

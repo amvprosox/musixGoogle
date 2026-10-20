@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_home,@drawable/ic_library,@drawable/ic_list_music,@drawable/ic_history,@drawable/ic_music,@drawable/ic_stat_musix" />

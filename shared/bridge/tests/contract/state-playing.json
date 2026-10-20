@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "type": "state",
+  "state": {
+    "videoId": "lYBUbBu4W08",
+    "playlistId": "RDAMVMlYBUbBu4W08",
+    "title": "Never Gonna Give You Up",
+    "artist": "Rick Astley",
+    "album": "Whenever You Need Somebody",
+    "artworkUrl": "https://lh3.googleusercontent.com/contract=w544-h544-l90-rj",
+    "durationSec": 213,
+    "positionSec": 42.5,
+    "bufferedSec": 60,
+    "isPlaying": true,
+    "isBuffering": false,
+    "volume": 0.8,
+    "isMuted": false,
+    "likeStatus": "LIKE",
+    "shuffle": true,
+    "repeatMode": "ALL",
+    "isAd": false,
+    "isSignedIn": true
+  }
+}

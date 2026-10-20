@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>YouTube Music</title>
+    <style>
+      body {
+        margin: 0;
+        background: #030303;
+        color: #fff;
+        font-family: sans-serif;
+      }
+      ytmusic-app,
+      ytmusic-app-layout,
+      ytmusic-nav-bar,
+      ytmusic-player-bar,
+      ytmusic-player-queue,
+      ytmusic-player-queue-item,
+      ytmusic-like-button-renderer,
+      ytmusic-play-button-renderer,
+      ytmusic-settings-button {
+        display: block;
+      }
+      #content {
+        padding: 24px;
+      }
+      ytmusic-player-bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 64px;
+        background: #212121;
+      }
+      ytmusic-nav-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 64px;
+        background: #111;
+      }
+      #page-title {
+        font-size: 24px;
+      }
+      .shelf {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .shelf div {
+        height: 120px;
+        background: #1d1d1d;
+        border-radius: 8px;
+      }
+      ytmusic-carousel {
+        display: block;
+        width: 100%;
+      }
+      ytmusic-carousel #items {
+        display: flex;
+        gap: 12px;
+        overflow-x: auto;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      ytmusic-carousel #items li {
+        flex: 0 0 180px;
+        height: 120px;
+        background: #2a2a2a;
+        border-radius: 8px;
+      }
+      #tall-content {
+        height: 2400px;
+      }
+      ytmusic-responsive-list-item-renderer {
+        display: flex;
+        gap: 12px;
+        padding: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <ytmusic-app>
+      <ytmusic-app-layout id="layout">
+        <ytmusic-nav-bar>
+          <a class="sign-in-link" href="https://accounts.google.com/ServiceLogin?service=youtube">Sign in</a>
+        </ytmusic-nav-bar>
+        <div id="content">
+          <h1 id="page-title">Home</h1>
+          <p id="page-path"></p>
+          <div class="shelf">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+          </div>
+          <h2 class="shelf-title" title="Fixture shelf tooltip">Fixture shelf</h2>
+          <ytmusic-carousel id="fixture-carousel"><ul id="items"></ul></ytmusic-carousel>
+          <div id="fixture-list"></div>
+          <input id="fixture-input" type="text" value="hello world" />
+          <a id="ext-link" href="https://example.com/">External link</a>
+          <div id="tall-content"></div>
+        </div>
+        <ytmusic-player-page>
+          <ytmusic-player id="player">
+            <div id="movie_player" class="html5-video-player">
+              <video class="html5-main-video" preload="auto"></video>
+              <a class="ytp-title-link" href=""></a>
+              <div class="video-ads ytp-ad-module"></div>
+            </div>
+          </ytmusic-player>
+          <ytmusic-player-queue id="queue"><div id="contents"></div></ytmusic-player-queue>
+        </ytmusic-player-page>
+        <ytmusic-player-bar slot="player-bar" repeat-mode="NONE">
+          <img class="image" src="" alt="" />
+          <div class="content-info-wrapper">
+            <yt-formatted-string class="title"></yt-formatted-string>
+            <yt-formatted-string class="byline"></yt-formatted-string>
+          </div>
+          <span class="time-info">0:00 / 0:00</span>
+          <ytmusic-like-button-renderer id="like-button-renderer" like-status="INDIFFERENT">
+            <div id="button-shape-dislike"><button aria-label="Dislike">Dislike</button></div>
+            <div id="button-shape-like"><button aria-label="Like">Like</button></div>
+          </ytmusic-like-button-renderer>
+          <button class="previous-button">Prev</button>
+          <button id="play-pause-button" class="play-pause-button" title="Play">Play</button>
+          <button class="next-button">Next</button>
+          <button class="repeat" title="Repeat off">Repeat</button>
+          <button class="shuffle" title="Shuffle">Shuffle</button>
+          <button class="volume" title="Mute">Mute</button>
+          <div id="volume-slider" class="volume-slider" aria-valuenow="100"></div>
+        </ytmusic-player-bar>
+      </ytmusic-app-layout>
+    </ytmusic-app>
+    <script src="/fixture.js"></script>
+  </body>
+</html>

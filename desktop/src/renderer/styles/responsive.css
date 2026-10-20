@@ -1,0 +1,152 @@
+.app[data-bp='xl'] {
+  --grid-cols: 4;
+  --queue-w: 360px;
+}
+
+.app[data-bp='lg'] {
+  --grid-cols: 3;
+  --queue-w: 320px;
+}
+
+.app[data-bp='md'] {
+  --grid-cols: 2;
+  --queue-w: 320px;
+}
+
+.app[data-bp='sm'] {
+  --grid-cols: 2;
+  --queue-w: 320px;
+}
+
+.app[data-bp='xs'] {
+  --grid-cols: 1;
+}
+
+.app[data-bp='md'] .span-2,
+.app[data-bp='sm'] .span-2 {
+  grid-column: span 2;
+}
+
+.app[data-bp='xs'] .span-2 {
+  grid-column: span 1;
+}
+
+.hamburger {
+  display: none;
+}
+
+.app[data-bp='sm'] .hamburger {
+  display: inline-flex;
+}
+
+.volume-popover-btn {
+  display: none;
+}
+
+.app[data-bp='sm'] .volume-group {
+  display: none;
+}
+
+.app[data-bp='sm'] .volume-popover-btn {
+  display: inline-flex;
+}
+
+.app[data-bp='sm'] .playerbar-inner {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) auto;
+  gap: var(--sp-12);
+}
+
+.app[data-bp='md'] .playerbar-inner {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+}
+
+.app[data-bp='sm'] .search-hint,
+.app[data-bp='md'] .search-hint {
+  display: none;
+}
+
+.app[data-bp='sm'] .search-input,
+.app[data-bp='md'] .search-input {
+  padding-right: 12px;
+}
+
+.app[data-bp='xs'] .full-player {
+  display: none;
+}
+
+.app[data-bp='xs'] .compact-player {
+  display: block;
+}
+
+.app[data-bp='xs'] .topbar .search-form,
+.app[data-bp='xs'] .topbar .history-group {
+  display: none;
+}
+
+.search-trigger {
+  display: none;
+}
+
+.app[data-bp='xs'] .search-trigger {
+  display: inline-flex;
+}
+
+.app[data-bp='xs'] .topbar-brand {
+  display: flex;
+}
+
+.topbar-brand {
+  display: none;
+  align-items: center;
+  gap: var(--sp-8);
+  min-width: 0;
+  overflow: hidden;
+  flex: 0 1 auto;
+}
+
+.topbar-brand .brand-mark {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+}
+
+.app[data-bp='xs'] .settings-inner,
+.app[data-bp='sm'] .settings-inner {
+  padding: var(--sp-16);
+}
+
+.app[data-bp='xs'] .content-skeleton {
+  padding: var(--sp-16);
+}
+
+.app[data-bp='xs'] .playerbar,
+.app[data-bp='xs'] .bottom-nav {
+  position: relative;
+  z-index: 20;
+}
+
+.app[data-bp='xs'] .stat-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 400px) {
+  .app[data-bp='xs'] .topbar-inner {
+    padding: 0 var(--sp-8);
+    gap: var(--sp-4);
+  }
+
+  .app[data-bp='xs'] .topbar-brand .brand-name,
+  .app[data-bp='xs'] .sign-in-label {
+    display: none;
+  }
+
+  .app[data-bp='xs'] #sign-in-button {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .setting-row {
+    flex-wrap: wrap;
+  }
+}

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="musix_bg">#F5F6FA</color>
+    <color name="musix_surface">#FFFFFF</color>
+    <color name="musix_surface_2">#F0F2F8</color>
+    <color name="musix_surface_hover">#E7EAF3</color>
+    <color name="musix_border">#DDE1EB</color>
+    <color name="musix_text">#111727</color>
+    <color name="musix_text_muted">#525C74</color>
+    <color name="musix_accent">#4F46E5</color>
+    <color name="musix_accent_hover">#4338CA</color>
+    <color name="musix_accent_soft">#EBE9FE</color>
+    <color name="musix_on_accent">#FFFFFF</color>
+    <color name="musix_success">#15803D</color>
+    <color name="musix_warning">#A15C07</color>
+    <color name="musix_danger">#C81E1E</color>
+    <color name="musix_focus_ring">#4F46E5</color>
+    <color name="musix_skeleton">#E6E9F1</color>
+    <color name="musix_scrollbar_thumb">#C3C9D6</color>
+    <color name="musix_scrollbar_thumb_hover">#9AA3B8</color>
+</resources>

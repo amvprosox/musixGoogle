@@ -1,0 +1,20 @@
+{
+  "name": "@musix/bridge",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./contract": "./src/contract.ts",
+    "./validate": "./src/validate.ts",
+    "./dist/ytm-bridge.js": "./dist/ytm-bridge.js"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.3"
+  }
+}

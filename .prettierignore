@@ -1,0 +1,17 @@
+**/dist
+**/release
+**/node_modules
+**/coverage
+**/test-results
+**/playwright-report
+**/tests/.cache
+**/package-lock.json
+desktop/assets/icons
+**/*.md
+android
+ios
+shared/adblock/cache
+shared/design/generated
+desktop/src/renderer/styles/tokens.css
+shared/bridge/tests/fixtures
+shared/bridge/tests/contract

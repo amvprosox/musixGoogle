@@ -1,0 +1,22 @@
+{
+  "name": "@musix/design",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./tokens.json": "./tokens.json",
+    "./tokens": "./src/tokens.ts"
+  },
+  "scripts": {
+    "build": "node scripts/generate.mjs && node scripts/icons.mjs",
+    "check": "node scripts/generate.mjs --check && node scripts/icons.mjs --check",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "icons": "node scripts/icons.mjs"
+  },
+  "devDependencies": {
+    "lucide": "^1.59.0",
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}

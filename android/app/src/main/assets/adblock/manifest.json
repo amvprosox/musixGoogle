@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-19T18:36:09.689Z",
+  "sources": [
+    {
+      "name": "easylist",
+      "url": "https://easylist.to/easylist/easylist.txt"
+    },
+    {
+      "name": "easyprivacy",
+      "url": "https://easylist.to/easylist/easyprivacy.txt"
+    },
+    {
+      "name": "ublock-filters",
+      "url": "https://ublockorigin.github.io/uAssets/filters/filters.txt"
+    },
+    {
+      "name": "ublock-quick-fixes",
+      "url": "https://ublockorigin.github.io/uAssets/filters/quick-fixes.txt"
+    }
+  ],
+  "counts": {
+    "hosts": 98931,
+    "urlRules": 6,
+    "cosmetic": 41,
+    "scriptlets": 16,
+    "webkitRules": 98937
+  },
+  "files": {
+    "hosts.bin": "177520c5c88ca1eda39d8a59728f6ca62aa28a6ec2a4b1db9d159dc8af7745eb",
+    "url-rules.txt": "158abd438c3d174914a5d545aa22abf5e14ea6fa70354e063c784d68909cf096",
+    "cosmetic.css": "a6733beda2ffa838a784d14db191c1010e7344fed95647e30896727f8cdfb696",
+    "scriptlets.js": "6189b7f84b5e2ca3475aef3022c57a3275d88d13822a2135a78b80a0dcefb291",
+    "content-rules.json": "18790494f8f480d70746f7ac50afba43b594d6790554ca33abe00d945445fd23"
+  }
+}

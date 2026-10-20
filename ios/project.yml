@@ -1,0 +1,76 @@
+name: Musix
+options:
+  bundleIdPrefix: com.realmadhoney
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+packages:
+  MusixCore:
+    path: MusixCore
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: "YES"
+    GCC_TREAT_WARNINGS_AS_ERRORS: "YES"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: "YES"
+targets:
+  Musix:
+    type: application
+    platform: iOS
+    sources:
+      - path: Musix
+        excludes:
+          - "Resources/Logo.svg"
+    dependencies:
+      - package: MusixCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.realmadhoney.musix
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: Musix/Musix.entitlements
+    info:
+      path: Musix/Info.plist
+      properties:
+        CFBundleDisplayName: Musix
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIBackgroundModes:
+          - audio
+        UIAppFonts:
+          - Sora.ttf
+          - Manrope.ttf
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            CPTemplateApplicationSceneSessionRoleApplication:
+              - UISceneClassName: CPTemplateApplicationScene
+                UISceneConfigurationName: CarPlay
+                UISceneDelegateClassName: "$(PRODUCT_MODULE_NAME).CarPlaySceneDelegate"
+        INIntentsSupported:
+          - INPlayMediaIntent
+        INSupportedMediaCategories:
+          - INMediaCategoryMusic
+        NSSiriUsageDescription: Ask Siri to play music in Musix.
+        NSUserActivityTypes:
+          - INPlayMediaIntent
+    entitlements:
+      path: Musix/Musix.entitlements
+      properties:
+        com.apple.developer.carplay-audio: true
+        com.apple.developer.siri: true

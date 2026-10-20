@@ -1,0 +1,51 @@
+{
+  "name": "musix",
+  "productName": "Musix",
+  "version": "1.0.0",
+  "description": "Free and open-source YouTube Music desktop player with a built-in ad blocker",
+  "desktopName": "musix.desktop",
+  "main": "dist/main/index.mjs",
+  "type": "module",
+  "license": "MIT",
+  "author": {
+    "name": "Eoin",
+    "email": "eoin@realmadhoney.com"
+  },
+  "homepage": "https://realmadhoney.com",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/build.mjs && node scripts/run-electron.mjs",
+    "build": "node scripts/build.mjs --production",
+    "lint": "eslint . --max-warnings 0 && prettier --check . --ignore-path ../.prettierignore",
+    "format": "prettier --write . --ignore-path ../.prettierignore",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:e2e": "node scripts/build.mjs && playwright test",
+    "test:e2e:virtual": "node scripts/build.mjs && node scripts/e2e-virtual.mjs",
+    "icons": "node scripts/icons.mjs",
+    "licenses": "node scripts/licenses.mjs",
+    "dist:deb": "npm run build && electron-builder --config build/electron-builder.yml --linux deb",
+    "dist:appimage": "npm run build && electron-builder --config build/electron-builder.yml --linux AppImage",
+    "dist": "npm run build && electron-builder --config build/electron-builder.yml --linux deb AppImage"
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "^2.20.1",
+    "dbus-next": "^0.10.2",
+    "electron-store": "^12.0.0",
+    "mpris-service": "^2.1.2"
+  },
+  "devDependencies": {
+    "@fontsource/manrope": "^5.3.0",
+    "@fontsource/sora": "^5.3.0",
+    "@musix/bridge": "1.0.0",
+    "@musix/design": "1.0.0",
+    "@playwright/test": "^1.64.1",
+    "@resvg/resvg-js": "^2.6.2",
+    "electron": "44.9.0",
+    "electron-builder": "^26.15.3",
+    "lucide": "^1.59.0"
+  }
+}

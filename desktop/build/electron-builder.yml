@@ -1,0 +1,73 @@
+appId: com.realmadhoney.musix
+productName: Musix
+copyright: Copyright 2026 Eoin
+artifactName: ${name}-${version}-${arch}.${ext}
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - assets/**/*
+  - package.json
+  - LICENSE
+  - '!dist/**/*.map'
+  - '!**/node_modules/usocket{,/**}'
+  - '!**/node_modules/node-gyp{,/**}'
+  - '!**/node_modules/source-map-support{,/**}/*.md'
+  - '!**/node_modules/**/{test,tests,__tests__,example,examples,docs}{,/**}'
+  - '!**/node_modules/**/*.{md,markdown,ts,map}'
+  - '**/node_modules/**/*.d.ts'
+asar: true
+npmRebuild: false
+nodeGypRebuild: false
+buildDependenciesFromSource: false
+electronLanguages:
+  - en-US
+linux:
+  target:
+    - deb
+    - AppImage
+  category: AudioVideo
+  icon: assets/icons
+  executableName: musix
+  executableArgs:
+    - --ozone-platform-hint=auto
+  synopsis: YouTube Music desktop player with a built-in ad blocker
+  maintainer: Eoin <eoin@realmadhoney.com>
+  vendor: Eoin
+  desktop:
+    entry:
+      Name: Musix
+      GenericName: Music Player
+      Comment: Listen to YouTube Music with a built-in ad blocker
+      Icon: musix
+      StartupWMClass: musix
+      StartupNotify: 'true'
+      Terminal: 'false'
+      Categories: AudioVideo;Audio;Player;
+      Keywords: music;youtube;player;streaming;
+deb:
+  packageName: musix
+  packageCategory: sound
+  priority: optional
+  afterInstall: build/after-install.sh
+  afterRemove: build/after-remove.sh
+  depends:
+    - libgtk-3-0 | libgtk-3-0t64
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0 | libatspi2.0-0t64
+    - libuuid1
+    - libsecret-1-0
+    - libayatana-appindicator3-1 | libappindicator3-1
+    - libasound2 | libasound2t64
+    - libgbm1
+    - libdrm2
+  recommends:
+    - libfuse2 | libfuse2t64
+appImage:
+  artifactName: Musix-${version}-${arch}.AppImage
+  category: AudioVideo

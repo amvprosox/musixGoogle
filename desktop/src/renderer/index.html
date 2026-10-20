@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://*.googleusercontent.com https://*.ggpht.com https://*.ytimg.com; font-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Musix</title>
+    <script src="boot.js"></script>
+    <link rel="stylesheet" href="app.css" />
+    <script src="main.js" defer></script>
+  </head>
+  <body>
+    <div
+      id="app"
+      class="app"
+      data-bp="xl"
+      data-sidebar="expanded"
+      data-queue="docked"
+      data-queue-open="false"
+    >
+      <aside id="sidebar" class="sidebar"></aside>
+      <div class="main">
+        <header id="topbar" class="topbar"></header>
+        <div class="workspace">
+          <main id="content" class="content">
+            <div id="view-host" class="view-host">
+              <img id="view-freeze" class="view-freeze" alt="" hidden />
+              <div id="view-state" class="view-state" data-scroll></div>
+            </div>
+            <section id="settings-page" class="settings-page" data-scroll hidden></section>
+          </main>
+          <aside id="queue-panel" class="queue-panel"></aside>
+        </div>
+      </div>
+      <footer id="playerbar" class="playerbar"></footer>
+      <nav id="bottom-nav" class="bottom-nav"></nav>
+    </div>
+    <div id="backdrop" class="backdrop" data-open="false"></div>
+    <div id="nowplaying" class="sheet" data-open="false" inert></div>
+    <div id="search-overlay" class="search-overlay" hidden></div>
+    <div id="volume-popover" class="popover" hidden></div>
+    <div id="modal-root"></div>
+    <div id="live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    <div id="fatal" hidden></div>
+  </body>
+</html>

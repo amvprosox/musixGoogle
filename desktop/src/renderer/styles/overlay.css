@@ -1,0 +1,205 @@
+@import '@fontsource/manrope/500.css';
+@import '@fontsource/manrope/600.css';
+@import './tokens.css';
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-size: var(--fs-14);
+  line-height: var(--lh-body);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+#root {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: max-content;
+  max-width: 360px;
+}
+
+.tooltip {
+  width: max-content;
+  max-width: 320px;
+  padding: 6px 10px;
+  border-radius: var(--radius-control);
+  background: var(--text);
+  color: var(--bg);
+  font-size: var(--fs-14);
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.toast-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-8);
+  width: 360px;
+  max-width: 360px;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-12);
+  padding: var(--sp-12);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.toast-icon {
+  flex: 0 0 auto;
+  padding-top: 2px;
+}
+
+.toast-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.toast[data-variant='success'] .toast-icon {
+  color: var(--success);
+}
+
+.toast[data-variant='warning'] .toast-icon {
+  color: var(--warning);
+}
+
+.toast[data-variant='error'] .toast-icon {
+  color: var(--danger);
+}
+
+.toast[data-variant='info'] .toast-icon {
+  color: var(--accent);
+}
+
+.toast-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.toast-title {
+  font-weight: 600;
+}
+
+.toast-message {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.toast-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: -8px -8px -8px 0;
+  border: none;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.toast-close:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.toast-close svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.toast-close:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  max-width: 320px;
+  padding: var(--sp-4);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  user-select: none;
+  cursor: default;
+}
+
+.menu-title {
+  padding: var(--sp-8) var(--sp-12);
+  color: var(--text-muted);
+  font-size: var(--fs-14);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--sp-4);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-12);
+  height: var(--control-h);
+  padding: 0 var(--sp-12);
+  border: none;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--fs-14);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-item:hover:not(:disabled),
+.menu-item:focus-visible {
+  background: var(--surface-hover);
+  outline: none;
+}
+
+.menu-item:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.menu-item:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.6;
+}
+
+.menu-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  color: var(--text-muted);
+}
+
+#root[data-layer='menu'] {
+  max-width: 340px;
+}

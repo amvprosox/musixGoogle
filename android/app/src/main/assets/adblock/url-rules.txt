@@ -1,0 +1,6 @@
+youtube.com	/pagead/
+youtube.com	/youtubei/v1/player/ad_break
+youtube.com	/api/stats/ads?
+youtube.com	/get_video?
+youtube.com	/pcs/activeview?
+youtube.com	/set_awesome?
