@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-19T18:36:09.689Z",
+  "generatedAt": "2026-10-20T15:02:15.878Z",
   "sources": [
     {
       "name": "easylist",
@@ -20,17 +20,17 @@
     }
   ],
   "counts": {
-    "hosts": 98931,
+    "hosts": 99214,
     "urlRules": 6,
     "cosmetic": 41,
     "scriptlets": 16,
-    "webkitRules": 98937
+    "webkitRules": 99220
   },
   "files": {
-    "hosts.bin": "177520c5c88ca1eda39d8a59728f6ca62aa28a6ec2a4b1db9d159dc8af7745eb",
+    "hosts.bin": "90963d0cf3225f171fbfab7e743e49e23abccbe9c9c88a6af17b1b810494df8e",
     "url-rules.txt": "158abd438c3d174914a5d545aa22abf5e14ea6fa70354e063c784d68909cf096",
     "cosmetic.css": "a6733beda2ffa838a784d14db191c1010e7344fed95647e30896727f8cdfb696",
     "scriptlets.js": "6189b7f84b5e2ca3475aef3022c57a3275d88d13822a2135a78b80a0dcefb291",
-    "content-rules.json": "18790494f8f480d70746f7ac50afba43b594d6790554ca33abe00d945445fd23"
+    "content-rules.json": "c0671289b52248c13e2e218fc3c2034bbe8b48dfb363686c87db9b6be7d2cb3c"
   }
 }

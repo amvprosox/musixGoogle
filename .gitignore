@@ -23,3 +23,4 @@ desktop/soak-report.json
 .kotlin
 ios/**/.swiftpm
 ios/release
+android/release

@@ -180,7 +180,8 @@
 }
 
 :root[data-window='maximized'],
-:root[data-window='fullscreen'] {
+:root[data-window='fullscreen'],
+:root[data-platform='win32'] {
   --window-radius: 0px;
 }
 

@@ -22,6 +22,10 @@ export function isX11Session(env: NodeJS.ProcessEnv = process.env): boolean {
 }
 
 export function registerMediaKeys(sink: (command: PlayerCommand) => void): void {
+  if (process.platform !== 'linux') {
+    logInfo('shortcuts', 'Media keys are handled by the system media controls');
+    return;
+  }
   if (!isX11Session()) {
     logInfo('shortcuts', 'Wayland session: media keys are routed through MPRIS');
     return;

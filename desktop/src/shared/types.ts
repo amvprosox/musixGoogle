@@ -122,10 +122,17 @@ export interface KeyPayload {
   metaKey: boolean;
 }
 
+export type DesktopPlatform = 'linux' | 'win32' | 'darwin' | 'other';
+
 export interface BootInfo {
   theme: ResolvedTheme;
   themePreference: ThemePreference;
   sidebarCollapsed: boolean;
+  platform: DesktopPlatform;
+}
+
+export function desktopPlatform(value: string): DesktopPlatform {
+  return value === 'linux' || value === 'win32' || value === 'darwin' ? value : 'other';
 }
 
 export interface InitialData {

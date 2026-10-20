@@ -13,6 +13,7 @@ import type {
   WindowChromeState,
   WindowControl,
 } from '../shared/types';
+import { desktopPlatform } from '../shared/types';
 import { appIconPath, paths } from './config';
 import { logError } from './log';
 import type { AppStore } from './store';
@@ -52,7 +53,9 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     theme,
     themePreference: settings.theme,
     sidebarCollapsed: state.sidebarCollapsed,
+    platform: desktopPlatform(process.platform),
   };
+  const windows = process.platform === 'win32';
 
   const win = new BrowserWindow({
     title: APP_NAME,
@@ -63,10 +66,10 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     minHeight: MIN_WINDOW_HEIGHT,
     show: false,
     frame: false,
-    transparent: true,
+    transparent: !windows,
     resizable: true,
     hasShadow: true,
-    backgroundColor: '#00000000',
+    backgroundColor: windows ? THEME_BACKGROUND[theme] : '#00000000',
     icon: appIconPath(512),
     autoHideMenuBar: true,
     webPreferences: {
@@ -174,6 +177,9 @@ export function toggleWindow(win: BrowserWindow): void {
 }
 
 export function readButtonLayout(): Promise<string> {
+  if (process.platform !== 'linux') {
+    return Promise.resolve('');
+  }
   return new Promise((resolve) => {
     execFile(
       'gsettings',

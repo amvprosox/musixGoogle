@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu, nativeTheme, protocol, session } from 'electr
 import {
   ADBLOCK_FIRST_FETCH_TIMEOUT_MS,
   APP_DESKTOP_NAME,
+  APP_ID,
   APP_NAME,
   YTM_PARTITION,
 } from '../shared/constants';
@@ -34,8 +35,13 @@ if (dataOverride) {
   app.setPath('userData', dataOverride);
 }
 
-app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
-app.commandLine.appendSwitch('enable-features', 'WaylandWindowDecorations');
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+  app.commandLine.appendSwitch('enable-features', 'WaylandWindowDecorations');
+}
+if (process.platform === 'win32') {
+  app.setAppUserModelId(APP_ID);
+}
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -71,6 +77,13 @@ function autostartExec(): string[] {
 }
 
 async function applyAutostart(enabled: boolean): Promise<void> {
+  if (process.platform !== 'linux') {
+    if (!app.isPackaged) {
+      return;
+    }
+    app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] });
+    return;
+  }
   const file = autostartFile(APP_DESKTOP_NAME);
   if (enabled) {
     await writeAutostart(
@@ -180,9 +193,12 @@ async function start(): Promise<void> {
     },
     quit: requestQuit,
   });
-  const mpris = new MprisManager(command, () => {
-    showWindow(win);
-  });
+  const mpris =
+    process.platform === 'linux'
+      ? new MprisManager(command, () => {
+          showWindow(win);
+        })
+      : null;
   const notifier = new TrackNotifier(win, ytmSession, () => store.getSettings().notifyOnTrackChange);
 
   disposers.push(
@@ -261,14 +277,14 @@ async function start(): Promise<void> {
             if (lastState && lastState.videoId === state.videoId && lastState.isPlaying) {
               const expected = lastState.currentTimeSec + (now - lastStateAt) / 1000;
               if (Math.abs(state.currentTimeSec - expected) > 2) {
-                mpris.notifySeeked(state.currentTimeSec);
+                mpris?.notifySeeked(state.currentTimeSec);
               }
             }
             lastState = state;
             lastStateAt = now;
             sendToShell(win, 'player:state', state);
             tray.update(state);
-            mpris.update(state);
+            mpris?.update(state);
             notifier.handle(state);
             return;
           }
@@ -344,7 +360,7 @@ async function start(): Promise<void> {
 
   disposers.push(() => {
     unregisterMediaKeys();
-    mpris.dispose();
+    mpris?.dispose();
     notifier.dispose();
     tray.dispose();
     view.dispose();

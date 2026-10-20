@@ -12,7 +12,7 @@ import {
 } from '../shared/channels';
 import { isRecord } from '../shared/guards';
 import { isThemePreference } from '../shared/settings';
-import type { BootInfo } from '../shared/types';
+import { desktopPlatform, type BootInfo } from '../shared/types';
 
 const INVOKE_CHANNELS: readonly ShellInvokeChannel[] = [
   'app:get-initial',
@@ -47,7 +47,7 @@ function parseBoot(argv: readonly string[]): BootInfo | null {
     if (!isRecord(decoded)) {
       return null;
     }
-    const { theme, themePreference, sidebarCollapsed } = decoded;
+    const { theme, themePreference, sidebarCollapsed, platform } = decoded;
     if ((theme !== 'light' && theme !== 'dark') || !isThemePreference(themePreference)) {
       return null;
     }
@@ -55,6 +55,7 @@ function parseBoot(argv: readonly string[]): BootInfo | null {
       theme,
       themePreference,
       sidebarCollapsed: sidebarCollapsed === true,
+      platform: typeof platform === 'string' ? desktopPlatform(platform) : 'other',
     };
   } catch {
     return null;

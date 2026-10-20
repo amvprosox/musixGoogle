@@ -29,7 +29,8 @@
     "licenses": "node scripts/licenses.mjs",
     "dist:deb": "npm run build && electron-builder --config build/electron-builder.yml --linux deb",
     "dist:appimage": "npm run build && electron-builder --config build/electron-builder.yml --linux AppImage",
-    "dist": "npm run build && electron-builder --config build/electron-builder.yml --linux deb AppImage"
+    "dist": "npm run build && electron-builder --config build/electron-builder.yml --linux deb AppImage",
+    "dist:win": "npm run build && electron-builder --config build/electron-builder.yml --win nsis portable"
   },
   "dependencies": {
     "@ghostery/adblocker-electron": "^2.20.1",

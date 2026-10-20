@@ -71,3 +71,26 @@ deb:
 appImage:
   artifactName: Musix-${version}-${arch}.AppImage
   category: AudioVideo
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: assets/icons/musix.ico
+  executableName: Musix
+  publisherName: Eoin
+nsis:
+  artifactName: Musix-Setup-${version}.${ext}
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Musix
+  installerIcon: assets/icons/musix.ico
+  uninstallerIcon: assets/icons/musix.ico
+  uninstallDisplayName: Musix
+  deleteAppDataOnUninstall: false
+portable:
+  artifactName: Musix-Portable-${version}.${ext}
