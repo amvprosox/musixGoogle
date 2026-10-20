@@ -23,7 +23,7 @@ final class PlayMediaIntentHandler: NSObject, INPlayMediaIntentHandling {
             )
             return INPlayMediaMediaItemResolutionResult.successes(with: [item])
         }
-        let library = await model.library
+        let library = model.library
         guard let entry = await library.firstPlayable(matching: query) else {
             return [INPlayMediaMediaItemResolutionResult.unsupported()]
         }
@@ -39,7 +39,7 @@ final class PlayMediaIntentHandler: NSObject, INPlayMediaIntentHandling {
     }
 
     func handle(intent: INPlayMediaIntent) async -> INPlayMediaIntentResponse {
-        let player = await model.player
+        let player = model.player
         guard let identifier = intent.mediaItems?.first?.identifier else {
             let resumed = await player.resumeLastSession()
             return INPlayMediaIntentResponse(code: resumed ? .success : .failure, userActivity: nil)
