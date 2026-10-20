@@ -12,7 +12,7 @@ import {
   writeAutostart,
 } from '../../src/main/autostart';
 
-describe('autostart desktop entry', () => {
+describe.skipIf(process.platform !== 'linux')('autostart desktop entry', () => {
   it('quotes exec arguments per the desktop entry spec', () => {
     expect(quoteExecArg('/opt/Musix/musix')).toBe('/opt/Musix/musix');
     expect(quoteExecArg('/home/me/My Apps/Musix.AppImage')).toBe('"/home/me/My Apps/Musix.AppImage"');
