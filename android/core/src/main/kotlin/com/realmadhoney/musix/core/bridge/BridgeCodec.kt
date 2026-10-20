@@ -145,6 +145,18 @@ object BridgeCodec {
                 }
             }
 
+            is BridgeCommand.PlaylistTargets -> {
+                if (isValidVideoId(command.videoId)) null else "invalid video id"
+            }
+
+            is BridgeCommand.AddToPlaylist -> {
+                if (isValidVideoId(command.videoId) && isValidPlaylistId(command.playlistId)) null else "invalid playlist target"
+            }
+
+            is BridgeCommand.SavePlaylist -> {
+                if (isValidPlaylistId(command.playlistId)) null else "invalid playlist id"
+            }
+
             is BridgeCommand.Play,
             is BridgeCommand.Pause,
             is BridgeCommand.TogglePlay,

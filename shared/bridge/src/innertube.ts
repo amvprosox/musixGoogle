@@ -1,4 +1,11 @@
-export type InnertubeEndpoint = 'browse' | 'search' | 'next';
+export type InnertubeEndpoint =
+  | 'browse'
+  | 'search'
+  | 'next'
+  | 'playlist/get_add_to_playlist'
+  | 'browse/edit_playlist'
+  | 'like/like'
+  | 'like/removelike';
 
 export interface PageConfig {
   context: unknown;

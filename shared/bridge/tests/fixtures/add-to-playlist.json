@@ -1,0 +1,33 @@
+{
+  "responseContext": { "serviceTrackingParams": [] },
+  "contents": [
+    {
+      "addToPlaylistRenderer": {
+        "playlists": [
+          {
+            "playlistAddToOptionRenderer": {
+              "playlistId": "PLroadTrip001",
+              "title": { "simpleText": "Road trip" },
+              "containsSelectedVideos": "NONE",
+              "privacy": "PRIVATE"
+            }
+          },
+          {
+            "playlistAddToOptionRenderer": {
+              "playlistId": "PLfocusMix002",
+              "title": { "runs": [{ "text": "Focus mix" }] },
+              "containsSelectedVideos": "ALL",
+              "privacy": "PUBLIC"
+            }
+          },
+          {
+            "playlistAddToOptionRenderer": {
+              "playlistId": "bad id",
+              "title": { "simpleText": "Broken" }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

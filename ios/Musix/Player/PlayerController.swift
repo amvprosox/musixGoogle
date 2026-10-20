@@ -5,6 +5,10 @@ import MediaPlayer
 import MusixCore
 import UIKit
 
+struct PlaylistError: Error, Equatable {
+    let message: String
+}
+
 @MainActor
 final class PlayerController: ObservableObject {
     @Published private(set) var state: BridgeState = .empty
@@ -135,6 +139,42 @@ final class PlayerController: ObservableObject {
         let result = await engine.restore(snapshot, play: true)
         report(result)
         return result == .acknowledged
+    }
+
+    func playlistTargets() async -> Result<[FlatItem], PlaylistError> {
+        guard let videoId = timeline.current?.videoId, BridgeCodec.isValidVideoId(videoId) else {
+            return .failure(PlaylistError(message: "Play a song first."))
+        }
+        switch await engine.commandQueue.send(.playlistTargets(videoId: videoId)) {
+        case let .page(page):
+            return .success(page.items)
+        case let .failed(_, text):
+            return .failure(PlaylistError(message: text))
+        case .notReady:
+            return .failure(PlaylistError(message: "YouTube Music is still loading. Try again in a moment."))
+        case .timedOut, .acknowledged:
+            return .failure(PlaylistError(message: "YouTube Music did not respond. Try again."))
+        }
+    }
+
+    func addCurrent(to playlistId: String, title: String) async -> Bool {
+        guard let videoId = timeline.current?.videoId, BridgeCodec.isValidVideoId(videoId) else {
+            message = "Play a song first."
+            return false
+        }
+        let result = await send(.addToPlaylist(videoId: videoId, playlistId: playlistId))
+        if result == .acknowledged {
+            message = "Saved to \(title)"
+            return true
+        }
+        return false
+    }
+
+    func saveCollection(playlistId: String, save: Bool, title: String) async {
+        let result = await send(.savePlaylist(playlistId: playlistId, save: save))
+        if result == .acknowledged {
+            message = save ? "\(title) saved to your library" : "\(title) removed from your library"
+        }
     }
 
     @discardableResult

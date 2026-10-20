@@ -199,6 +199,19 @@ class PlayerConnection(
         current.play()
     }
 
+    fun playFromSearch(query: String): Boolean {
+        val current = browser ?: return false
+        val request =
+            MediaItem.RequestMetadata
+                .Builder()
+                .setSearchQuery(query.take(200))
+                .build()
+        current.setMediaItem(MediaItem.Builder().setRequestMetadata(request).build())
+        current.prepare()
+        current.play()
+        return true
+    }
+
     fun togglePlay() {
         val current = browser ?: return notConnected()
         if (current.playWhenReady) current.pause() else current.play()

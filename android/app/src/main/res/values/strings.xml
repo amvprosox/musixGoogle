@@ -31,6 +31,14 @@
     <string name="action_collapse_player">Close player</string>
     <string name="action_clear_search">Clear search</string>
     <string name="action_clear_cache">Clear cache</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save_to_playlist">Save to playlist</string>
+    <string name="action_library_options">Library options</string>
+    <string name="action_save_library">Save to library</string>
+    <string name="action_remove_library">Remove from library</string>
+    <string name="save_failed">Couldn\u2019t load your playlists</string>
+    <string name="save_none">No playlists yet</string>
+    <string name="save_none_body">Create a playlist in YouTube Music first.</string>
 
     <string name="search_hint">Search songs, albums, artists</string>
     <string name="search_prompt">Search YouTube Music</string>

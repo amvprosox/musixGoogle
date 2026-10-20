@@ -48,7 +48,7 @@ const ICONS = {
 
 const FILLED = new Set(['heart', 'play', 'pause']);
 
-const IOS_ONLY = new Set(['play', 'pause', 'queue', 'thumbs_down']);
+const IOS_ONLY = new Set(['play', 'pause', 'thumbs_down']);
 
 const LOGO_BARS = [
   [90, 196, 44, 120],

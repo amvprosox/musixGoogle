@@ -81,6 +81,12 @@ public enum BridgeCodec {
             return !trimmed.isEmpty && query.count <= 500 ? nil : "invalid query"
         case let .loadContinuation(token, _, nodeId):
             return !token.isEmpty && token.count <= maxToken && nodeId.count <= maxToken ? nil : "invalid continuation"
+        case let .playlistTargets(videoId):
+            return isValidVideoId(videoId) ? nil : "invalid video id"
+        case let .addToPlaylist(videoId, playlistId):
+            return isValidVideoId(videoId) && isValidPlaylistId(playlistId) ? nil : "invalid playlist target"
+        case let .savePlaylist(playlistId, _):
+            return isValidPlaylistId(playlistId) ? nil : "invalid playlist id"
         case .play, .pause, .togglePlay, .next, .previous, .toggleMute, .toggleLike, .toggleDislike, .setShuffle, .setRepeat, .configure:
             return nil
         }

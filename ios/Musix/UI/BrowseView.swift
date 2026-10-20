@@ -239,6 +239,26 @@ struct FolderView: View {
             .navigationTitle(entry.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if let playlistId = collectionPlaylistId {
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu {
+                            Button {
+                                Task { await player.saveCollection(playlistId: playlistId, save: true, title: entry.title) }
+                            } label: {
+                                Label("Save to library", image: "library")
+                            }
+                            Button(role: .destructive) {
+                                Task { await player.saveCollection(playlistId: playlistId, save: false, title: entry.title) }
+                            } label: {
+                                Label("Remove from library", image: "trash")
+                            }
+                        } label: {
+                            Icon(name: "library", size: 22)
+                                .frame(width: 44, height: 44)
+                                .accessibilityLabel("Library options")
+                        }
+                    }
+                }
                 if entry.playable {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -249,5 +269,12 @@ struct FolderView: View {
                     }
                 }
             }
+    }
+
+    private var collectionPlaylistId: String? {
+        guard entry.kind == .album || entry.kind == .playlist, case let .node(_, playlistId) = MediaIds.parse(entry.mediaId) else {
+            return nil
+        }
+        return playlistId
     }
 }

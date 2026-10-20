@@ -193,6 +193,14 @@ export function isBridgeEvent(value: unknown): value is BridgeEvent {
   }
 }
 
+function videoIdOk(value: unknown): boolean {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{6,20}$/.test(value);
+}
+
+function playlistIdOk(value: unknown): boolean {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{2,128}$/.test(value);
+}
+
 export function isBridgeCommand(value: unknown): value is BridgeCommand {
   if (
     !isRecord(value) ||
@@ -249,6 +257,12 @@ export function isBridgeCommand(value: unknown): value is BridgeCommand {
       return bool(value.adSkip);
     case 'duck':
       return num(value.level) && value.level >= 0 && value.level <= 1;
+    case 'playlistTargets':
+      return videoIdOk(value.videoId);
+    case 'addToPlaylist':
+      return videoIdOk(value.videoId) && playlistIdOk(value.playlistId);
+    case 'savePlaylist':
+      return playlistIdOk(value.playlistId) && bool(value.save);
     default:
       return false;
   }

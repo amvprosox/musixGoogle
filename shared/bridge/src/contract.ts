@@ -116,7 +116,10 @@ export type BridgeCommand =
       nodeId: string;
     }
   | { v: 1; type: 'configure'; requestId: string; adSkip: boolean }
-  | { v: 1; type: 'duck'; requestId: string; level: number };
+  | { v: 1; type: 'duck'; requestId: string; level: number }
+  | { v: 1; type: 'playlistTargets'; requestId: string; videoId: string }
+  | { v: 1; type: 'addToPlaylist'; requestId: string; videoId: string; playlistId: string }
+  | { v: 1; type: 'savePlaylist'; requestId: string; playlistId: string; save: boolean };
 
 export type BridgeCommandType = BridgeCommand['type'];
 export type BridgeEventType = BridgeEvent['type'];

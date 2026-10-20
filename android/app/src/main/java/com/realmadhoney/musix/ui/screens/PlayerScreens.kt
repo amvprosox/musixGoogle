@@ -11,10 +11,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -35,12 +39,18 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.media3.common.Player
 import com.realmadhoney.musix.R
+import com.realmadhoney.musix.core.bridge.FlatItem
 import com.realmadhoney.musix.ui.NowPlaying
+import com.realmadhoney.musix.ui.SaveTargets
 import com.realmadhoney.musix.ui.components.Artwork
+import com.realmadhoney.musix.ui.components.EntryRow
 import com.realmadhoney.musix.ui.components.IconAction
 import com.realmadhoney.musix.ui.components.MusixIcon
+import com.realmadhoney.musix.ui.components.SecondaryButton
+import com.realmadhoney.musix.ui.components.SkeletonRows
 import com.realmadhoney.musix.ui.components.StateMessage
 import com.realmadhoney.musix.ui.components.formatTime
 import com.realmadhoney.musix.ui.theme.DesignTokens
@@ -62,6 +72,8 @@ interface PlayerActions {
     fun cycleRepeat()
 
     fun retry()
+
+    fun saveToPlaylist()
 }
 
 @Composable
@@ -175,6 +187,12 @@ fun NowPlayingScreen(
                         )
                     }
                 }
+                IconAction(
+                    R.drawable.ic_queue,
+                    stringResource(R.string.action_save_to_playlist),
+                    actions::saveToPlaylist,
+                    enabled = state.canSeek,
+                )
                 IconAction(
                     if (state.liked) R.drawable.ic_heart_filled else R.drawable.ic_heart,
                     stringResource(if (state.liked) R.string.action_unlike else R.string.action_like),
@@ -297,5 +315,70 @@ private fun SeekBar(
             textAlign = TextAlign.End,
             modifier = Modifier.weight(1f),
         )
+    }
+}
+
+@Composable
+fun SaveToPlaylistDialog(
+    targets: SaveTargets,
+    onPick: (String, FlatItem) -> Unit,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = Musix.colors
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp)
+                    .clip(RoundedCornerShape(DesignTokens.RadiusCard))
+                    .background(colors.surface)
+                    .padding(vertical = DesignTokens.Space16),
+        ) {
+            Text(
+                stringResource(R.string.action_save_to_playlist),
+                style = MaterialTheme.typography.titleLarge,
+                color = colors.text,
+                modifier = Modifier.padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
+            )
+            when (targets) {
+                SaveTargets.Loading -> {
+                    SkeletonRows(4)
+                }
+
+                is SaveTargets.Failed -> {
+                    StateMessage(
+                        R.drawable.ic_alert,
+                        stringResource(R.string.save_failed),
+                        targets.message,
+                        actionLabel = stringResource(R.string.action_retry),
+                        onAction = onRetry,
+                    )
+                }
+
+                is SaveTargets.Loaded -> {
+                    if (targets.items.isEmpty()) {
+                        StateMessage(R.drawable.ic_list_music, stringResource(R.string.save_none), stringResource(R.string.save_none_body))
+                    } else {
+                        LazyColumn {
+                            items(targets.items, key = { it.id }) { item ->
+                                EntryRow(
+                                    title = item.title,
+                                    subtitle = item.subtitle,
+                                    artwork = null,
+                                    browsable = false,
+                                    onClick = { onPick(targets.videoId, item) },
+                                    fallback = R.drawable.ic_list_music,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16), horizontalArrangement = Arrangement.End) {
+                SecondaryButton(stringResource(R.string.action_cancel), onDismiss)
+            }
+        }
     }
 }

@@ -58,6 +58,7 @@ struct NowPlayingView: View {
     @ObservedObject var player: PlayerController
     @Environment(\.dismiss) private var dismiss
     @State private var dragging: Double?
+    @State private var showSave = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -74,6 +75,9 @@ struct NowPlayingView: View {
             }
         }
         .background(Palette.bg.ignoresSafeArea())
+        .sheet(isPresented: $showSave) {
+            SaveToPlaylistView(player: player)
+        }
     }
 
     private func content(_ current: TrackSpec) -> some View {
@@ -100,6 +104,9 @@ struct NowPlayingView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                IconButton(icon: "queue", label: "Save to playlist", enabled: available.like) {
+                    showSave = true
+                }
                 IconButton(
                     icon: player.isLiked ? "heart_filled" : "heart",
                     label: player.isLiked ? "Remove from liked songs" : "Like",
@@ -177,6 +184,99 @@ struct NowPlayingView: View {
         case .none: return "Repeat is off"
         case .all: return "Repeat all"
         case .one: return "Repeat one"
+        }
+    }
+}
+
+struct SaveToPlaylistView: View {
+    @ObservedObject var player: PlayerController
+    @Environment(\.dismiss) private var dismiss
+    @State private var targets: [FlatItem] = []
+    @State private var failure: String?
+    @State private var loading = true
+    @State private var saving: String?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if loading {
+                    SkeletonList()
+                } else if let failure {
+                    StateMessage(icon: "alert", title: "Couldn't load your playlists", detail: failure, actionTitle: "Try again") {
+                        Task { await load() }
+                    }
+                    .frame(maxHeight: .infinity)
+                } else if targets.isEmpty {
+                    StateMessage(icon: "list_music", title: "No playlists yet", detail: "Create a playlist in YouTube Music first.")
+                        .frame(maxHeight: .infinity)
+                } else {
+                    List(targets, id: \.id) { target in
+                        Button {
+                            save(target)
+                        } label: {
+                            HStack(spacing: DesignTokens.space12) {
+                                Icon(name: "list_music", size: 24).foregroundStyle(Palette.textMuted)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(target.title)
+                                        .font(.body(DesignTokens.text16, weight: .semibold))
+                                        .foregroundStyle(Palette.text)
+                                    if !target.subtitle.isEmpty {
+                                        Text(target.subtitle)
+                                            .font(.body(DesignTokens.text14))
+                                            .foregroundStyle(Palette.textMuted)
+                                    }
+                                }
+                                Spacer()
+                                if saving == target.id {
+                                    ProgressView().tint(Palette.accent)
+                                }
+                            }
+                            .frame(minHeight: 48)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(saving != nil)
+                        .listRowBackground(Palette.bg)
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .background(Palette.bg)
+            .navigationTitle("Save to playlist")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+            .task { await load() }
+        }
+    }
+
+    private func load() async {
+        loading = true
+        failure = nil
+        switch await player.playlistTargets() {
+        case let .success(items):
+            targets = items
+        case let .failure(error):
+            failure = error.message
+        }
+        loading = false
+    }
+
+    private func save(_ target: FlatItem) {
+        guard let playlistId = target.playlistId else {
+            return
+        }
+        saving = target.id
+        Task {
+            let saved = await player.addCurrent(to: playlistId, title: target.title)
+            saving = nil
+            if saved {
+                dismiss()
+            }
         }
     }
 }

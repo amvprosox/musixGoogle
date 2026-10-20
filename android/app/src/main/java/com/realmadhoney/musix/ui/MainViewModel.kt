@@ -6,6 +6,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import com.realmadhoney.musix.AppGraph
 import com.realmadhoney.musix.MusixApplication
+import com.realmadhoney.musix.core.bridge.BridgeCodec
+import com.realmadhoney.musix.core.bridge.BridgeCommand
+import com.realmadhoney.musix.core.bridge.CommandResult
+import com.realmadhoney.musix.core.bridge.FlatItem
 import com.realmadhoney.musix.core.browse.MediaIds
 import com.realmadhoney.musix.core.browse.RootTab
 import com.realmadhoney.musix.engine.AccountState
@@ -36,6 +40,19 @@ sealed interface Route {
     data object SignIn : Route
 
     data object Settings : Route
+}
+
+sealed interface SaveTargets {
+    data object Loading : SaveTargets
+
+    data class Loaded(
+        val videoId: String,
+        val items: List<FlatItem>,
+    ) : SaveTargets
+
+    data class Failed(
+        val message: String,
+    ) : SaveTargets
 }
 
 data class ListState(
@@ -132,6 +149,15 @@ class MainViewModel(
     init {
         connection.connect()
         viewModelScope.launch {
+            connection.connected.collect { isConnected ->
+                val query = pendingSearch
+                if (isConnected && query != null) {
+                    pendingSearch = null
+                    connection.playFromSearch(query)
+                }
+            }
+        }
+        viewModelScope.launch {
             account.map { it::class }.distinctUntilChanged().collect {
                 lists.clear()
                 listVersion.value += 1
@@ -171,6 +197,90 @@ class MainViewModel(
         stack.value = current.dropLast(1)
         return true
     }
+
+    private var pendingSearch: String? = null
+
+    fun playFromSearch(query: String) {
+        if (!connection.playFromSearch(query)) {
+            pendingSearch = query
+        }
+    }
+
+    private val targetsFlow = MutableStateFlow<SaveTargets?>(null)
+    val saveTargets: StateFlow<SaveTargets?> = targetsFlow.asStateFlow()
+
+    fun openSaveToPlaylist() {
+        val engine = graph.engine.value
+        val videoId =
+            engine
+                ?.bridgeState
+                ?.value
+                ?.videoId
+                .orEmpty()
+        if (engine == null || !BridgeCodec.isValidVideoId(videoId)) {
+            graph.postMessage("Play a song first.")
+            return
+        }
+        targetsFlow.value = SaveTargets.Loading
+        viewModelScope.launch {
+            val result = engine.queue.data { BridgeCommand.PlaylistTargets(it, videoId) }
+            targetsFlow.value =
+                when (result) {
+                    is CommandResult.Page -> SaveTargets.Loaded(videoId, result.page.items.filter { it.playlistId != null })
+                    else -> SaveTargets.Failed(describe(result))
+                }
+        }
+    }
+
+    fun closeSaveToPlaylist() {
+        targetsFlow.value = null
+    }
+
+    fun saveTo(
+        videoId: String,
+        target: FlatItem,
+    ) {
+        val engine = graph.engine.value ?: return
+        val playlistId = target.playlistId ?: return
+        targetsFlow.value = null
+        viewModelScope.launch {
+            val result = engine.queue.data { BridgeCommand.AddToPlaylist(it, videoId, playlistId) }
+            graph.postMessage(if (result == CommandResult.Acknowledged) "Saved to ${target.title}" else describe(result))
+        }
+    }
+
+    fun saveCollection(
+        playlistId: String,
+        save: Boolean,
+        title: String,
+    ) {
+        val engine = graph.engine.value
+        if (engine == null) {
+            graph.postMessage("YouTube Music is still loading. Try again in a moment.")
+            return
+        }
+        viewModelScope.launch {
+            val result = engine.queue.data { BridgeCommand.SavePlaylist(it, playlistId, save) }
+            val message =
+                when {
+                    result != CommandResult.Acknowledged -> describe(result)
+                    save -> "$title saved to your library"
+                    else -> "$title removed from your library"
+                }
+            graph.postMessage(message)
+            if (result == CommandResult.Acknowledged) {
+                graph.pager.clear()
+            }
+        }
+    }
+
+    private fun describe(result: CommandResult): String =
+        when (result) {
+            is CommandResult.Failed -> result.message
+            CommandResult.NotReady -> "YouTube Music is still loading. Try again in a moment."
+            CommandResult.TimedOut -> "YouTube Music did not respond. Try again."
+            CommandResult.Acknowledged, is CommandResult.Page -> "Done"
+        }
 
     fun refreshAll() {
         lists.values.forEach { it.retry() }

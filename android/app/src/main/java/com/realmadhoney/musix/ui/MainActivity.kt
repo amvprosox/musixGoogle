@@ -1,8 +1,10 @@
 package com.realmadhoney.musix.ui
 
+import android.app.SearchManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -43,6 +45,7 @@ import com.realmadhoney.musix.ui.screens.HomeScreen
 import com.realmadhoney.musix.ui.screens.MiniPlayer
 import com.realmadhoney.musix.ui.screens.NowPlayingScreen
 import com.realmadhoney.musix.ui.screens.PlayerActions
+import com.realmadhoney.musix.ui.screens.SaveToPlaylistDialog
 import com.realmadhoney.musix.ui.screens.SearchScreen
 import com.realmadhoney.musix.ui.screens.SettingsScreen
 import com.realmadhoney.musix.ui.screens.SignInScreen
@@ -83,8 +86,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        if (intent?.action == ACTION_SIGN_IN) {
-            viewModel.navigate(Route.SignIn)
+        when (intent?.action) {
+            ACTION_SIGN_IN -> {
+                viewModel.navigate(Route.SignIn)
+            }
+
+            MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH -> {
+                viewModel.playFromSearch(intent.getStringExtra(SearchManager.QUERY).orEmpty())
+            }
         }
     }
 
@@ -151,6 +160,8 @@ fun MusixApp(viewModel: MainViewModel) {
                 override fun cycleRepeat() = viewModel.connection.cycleRepeat()
 
                 override fun retry() = viewModel.connection.retry()
+
+                override fun saveToPlaylist() = viewModel.openSaveToPlaylist()
             }
         }
     val open: (BrowseEntry) -> Unit = { entry ->
@@ -194,6 +205,7 @@ fun MusixApp(viewModel: MainViewModel) {
                     }
 
                     is Route.Folder -> {
+                        val collectionId = (MediaIds.parse(current.mediaId) as? MediaRef.Node)?.playlistId
                         FolderScreen(
                             title = current.title,
                             playable = current.playable,
@@ -203,6 +215,10 @@ fun MusixApp(viewModel: MainViewModel) {
                             onPlayAll = { viewModel.connection.play(current.mediaId) },
                             onOpen = open,
                             onSignIn = signIn,
+                            onSaveToLibrary =
+                                collectionId?.let { id ->
+                                    { save: Boolean -> viewModel.saveCollection(id, save, current.title) }
+                                },
                         )
                     }
 
@@ -255,6 +271,15 @@ fun MusixApp(viewModel: MainViewModel) {
             }
         }
         SnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter))
+    }
+    val targets by viewModel.saveTargets.collectAsState()
+    targets?.let { current ->
+        SaveToPlaylistDialog(
+            targets = current,
+            onPick = viewModel::saveTo,
+            onRetry = viewModel::openSaveToPlaylist,
+            onDismiss = viewModel::closeSaveToPlaylist,
+        )
     }
 }
 

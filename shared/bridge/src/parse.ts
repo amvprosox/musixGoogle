@@ -783,3 +783,59 @@ export function isSignedOutResponse(response: unknown): boolean {
   }
   return false;
 }
+
+export function parseAddToPlaylistTargets(response: unknown, videoId: string): BrowsePage {
+  const items: FlatItem[] = [];
+  const seen = new Set<string>();
+  const visit = (value: unknown, depth: number): void => {
+    if (depth > 30 || items.length >= 500) {
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        visit(entry, depth + 1);
+      }
+      return;
+    }
+    const record = rec(value);
+    if (!record) {
+      return;
+    }
+    const option = rec(record.playlistAddToOptionRenderer);
+    if (option) {
+      const playlistId = typeof option.playlistId === 'string' ? option.playlistId : '';
+      const title = textOf(option.title);
+      if (/^[A-Za-z0-9_-]{2,128}$/.test(playlistId) && title !== '' && !seen.has(playlistId)) {
+        seen.add(playlistId);
+        items.push({
+          id: `target:${playlistId}`,
+          title,
+          subtitle: option.containsSelectedVideos === 'ALL' ? 'Already saved' : '',
+          artworkUrl: '',
+          type: 'playlist',
+          playable: false,
+          browsable: false,
+          videoId: null,
+          playlistId,
+          browseId: null,
+          durationSec: null,
+          continuation: null,
+        });
+      }
+      return;
+    }
+    for (const child of Object.values(record)) {
+      visit(child, depth + 1);
+    }
+  };
+  visit(response, 0);
+  return { nodeId: `targets:${videoId}`, title: 'Save to playlist', sections: [], items, continuation: null };
+}
+
+export function editSucceeded(response: unknown): boolean {
+  const record = rec(response);
+  if (!record) {
+    return false;
+  }
+  return record.status === undefined || record.status === 'STATUS_SUCCEEDED';
+}

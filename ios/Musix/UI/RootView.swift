@@ -39,9 +39,9 @@ struct RootView: View {
                                 IconButton(icon: "settings", label: "Settings") { showSettings = true }
                             }
                         }
-                        .safeAreaInset(edge: .bottom) {
-                            MiniPlayer(player: player) { showPlayer = true }
-                        }
+                    }
+                    .safeAreaInset(edge: .bottom) {
+                        MiniPlayer(player: player) { showPlayer = true }
                     }
                     .tabItem { Label(tab.title, image: Self.icon(for: tab)) }
                     .tag(tab)

@@ -249,4 +249,30 @@ sealed interface BridgeCommand {
         val level: Double,
         override val v: Int = BRIDGE_VERSION,
     ) : BridgeCommand
+
+    @Serializable
+    @SerialName("playlistTargets")
+    data class PlaylistTargets(
+        override val requestId: String,
+        val videoId: String,
+        override val v: Int = BRIDGE_VERSION,
+    ) : BridgeCommand
+
+    @Serializable
+    @SerialName("addToPlaylist")
+    data class AddToPlaylist(
+        override val requestId: String,
+        val videoId: String,
+        val playlistId: String,
+        override val v: Int = BRIDGE_VERSION,
+    ) : BridgeCommand
+
+    @Serializable
+    @SerialName("savePlaylist")
+    data class SavePlaylist(
+        override val requestId: String,
+        val playlistId: String,
+        val save: Boolean,
+        override val v: Int = BRIDGE_VERSION,
+    ) : BridgeCommand
 }

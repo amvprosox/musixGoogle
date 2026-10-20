@@ -77,3 +77,40 @@ jobs:
           name: ios-build-log
           path: ios/build/xcodebuild.log
           if-no-files-found: ignore
+
+  android:
+    name: Android (phone and car APKs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Check, test, and build
+        working-directory: android
+        run: ./gradlew --no-daemon ktlintCheck test lintMobileDebug lintAutomotiveDebug assembleMobileRelease assembleAutomotiveRelease -Pmusix.signWithDebugKey=true
+
+      - name: Name the APKs
+        run: |
+          mkdir -p apk
+          cp android/app/build/outputs/apk/mobile/release/app-mobile-release.apk apk/Musix-android-phone.apk
+          cp android/app/build/outputs/apk/automotive/release/app-automotive-release.apk apk/Musix-android-automotive.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Musix-Android-APKs
+          path: apk/*.apk
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: android-reports
+          path: |
+            android/app/build/reports
+            android/core/build/reports
+          if-no-files-found: ignore

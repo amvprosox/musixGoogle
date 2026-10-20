@@ -7,7 +7,7 @@ import {
 } from './contract';
 import { clickFirst, DOC_SEL, queryFirst, SEL } from './dom';
 import { InnertubeError, type InnertubeEndpoint } from './innertube';
-import { isSignedOutResponse, parseBrowseResponse } from './parse';
+import { editSucceeded, isSignedOutResponse, parseAddToPlaylistTargets, parseBrowseResponse } from './parse';
 import type { PlayerObserver } from './player';
 
 export type Emit = (event: BridgeEvent) => void;
@@ -323,6 +323,46 @@ export class CommandRunner {
       case 'duck':
         observer.setDuck(command.level);
         return;
+      case 'playlistTargets': {
+        this.requireAccount();
+        const response = await this.deps.request('playlist/get_add_to_playlist', {
+          videoIds: [command.videoId],
+          excludeWatchLater: true,
+        });
+        this.deps.emit({
+          v: 1,
+          type: 'browseResult',
+          requestId: command.requestId,
+          page: parseAddToPlaylistTargets(response, command.videoId),
+        });
+        return;
+      }
+      case 'addToPlaylist': {
+        this.requireAccount();
+        const response = await this.deps.request('browse/edit_playlist', {
+          playlistId: command.playlistId,
+          actions: [
+            { action: 'ACTION_ADD_VIDEO', addedVideoId: command.videoId, dedupeOption: 'DEDUPE_OPTION_SKIP' },
+          ],
+        });
+        if (!editSucceeded(response)) {
+          throw new CommandError('http', 'YouTube Music could not save the song to that playlist');
+        }
+        return;
+      }
+      case 'savePlaylist': {
+        this.requireAccount();
+        await this.deps.request(command.save ? 'like/like' : 'like/removelike', {
+          target: { playlistId: command.playlistId },
+        });
+        return;
+      }
+    }
+  }
+
+  private requireAccount(): void {
+    if (!this.deps.observer.current().isSignedIn) {
+      throw new CommandError('not_signed_in', 'Sign in to YouTube Music to save music');
     }
   }
 

@@ -8,6 +8,7 @@ struct SearchView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
     @State private var submitted = ""
+    @State private var showPlayer = false
 
     var body: some View {
         NavigationStack {
@@ -44,6 +45,12 @@ struct SearchView: View {
                     Button("Close") { dismiss() }
                 }
             }
+        }
+        .safeAreaInset(edge: .bottom) {
+            MiniPlayer(player: player) { showPlayer = true }
+        }
+        .sheet(isPresented: $showPlayer) {
+            NowPlayingView(player: player)
         }
     }
 }

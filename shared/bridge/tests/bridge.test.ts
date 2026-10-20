@@ -192,6 +192,16 @@ function setup(): Harness {
     fetch: (url: string, init: RequestInit) => {
       const body = JSON.parse(typeof init.body === 'string' ? init.body : '{}') as Record<string, unknown>;
       fetchBodies.push(body);
+      if (url.includes('/playlist/get_add_to_playlist')) {
+        return Promise.resolve(new Response(fixture('add-to-playlist'), { status: 200 }));
+      }
+      if (url.includes('/browse/edit_playlist')) {
+        const status = body.playlistId === 'PLfails00' ? 'STATUS_FAILED' : 'STATUS_SUCCEEDED';
+        return Promise.resolve(new Response(JSON.stringify({ status }), { status: 200 }));
+      }
+      if (url.includes('/like/')) {
+        return Promise.resolve(new Response('{}', { status: 200 }));
+      }
       const endpoint = url.includes('/search') ? 'search' : 'browse';
       if (endpoint === 'search') {
         return Promise.resolve(new Response(fixture('search-songs'), { status: 200 }));
@@ -448,6 +458,14 @@ describe('ytm bridge in a YouTube Music page', () => {
     expect(sent).toBeLessThanOrEqual(6);
   });
 
+  it('refuses to save music while signed out', async () => {
+    const id = send(h, { type: 'savePlaylist', playlistId: 'PLroadTrip001', save: true });
+    const error = await until(() =>
+      h.events.find((event) => event.type === 'error' && event.requestId === id),
+    );
+    expect(error).toMatchObject({ code: 'not_signed_in' });
+  });
+
   it('emits signedIn with the avatar when the page signs in', async () => {
     h.config.LOGGED_IN = true;
     const nav = document.querySelector('ytmusic-nav-bar') as HTMLElement;
@@ -456,6 +474,38 @@ describe('ytm bridge in a YouTube Music page', () => {
     const signedIn = await until(() => last(h, 'signedIn'), 4000);
     expect(signedIn.avatarUrl).toBe('https://lh3.googleusercontent.com/a/avatar=s96-c');
     await until(() => (last(h, 'state')?.state.isSignedIn ? true : undefined));
+  });
+
+  it('lists playlists, adds songs, and saves playlists once signed in', async () => {
+    h.config.LOGGED_IN = true;
+    const nav = document.querySelector('ytmusic-nav-bar') as HTMLElement;
+    nav.innerHTML =
+      '<ytmusic-settings-button><img src="https://lh3.googleusercontent.com/a/x=s96-c" /></ytmusic-settings-button>';
+    await until(() => (last(h, 'state')?.state.isSignedIn ? true : undefined), 4000);
+    const listId = send(h, { type: 'playlistTargets', videoId: 'lYBUbBu4W08' });
+    const result = await until(() =>
+      h.events.find((event) => event.type === 'browseResult' && event.requestId === listId),
+    );
+    if (result.type !== 'browseResult') {
+      throw new Error('expected a page');
+    }
+    expect(result.page.items.map((item) => [item.playlistId, item.title, item.subtitle])).toEqual([
+      ['PLroadTrip001', 'Road trip', ''],
+      ['PLfocusMix002', 'Focus mix', 'Already saved'],
+    ]);
+    expect(h.fetchBodies.at(-1)).toMatchObject({ videoIds: ['lYBUbBu4W08'] });
+    await ack(h, send(h, { type: 'addToPlaylist', videoId: 'lYBUbBu4W08', playlistId: 'PLroadTrip001' }));
+    expect(h.fetchBodies.at(-1)).toMatchObject({
+      playlistId: 'PLroadTrip001',
+      actions: [{ action: 'ACTION_ADD_VIDEO', addedVideoId: 'lYBUbBu4W08' }],
+    });
+    const failed = send(h, { type: 'addToPlaylist', videoId: 'lYBUbBu4W08', playlistId: 'PLfails00' });
+    await until(() => h.events.find((event) => event.type === 'error' && event.requestId === failed));
+    await ack(h, send(h, { type: 'savePlaylist', playlistId: 'OLAK5uy_album', save: true }));
+    expect(h.fetchBodies.at(-1)).toEqual(
+      expect.objectContaining({ target: { playlistId: 'OLAK5uy_album' } }),
+    );
+    await ack(h, send(h, { type: 'savePlaylist', playlistId: 'OLAK5uy_album', save: false }));
   });
 
   it('installs only once', () => {

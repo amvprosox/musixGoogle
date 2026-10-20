@@ -98,6 +98,9 @@ public enum BridgeCommand: Equatable, Sendable {
     case loadContinuation(token: String, kind: ContinuationKind, nodeId: String)
     case configure(adSkip: Bool)
     case duck(level: Double)
+    case playlistTargets(videoId: String)
+    case addToPlaylist(videoId: String, playlistId: String)
+    case savePlaylist(playlistId: String, save: Bool)
 
     public var typeName: String {
         switch self {
@@ -120,12 +123,15 @@ public enum BridgeCommand: Equatable, Sendable {
         case .loadContinuation: return "loadContinuation"
         case .configure: return "configure"
         case .duck: return "duck"
+        case .playlistTargets: return "playlistTargets"
+        case .addToPlaylist: return "addToPlaylist"
+        case .savePlaylist: return "savePlaylist"
         }
     }
 
     public var lane: CommandLane {
         switch self {
-        case .browse, .search, .loadContinuation: return .data
+        case .browse, .search, .loadContinuation, .playlistTargets, .addToPlaylist, .savePlaylist: return .data
         default: return .player
         }
     }
@@ -136,7 +142,7 @@ public struct CommandEnvelope: Encodable, Sendable {
     public let command: BridgeCommand
 
     private enum Keys: String, CodingKey {
-        case v, type, requestId, seconds, volume, enabled, mode, videoId, playlistId, index, nodeId, query, filter, token, kind, adSkip, level
+        case v, type, requestId, seconds, volume, enabled, mode, videoId, playlistId, index, nodeId, query, filter, token, kind, adSkip, level, save
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -177,6 +183,14 @@ public struct CommandEnvelope: Encodable, Sendable {
             try container.encode(adSkip, forKey: .adSkip)
         case let .duck(level):
             try container.encode(level, forKey: .level)
+        case let .playlistTargets(videoId):
+            try container.encode(videoId, forKey: .videoId)
+        case let .addToPlaylist(videoId, playlistId):
+            try container.encode(videoId, forKey: .videoId)
+            try container.encode(playlistId, forKey: .playlistId)
+        case let .savePlaylist(playlistId, save):
+            try container.encode(playlistId, forKey: .playlistId)
+            try container.encode(save, forKey: .save)
         }
     }
 }

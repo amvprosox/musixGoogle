@@ -110,6 +110,17 @@ final class BridgeCodecTests: XCTestCase {
         XCTAssertTrue(try BridgeCodec.encode(.loadContinuation(token: "t", kind: .search, nodeId: "s"), requestId: "n4").contains(#""kind":"search""#))
     }
 
+    func testEncodesPlaylistCommands() throws {
+        XCTAssertTrue(try BridgeCodec.encode(.playlistTargets(videoId: "lYBUbBu4W08"), requestId: "n1").contains(#""type":"playlistTargets""#))
+        let add = try BridgeCodec.encode(.addToPlaylist(videoId: "lYBUbBu4W08", playlistId: "PLroadTrip001"), requestId: "n2")
+        XCTAssertTrue(add.contains(#""playlistId":"PLroadTrip001""#))
+        XCTAssertTrue(try BridgeCodec.encode(.savePlaylist(playlistId: "OLAK5uy_abc", save: false), requestId: "n3").contains(#""save":false"#))
+        XCTAssertNotNil(BridgeCodec.problem(with: .playlistTargets(videoId: "bad"), requestId: "n1"))
+        XCTAssertNotNil(BridgeCodec.problem(with: .addToPlaylist(videoId: "lYBUbBu4W08", playlistId: "bad list"), requestId: "n1"))
+        XCTAssertNotNil(BridgeCodec.problem(with: .savePlaylist(playlistId: "x", save: true), requestId: "n1"))
+        XCTAssertEqual(BridgeCommand.savePlaylist(playlistId: "PLx", save: true).lane, .data)
+    }
+
     func testRefusesInvalidCommands() {
         XCTAssertNotNil(BridgeCodec.problem(with: .setVolume(2), requestId: "n1"))
         XCTAssertNotNil(BridgeCodec.problem(with: .seekTo(seconds: .nan), requestId: "n1"))

@@ -110,6 +110,17 @@ class BridgeCodecTest {
     }
 
     @Test
+    fun encodesPlaylistCommands() {
+        assertThat(BridgeCodec.encodeCommand(BridgeCommand.PlaylistTargets("n1", "lYBUbBu4W08"))).contains("\"type\":\"playlistTargets\"")
+        val add = BridgeCodec.encodeCommand(BridgeCommand.AddToPlaylist("n2", "lYBUbBu4W08", "PLroadTrip001"))
+        assertThat(add).contains("\"playlistId\":\"PLroadTrip001\"")
+        assertThat(BridgeCodec.encodeCommand(BridgeCommand.SavePlaylist("n3", "OLAK5uy_abc", false))).contains("\"save\":false")
+        assertThat(BridgeCodec.problemWith(BridgeCommand.PlaylistTargets("n1", "bad"))).isNotNull()
+        assertThat(BridgeCodec.problemWith(BridgeCommand.AddToPlaylist("n1", "lYBUbBu4W08", "bad list"))).isNotNull()
+        assertThat(BridgeCodec.problemWith(BridgeCommand.SavePlaylist("n1", "x", true))).isNotNull()
+    }
+
+    @Test
     fun refusesToEncodeInvalidCommands() {
         assertThat(BridgeCodec.problemWith(BridgeCommand.SetVolume("n1", 2.0))).isNotNull()
         assertThat(BridgeCodec.problemWith(BridgeCommand.SeekTo("n1", Double.NaN))).isNotNull()
