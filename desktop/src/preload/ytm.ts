@@ -464,6 +464,7 @@ const ITEM_SELECTORS = [
   'ytmusic-two-row-item-renderer',
   'ytmusic-player-queue-item',
   'ytmusic-player-bar',
+  'ytmusic-miniplayer',
 ].join(', ');
 
 async function itemInfo(target: ItemTarget): Promise<ItemMenuInfo | null> {

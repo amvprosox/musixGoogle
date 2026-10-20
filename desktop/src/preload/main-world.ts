@@ -58,6 +58,7 @@ export function installDesktopMainWorld(): void {
   };
   const playerBar = (): Element | null =>
     document.querySelector('ytmusic-player-bar[slot="player-bar"]') ??
+    document.querySelector('ytmusic-miniplayer[slot="player-bar"]') ??
     document.querySelector('ytmusic-player-bar');
   const findTarget = (target: Target): Element | null => {
     if (target.kind === 'ytm') {
@@ -154,7 +155,7 @@ export function installDesktopMainWorld(): void {
     if (attr && /^[A-Za-z0-9_-]{6,20}$/.test(attr)) {
       return attr;
     }
-    if (el.matches('ytmusic-player-bar')) {
+    if (el.matches('ytmusic-player-bar, ytmusic-miniplayer')) {
       const link = document.querySelector('#movie_player .ytp-title-link');
       const href = link instanceof HTMLAnchorElement ? link.href : location.href;
       try {

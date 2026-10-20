@@ -34,6 +34,8 @@ ${fontFaceCss}
 }
 ytmusic-player-bar[slot="player-bar"],
 ytmusic-app-layout > ytmusic-player-bar,
+ytmusic-miniplayer[slot="player-bar"],
+ytmusic-app-layout > ytmusic-miniplayer,
 #player-bar-background,
 tp-yt-app-drawer#guide,
 #guide-wrapper,

@@ -19,7 +19,7 @@ export default defineConfig({
       {
         test: {
           name: 'dom',
-          include: ['tests/bridge.test.ts'],
+          include: ['tests/bridge.test.ts', 'tests/miniplayer.test.ts'],
           environment: 'jsdom',
           environmentOptions: {
             jsdom: { url: 'https://music.youtube.com/watch?v=lYBUbBu4W08&list=RDAMVMlYBUbBu4W08' },

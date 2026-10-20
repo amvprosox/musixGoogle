@@ -1,7 +1,18 @@
 import { AD_PLAYBACK_RATE_VALUE, PROGRESS_INTERVAL_MS, STATE_HEARTBEAT_MS } from './timing';
-import type { BridgeState, LikeStatus, QueueEntry, RepeatMode } from './contract';
+import type { BridgeState, QueueEntry } from './contract';
 import { EMPTY_STATE } from './contract';
-import { BAR_SELECTORS, clickFirst, clip, DOC_SEL, queryFirst, SEL, textOfElement } from './dom';
+import {
+  BAR_SELECTORS,
+  clickFirst,
+  clip,
+  DOC_SEL,
+  queryFirst,
+  readLikeStatus,
+  readRepeat,
+  readShuffle,
+  SEL,
+  textOfElement,
+} from './dom';
 import { readPageConfig } from './innertube';
 import { bestThumbnail, parseClock, upgradeArtwork } from './parse';
 import {
@@ -221,6 +232,7 @@ export class PlayerObserver {
         'src',
         'title',
         'aria-pressed',
+        'aria-label',
         'aria-valuenow',
       ],
     });
@@ -523,11 +535,8 @@ export class PlayerObserver {
     const isPlaying = video ? !video.paused && !video.ended : false;
     const isBuffering = video ? isPlaying && (this.waiting || video.readyState < 3) : false;
     const { volume, muted } = this.readVolume();
-    const likeRenderer = queryFirst(bar, SEL.likeRenderer);
-    const likeAttr = likeRenderer ? likeRenderer.getAttribute('like-status') : null;
-    const likeStatus: LikeStatus = likeAttr === 'LIKE' || likeAttr === 'DISLIKE' ? likeAttr : 'INDIFFERENT';
-    const repeatAttr = bar.getAttribute('repeat-mode');
-    const repeatMode: RepeatMode = repeatAttr === 'ALL' || repeatAttr === 'ONE' ? repeatAttr : 'NONE';
+    const likeStatus = readLikeStatus(bar);
+    const repeatMode = readRepeat(bar);
     return {
       videoId: this.readVideoId(),
       playlistId: this.readPlaylistId(),
@@ -543,7 +552,7 @@ export class PlayerObserver {
       volume: Math.round(volume * 100) / 100,
       isMuted: muted,
       likeStatus,
-      shuffle: bar.hasAttribute('shuffle-on'),
+      shuffle: readShuffle(bar),
       repeatMode,
       isAd,
       isSignedIn,

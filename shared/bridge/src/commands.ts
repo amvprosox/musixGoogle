@@ -5,7 +5,7 @@ import {
   type BridgeEvent,
   type RepeatMode,
 } from './contract';
-import { clickFirst, DOC_SEL, queryFirst, SEL } from './dom';
+import { clickFirst, DOC_SEL, queryFirst, readRepeat, readShuffle, SEL } from './dom';
 import { InnertubeError, type InnertubeEndpoint } from './innertube';
 import { editSucceeded, isSignedOutResponse, parseAddToPlaylistTargets, parseBrowseResponse } from './parse';
 import type { PlayerObserver } from './player';
@@ -234,19 +234,16 @@ export class CommandRunner {
         return;
       case 'setShuffle': {
         const bar = this.bar();
-        if (bar.hasAttribute('shuffle-on') === command.enabled) {
+        if (readShuffle(bar) === command.enabled) {
           return;
         }
         this.click(SEL.shuffle, 'Shuffle');
-        await this.waitFor(() => bar.hasAttribute('shuffle-on') === command.enabled, 1500);
+        await this.waitFor(() => readShuffle(bar) === command.enabled, 1500);
         return;
       }
       case 'setRepeat': {
         const bar = this.bar();
-        const read = (): RepeatMode => {
-          const value = bar.getAttribute('repeat-mode');
-          return value === 'ALL' || value === 'ONE' ? value : 'NONE';
-        };
+        const read = (): RepeatMode => readRepeat(bar);
         for (let attempt = 0; attempt < 3 && read() !== command.mode; attempt += 1) {
           const before = read();
           this.click(SEL.repeat, 'Repeat');

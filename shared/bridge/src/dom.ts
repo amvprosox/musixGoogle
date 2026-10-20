@@ -1,24 +1,49 @@
+import type { LikeStatus, RepeatMode } from './contract';
+
 export const BAR_SELECTORS = [
   'ytmusic-player-bar[slot="player-bar"]',
+  'ytmusic-miniplayer[slot="player-bar"]',
   'ytmusic-app-layout > ytmusic-player-bar',
+  'ytmusic-app-layout > ytmusic-miniplayer',
   'ytmusic-app ytmusic-player-bar:not(#top-player-bar)',
 ] as const;
 
 export const SEL = {
-  title: ['.content-info-wrapper .title', '.title.ytmusic-player-bar', '.title'],
-  byline: ['.content-info-wrapper .byline', '.byline.ytmusic-player-bar', '.byline'],
-  art: ['img.image', '.thumbnail-image-wrapper img', '.thumbnail img', 'img'],
+  title: ['.content-info-wrapper .title', '.title.ytmusic-player-bar', '.ytmusicTrackInfoTitle', '.title'],
+  byline: [
+    '.content-info-wrapper .byline',
+    '.byline.ytmusic-player-bar',
+    '.ytmusicTrackInfoByline',
+    '.byline',
+  ],
+  art: [
+    'img.image',
+    'img.ytmusicTrackInfoThumbnail',
+    '.thumbnail-image-wrapper img',
+    '.thumbnail img',
+    'img',
+  ],
   likeRenderer: ['ytmusic-like-button-renderer#like-button-renderer', 'ytmusic-like-button-renderer'],
-  likeButton: ['#button-shape-like button', 'button[aria-label="Like"]', '.like'],
-  dislikeButton: ['#button-shape-dislike button', 'button[aria-label="Dislike"]', '.dislike'],
-  playPause: ['#play-pause-button', '.play-pause-button'],
-  next: ['.next-button'],
-  previous: ['.previous-button'],
-  shuffle: ['.shuffle'],
-  repeat: ['.repeat'],
-  muteButton: ['.volume'],
-  volumeSlider: ['#volume-slider', '.volume-slider'],
-  timeInfo: ['.time-info'],
+  likeButton: [
+    '#button-shape-like button',
+    'like-button-view-model button',
+    'button[aria-label="Like"]',
+    '.like',
+  ],
+  dislikeButton: [
+    '#button-shape-dislike button',
+    'dislike-button-view-model button',
+    'button[aria-label="Dislike"]',
+    '.dislike',
+  ],
+  playPause: ['#play-pause-button', '.play-pause-button', '[client-ve-type="54213"] button'],
+  next: ['.next-button', '[client-ve-type="36841"] button'],
+  previous: ['.previous-button', '[client-ve-type="36840"] button'],
+  shuffle: ['.shuffle', '[client-ve-type="45468"] button'],
+  repeat: ['.repeat', '[client-ve-type="51548"] button'],
+  muteButton: ['.volume', '.ytMusicMiniPlayerMuteButton button'],
+  volumeSlider: ['#volume-slider', '.volume-slider', '.ytMusicMiniPlayerVolumePopup input[type="range"]'],
+  timeInfo: ['.time-info', '.ytMusicMiniPlayerTimeInfo'],
 } as const;
 
 export const DOC_SEL = {
@@ -81,6 +106,46 @@ export function clickFirst(root: ParentNode | null, selectors: readonly string[]
     return true;
   }
   return false;
+}
+
+function pressed(root: ParentNode, selectors: readonly string[]): boolean {
+  const el = queryFirst(root, selectors);
+  return el !== null && el.getAttribute('aria-pressed') === 'true';
+}
+
+export function readLikeStatus(bar: Element): LikeStatus {
+  const renderer = queryFirst(bar, SEL.likeRenderer);
+  if (renderer) {
+    const attr = renderer.getAttribute('like-status');
+    return attr === 'LIKE' || attr === 'DISLIKE' ? attr : 'INDIFFERENT';
+  }
+  if (pressed(bar, ['like-button-view-model button'])) {
+    return 'LIKE';
+  }
+  if (pressed(bar, ['dislike-button-view-model button'])) {
+    return 'DISLIKE';
+  }
+  return 'INDIFFERENT';
+}
+
+export function readShuffle(bar: Element): boolean {
+  if (bar.hasAttribute('shuffle-on')) {
+    return true;
+  }
+  return pressed(bar, ['[client-ve-type="45468"] button']);
+}
+
+export function readRepeat(bar: Element): RepeatMode {
+  const attr = bar.getAttribute('repeat-mode');
+  if (attr === 'ALL' || attr === 'ONE' || attr === 'NONE') {
+    return attr;
+  }
+  const button = queryFirst(bar, ['[client-ve-type="51548"] button']);
+  if (!button || button.getAttribute('aria-pressed') !== 'true') {
+    return 'NONE';
+  }
+  const label = button.getAttribute('aria-label') ?? '';
+  return /\bone\b|1/i.test(label) ? 'ONE' : 'ALL';
 }
 
 export function clip(value: string, max: number): string {
