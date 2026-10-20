@@ -1,3 +1,4 @@
+import { pathToFileURL } from 'node:url';
 import * as esbuild from 'esbuild';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -54,7 +55,7 @@ const bundle = await esbuild.build({
 const pipelineFile = path.join(dist, 'pipeline.mjs');
 mkdirSync(dist, { recursive: true });
 writeFileSync(pipelineFile, bundle.outputFiles[0].text);
-const pipeline = await import(pipelineFile);
+const pipeline = await import(pathToFileURL(pipelineFile).href);
 
 const texts = [];
 for (const [name, url] of SOURCES) {
