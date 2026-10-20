@@ -79,7 +79,6 @@ win:
       arch: [x64]
   icon: assets/icons/musix.ico
   executableName: Musix
-  publisherName: Eoin
 nsis:
   artifactName: Musix-Setup-${version}.${ext}
   oneClick: false
