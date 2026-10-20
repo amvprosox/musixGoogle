@@ -4,29 +4,30 @@ A YouTube Music player for Ubuntu, Windows, Android (with Android Auto) and iOS,
 
 ## Download
 
-Open the [Actions tab](https://github.com/amvprosox/musixGoogle/actions), click the latest green **Build** run, and download from **Artifacts** (you must be signed in to GitHub):
+Get the files from the [latest release](https://github.com/amvprosox/musixGoogle/releases/latest):
 
-| Platform | Artifact | File |
-| --- | --- | --- |
-| Windows | `Musix-Windows` | `Musix-Setup-1.0.0.exe` or `Musix-Portable-1.0.0.exe` |
-| Android | `Musix-Android-APKs` | `Musix-android-phone.apk` |
-| Android Automotive | `Musix-Android-APKs` | `Musix-android-automotive.apk` |
-| iOS | `Musix-iOS-unsigned-ipa` | `Musix-unsigned.ipa` |
-
-Unzip the downloaded artifact to get the file.
+| Platform | File |
+| --- | --- |
+| Ubuntu | `Musix-1.0.0-amd64.deb` or `Musix-1.0.0-x86_64.AppImage` |
+| Windows | `Musix-Setup-1.0.0.exe` or `Musix-Portable-1.0.0.exe` |
+| Android | `Musix-1.0.0-android.apk` |
+| Android Automotive | `Musix-1.0.0-android-automotive.apk` |
+| iOS | `Musix-1.0.0-ios.ipa` |
 
 ## Install on Ubuntu
 
 ```bash
-git clone https://github.com/amvprosox/musixGoogle.git
-cd musixGoogle
-npm ci
-npm run build:shared
-npm run dist:deb -w musix
-sudo apt install ./desktop/release/musix-1.0.0-amd64.deb
+sudo apt install ./Musix-1.0.0-amd64.deb
 ```
 
-Open **Musix** from the app grid.
+Run this in the folder where you downloaded the file, then open **Musix** from the app grid.
+
+To use the AppImage instead:
+
+```bash
+chmod +x Musix-1.0.0-x86_64.AppImage
+./Musix-1.0.0-x86_64.AppImage
+```
 
 ## Install on Windows
 
@@ -38,7 +39,7 @@ Open **Musix** from the app grid.
 
 ## Install on Android
 
-1. Copy `Musix-android-phone.apk` to the phone and open it.
+1. Copy `Musix-1.0.0-android.apk` to the phone and open it.
 2. Allow installs from that source when asked, then tap **Install**.
 3. Open **Musix** and sign in.
 
@@ -56,7 +57,7 @@ Requires a computer, a USB cable and a free Apple ID. The app must be reinstalle
 1. Download [Impactor](https://github.com/claration/impactor/releases) for your computer.
 2. Plug in the iPhone, unlock it and tap **Trust**.
 3. Open Impactor, sign in with your Apple ID and enter the code shown on the iPhone.
-4. Select `Musix-unsigned.ipa`, choose your iPhone and click **Install**.
+4. Select `Musix-1.0.0-ios.ipa`, choose your iPhone and click **Install**.
 5. On the iPhone, open **Settings > Privacy & Security > Developer Mode**, turn it on and restart.
 6. Open **Settings > General > VPN & Device Management**, tap your Apple ID and tap **Trust**.
 7. Open **Musix**.
