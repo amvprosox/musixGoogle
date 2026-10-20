@@ -131,7 +131,9 @@ jobs:
         run: npm ci
 
       - name: Build shared packages
-        run: npm run build:shared
+        run: |
+          npm run build -w @musix/design
+          npm run build -w @musix/bridge
 
       - name: Typecheck and unit tests
         run: |
