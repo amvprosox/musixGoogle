@@ -233,6 +233,27 @@ final class CommandQueueTests: XCTestCase {
         XCTAssertEqual(pending, 0)
     }
 
+    func testDataRequestsRunConcurrently() async throws {
+        let recorder = Recorder()
+        let queue = CommandQueue { await recorder.record($0) }
+        await queue.markReady()
+        let home = Task { await queue.send(.browse(nodeId: "home")) }
+        try await waitFor { await recorder.count == 1 }
+        let search = Task { await queue.send(.search(query: "daft punk", filter: .all)) }
+        try await waitFor { await recorder.count == 2 }
+        let page = BrowsePage(nodeId: "x", title: "")
+        let searchRaw = await recorder.requestId(at: 1)
+        let searchId = try XCTUnwrap(searchRaw)
+        await queue.handle(.searchResult(requestId: searchId, query: "daft punk", page: page))
+        let searchOutcome = await search.value
+        XCTAssertEqual(searchOutcome, .page(page))
+        let homeRaw = await recorder.requestId(at: 0)
+        let homeId = try XCTUnwrap(homeRaw)
+        await queue.handle(.browseResult(requestId: homeId, page: page))
+        let homeOutcome = await home.value
+        XCTAssertEqual(homeOutcome, .page(page))
+    }
+
     func testSerializesWithinALaneButNotAcrossLanes() async throws {
         let recorder = Recorder()
         let queue = CommandQueue { await recorder.record($0) }

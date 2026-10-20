@@ -37,8 +37,6 @@ final class WebEngine: NSObject, ObservableObject {
 
     static let homeAddress = "https://music.youtube.com/"
     static let allowedHost = "music.youtube.com"
-    static let desktopUserAgent =
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
     private static let navigationHosts: Set<String> = [
         "music.youtube.com", "www.youtube.com", "youtube.com", "m.youtube.com",
         "accounts.google.com", "accounts.youtube.com", "consent.youtube.com", "consent.google.com",
@@ -242,6 +240,7 @@ final class WebEngine: NSObject, ObservableObject {
         guard let webView, let url = URL(string: address) else {
             return
         }
+        webView.customUserAgent = UserAgents.agent(for: url.host)
         if !isRecovering {
             status = .loading
         }
@@ -270,7 +269,7 @@ final class WebEngine: NSObject, ObservableObject {
         }
         let view = WKWebView(frame: container.bounds, configuration: configuration)
         view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.customUserAgent = Self.desktopUserAgent
+        view.customUserAgent = UserAgents.agent(for: URL(string: Self.homeAddress)?.host)
         view.navigationDelegate = self
         view.uiDelegate = self
         view.isOpaque = false
@@ -372,7 +371,16 @@ extension WebEngine: WKNavigationDelegate {
         guard let url = navigationAction.request.url else {
             return .cancel
         }
-        if url.scheme == "about" || isAllowedNavigation(url) {
+        if url.scheme == "about" {
+            return .allow
+        }
+        if isAllowedNavigation(url) {
+            let wanted = UserAgents.agent(for: url.host)
+            if webView.customUserAgent != wanted, navigationAction.request.httpMethod?.uppercased() ?? "GET" == "GET" {
+                webView.customUserAgent = wanted
+                webView.load(navigationAction.request)
+                return .cancel
+            }
             return .allow
         }
         if url.scheme == "https" || url.scheme == "http" {
@@ -432,5 +440,22 @@ final class ScriptMessageProxy: NSObject, WKScriptMessageHandler {
             return
         }
         target?.receive(body)
+    }
+}
+
+enum UserAgents {
+    static let desktop =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
+
+    @MainActor
+    static func agent(for host: String?) -> String {
+        guard SignInHosts.isAccountsHost(host) else {
+            return desktop
+        }
+        let device = UIDevice.current
+        return SignInHosts.mobileSafari(
+            systemVersion: device.systemVersion,
+            isPad: device.userInterfaceIdiom == .pad
+        )
     }
 }

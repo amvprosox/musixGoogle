@@ -1,4 +1,4 @@
-import { BrowserWindow, shell, WebContentsView, type Session, type WebContents } from 'electron';
+import { app, BrowserWindow, shell, WebContentsView, type Session, type WebContents } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { YTM_PARTITION } from '../shared/constants';
@@ -24,7 +24,7 @@ import type {
 import type { BridgeCommand } from '@musix/bridge/contract';
 import { routeCommand } from '../shared/bridge-adapter';
 import { YTM_INJECTED_CSS } from '../shared/ytm-css';
-import { accountRequestHeaders, firefoxUserAgent, isGoogleAccountsUrl } from '../shared/identity';
+import { accountRequestHeaders, isGoogleAccountsUrl, nativeUserAgent } from '../shared/identity';
 import { chromeUserAgent, paths } from './config';
 import { logError, logInfo, logWarn } from './log';
 
@@ -39,7 +39,9 @@ export function configureYtmSession(ses: Session): void {
       callback({});
       return;
     }
-    callback({ requestHeaders: accountRequestHeaders(details.requestHeaders, firefoxUserAgent(new Date())) });
+    callback({
+      requestHeaders: accountRequestHeaders(details.requestHeaders, nativeUserAgent(app.userAgentFallback)),
+    });
   });
   ses.setPermissionRequestHandler((_wc, permission, callback) => {
     callback(permission === 'media' || permission === 'notifications');
@@ -73,7 +75,7 @@ export function configureYtmSession(ses: Session): void {
 }
 
 function applyIdentity(contents: WebContents, url: string): void {
-  const wanted = isGoogleAccountsUrl(url) ? firefoxUserAgent(new Date()) : chromeUserAgent();
+  const wanted = isGoogleAccountsUrl(url) ? nativeUserAgent(app.userAgentFallback) : chromeUserAgent();
   if (contents.getUserAgent() !== wanted) {
     contents.setUserAgent(wanted);
   }
@@ -418,7 +420,7 @@ export class YtmView {
     if (wc.isDestroyed()) {
       return false;
     }
-    if (this.status.kind !== 'ready') {
+    if (this.status.kind !== 'ready' && !this.bridgeReady) {
       if (command.type === 'navigate') {
         this.load(ytmRouteUrl(command.route, this.base));
         return true;

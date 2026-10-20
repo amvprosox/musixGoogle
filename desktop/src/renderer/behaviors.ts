@@ -49,16 +49,6 @@ export function installBrowserBehaviors(ctx: AppContext): void {
     attributes: true,
     attributeFilter: ['title'],
   });
-
-  window.addEventListener(
-    'wheel',
-    (event) => {
-      if (event.ctrlKey) {
-        event.preventDefault();
-      }
-    },
-    { capture: true, passive: false },
-  );
   window.addEventListener(
     'dragstart',
     (event) => {

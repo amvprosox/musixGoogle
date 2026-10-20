@@ -42,7 +42,6 @@ class CommandQueue(
     private val ready = MutableStateFlow(false)
     private val pending = ConcurrentHashMap<String, CompletableDeferred<CommandResult>>()
     private val playerLock = Mutex()
-    private val dataLock = Mutex()
     private val counter = AtomicLong(0)
     private val generation = AtomicLong(0)
 
@@ -67,10 +66,12 @@ class CommandQueue(
     suspend fun send(
         lane: CommandLane,
         build: (String) -> BridgeCommand,
-    ): CommandResult {
-        val lock = if (lane == CommandLane.PLAYER) playerLock else dataLock
-        return lock.withLock { dispatch(build) }
-    }
+    ): CommandResult =
+        if (lane == CommandLane.PLAYER) {
+            playerLock.withLock { dispatch(build) }
+        } else {
+            dispatch(build)
+        }
 
     fun onEvent(event: BridgeEvent): Boolean =
         when (event) {

@@ -14,6 +14,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebStorage
 import android.webkit.WebView
 import android.widget.FrameLayout
+import androidx.core.net.toUri
 import androidx.webkit.ScriptHandler
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
@@ -100,6 +101,8 @@ class WebEngine(
     private var crashTimes = ArrayDeque<Long>()
     private var pendingRestore: Pair<ResumeSnapshot, Boolean>? = null
     private var released = false
+    private var nativeAgent = ""
+    private var pageAgent = ""
 
     val queue = CommandQueue(BridgeTransport { deliver(it) })
 
@@ -401,9 +404,22 @@ class WebEngine(
             delivered ?: true
         }
 
+    internal fun switchAgent(
+        view: WebView,
+        host: String?,
+    ): Boolean {
+        val wanted = if (UserAgents.isAccountsHost(host)) nativeAgent else pageAgent
+        if (wanted.isEmpty() || view.settings.userAgentString == wanted) {
+            return false
+        }
+        view.settings.userAgentString = wanted
+        return true
+    }
+
     private fun load(url: String) {
         val view = webView ?: return
         statusFlow.value = if (statusFlow.value is EngineStatus.Recovering) statusFlow.value else EngineStatus.Loading
+        switchAgent(view, url.toUri().host)
         view.loadUrl(url)
     }
 
@@ -423,9 +439,9 @@ class WebEngine(
             loadWithOverviewMode = true
             builtInZoomControls = false
             displayZoomControls = false
-            if (config.desktopUserAgent) {
-                userAgentString = UserAgents.desktop(userAgentString)
-            }
+            nativeAgent = userAgentString
+            pageAgent = if (config.desktopUserAgent) UserAgents.desktop(userAgentString) else userAgentString
+            userAgentString = pageAgent
         }
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(view, true)

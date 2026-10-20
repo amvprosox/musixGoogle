@@ -61,6 +61,9 @@ public actor CommandQueue {
 
     public func send(_ command: BridgeCommand) async -> CommandResult {
         let lane = command.lane
+        if lane == .data {
+            return await dispatch(command)
+        }
         let previous = tails[lane]
         let task = Task { () -> CommandResult in
             await previous?.value

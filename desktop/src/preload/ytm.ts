@@ -16,7 +16,6 @@ import type {
 } from '../shared/types';
 import { isItemMenuInfo, isMenuAction } from '../shared/validators';
 import { SCROLLER_SELECTORS, YTM_INJECTED_CSS } from '../shared/ytm-css';
-import { isGoogleAccountsUrl } from '../shared/identity';
 import { installDesktopMainWorld } from './main-world';
 
 const BASE_ARG = '--musix-ytm-base=';
@@ -100,15 +99,6 @@ function installKeyForwarding(): void {
 }
 
 function installInputBlocking(): void {
-  window.addEventListener(
-    'wheel',
-    (event) => {
-      if (event.ctrlKey) {
-        event.preventDefault();
-      }
-    },
-    { capture: true, passive: false },
-  );
   window.addEventListener(
     'dragstart',
     (event) => {
@@ -494,12 +484,6 @@ contextBridge.exposeInMainWorld('electronBridge', {
 
 installInputBlocking();
 installContextMenu(isYtm);
-
-if (isGoogleAccountsUrl(location.href)) {
-  void runInMainWorld(
-    "(() => { try { delete Navigator.prototype.userAgentData; } catch (error) { return false; } if ('userAgentData' in navigator) { Object.defineProperty(Navigator.prototype, 'userAgentData', { configurable: true, get: () => undefined }); } return true; })()",
-  );
-}
 
 if (isYtm) {
   insertStyles();

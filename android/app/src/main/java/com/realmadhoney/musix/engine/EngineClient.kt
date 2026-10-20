@@ -46,6 +46,10 @@ internal class EngineClient(
             return true
         }
         if (engine.isAllowedNavigation(url.host)) {
+            if (engine.switchAgent(view, url.host)) {
+                view.loadUrl(url.toString())
+                return true
+            }
             return false
         }
         engine.onExternalLink(url.toString())
@@ -151,6 +155,12 @@ internal class EngineChromeClient : WebChromeClient() {
 
 object UserAgents {
     private val CHROME = Regex("Chrome/([0-9.]+)")
+    private val ACCOUNT_HOSTS = listOf(Regex("^accounts\\.google\\.[a-z]{2,3}(\\.[a-z]{2})?$"), Regex("^accounts\\.youtube\\.com$"))
+
+    fun isAccountsHost(host: String?): Boolean {
+        val normalized = host?.lowercase() ?: return false
+        return ACCOUNT_HOSTS.any { it.matches(normalized) }
+    }
 
     fun desktop(webViewAgent: String): String {
         val version = CHROME.find(webViewAgent)?.groupValues?.getOrNull(1) ?: "131.0.0.0"

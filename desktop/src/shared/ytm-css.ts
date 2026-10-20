@@ -78,7 +78,7 @@ html {
 html, .scroller {
   transition: --musix-sb ${tokens.motion.scrollbarFadeOut / 2}ms ease;
 }
-*:hover, .musix-scrolling {
+html:hover, .scroller:hover, .musix-scrolling {
   --musix-sb: ${dark.scrollbarThumb};
 }
 html:hover, .scroller:hover, html.musix-scrolling, .scroller.musix-scrolling {

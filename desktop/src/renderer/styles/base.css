@@ -233,7 +233,7 @@ svg {
   overscroll-behavior: contain;
 }
 
-*:hover,
+[data-scroll]:hover,
 .is-scrolling {
   --sb-thumb: var(--scrollbar-thumb);
 }

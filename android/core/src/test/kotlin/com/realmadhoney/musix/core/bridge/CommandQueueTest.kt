@@ -104,6 +104,24 @@ class CommandQueueTest {
         }
 
     @Test
+    fun dataRequestsRunConcurrently() =
+        runTest {
+            val transport = RecordingTransport()
+            val queue = CommandQueue(transport)
+            queue.markReady()
+            val home = async { queue.data { BridgeCommand.Browse(it, "home") } }
+            val search = async { queue.data { BridgeCommand.Search(it, "daft punk", SearchFilter.ALL) } }
+            runCurrent()
+            assertThat(transport.sent).hasSize(2)
+            val page = BrowsePage("x", "", emptyList(), emptyList(), null)
+            queue.onEvent(BridgeEvent.SearchResult(1, requestIdOf(transport.sent[1]), "daft punk", page))
+            assertThat(search.await()).isEqualTo(CommandResult.Page(page))
+            assertThat(home.isCompleted).isFalse()
+            queue.onEvent(BridgeEvent.BrowseResult(1, requestIdOf(transport.sent[0]), page))
+            assertThat(home.await()).isEqualTo(CommandResult.Page(page))
+        }
+
+    @Test
     fun mapsBridgeErrorsToFailures() =
         runTest {
             val transport = RecordingTransport()
