@@ -1,6 +1,6 @@
 # Musix
 
-A YouTube Music player for Ubuntu, Windows, Android (with Android Auto) and iOS, with a built-in ad blocker.
+Musix - A custom music YouTube app with a built-in ad blocker to play what music you wanted to play without subscribing to YouTube 😛. Similar to Youtube Revanced
 
 ## Download
 
