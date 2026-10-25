@@ -81,6 +81,15 @@ data class EngineError(
     val message: String,
 )
 
+enum class WebRoute(
+    val browseId: String,
+    val path: String,
+) {
+    Home("FEmusic_home", ""),
+    Explore("FEmusic_explore", "explore"),
+    Library("FEmusic_library_landing", "library"),
+}
+
 class WebEngine(
     private val appContext: Context,
     private val config: EngineConfig,
@@ -123,6 +132,9 @@ class WebEngine(
 
     private val externalLinkFlow = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val externalLinks: SharedFlow<String> = externalLinkFlow.asSharedFlow()
+
+    private val backFlow = MutableStateFlow(false)
+    val canNavigateBack: StateFlow<Boolean> = backFlow.asStateFlow()
 
     val blockedRequests: Long get() = blocker.blockedCount
 
@@ -169,6 +181,46 @@ class WebEngine(
 
     fun goBack() {
         webView?.goBack()
+    }
+
+    fun navigate(route: WebRoute) {
+        checkMain()
+        val endpoint = "{\"browseEndpoint\":{\"browseId\":\"${route.browseId}\"}}"
+        runNavigation(endpoint) { load(config.homeUrl + route.path) }
+    }
+
+    fun search(query: String) {
+        checkMain()
+        val trimmed = query.trim().take(MAX_QUERY)
+        if (trimmed.isEmpty()) {
+            return
+        }
+        val literal = BridgeCodec.json.encodeToString(String.serializer(), trimmed)
+        runNavigation("{\"searchEndpoint\":{\"query\":$literal}}") {
+            load(config.homeUrl + "search?q=" + android.net.Uri.encode(trimmed))
+        }
+    }
+
+    private fun runNavigation(
+        endpoint: String,
+        fallback: () -> Unit,
+    ) {
+        val view = webView
+        if (view == null || !config.isAllowedOrigin(view.url)) {
+            fallback()
+            return
+        }
+        view.evaluateJavascript(scripts.navigation(endpoint)) { result ->
+            if (result != "true") {
+                fallback()
+            }
+        }
+    }
+
+    internal fun onHistoryChanged(view: WebView) {
+        if (view === webView) {
+            backFlow.value = view.canGoBack()
+        }
     }
 
     fun attachTo(container: FrameLayout) {
@@ -478,6 +530,9 @@ class WebEngine(
             if (scripts.cosmeticCss.isNotBlank()) {
                 handlers += WebViewCompat.addDocumentStartJavaScript(view, scripts.cosmeticInstaller, config.allowedOrigins)
             }
+            if (scripts.skinCss.isNotBlank()) {
+                handlers += WebViewCompat.addDocumentStartJavaScript(view, scripts.skinInstaller, config.allowedOrigins)
+            }
             handlers += WebViewCompat.addDocumentStartJavaScript(view, scripts.bridge, config.allowedOrigins)
         } else {
             fallbackInjection = true
@@ -497,12 +552,17 @@ class WebEngine(
             append(';')
             append(scripts.cosmeticInstaller)
             append(';')
+            if (scripts.skinCss.isNotBlank()) {
+                append(scripts.skinInstaller)
+                append(';')
+            }
             append(scripts.bridge)
         }
 
     private fun destroyView() {
         val view = webView ?: return
         webView = null
+        backFlow.value = false
         scriptHandlers.forEach { it.remove() }
         scriptHandlers = emptyList()
         (view.parent as? ViewGroup)?.removeView(view)
@@ -543,5 +603,6 @@ class WebEngine(
         private const val MAX_BACKOFF_MS = 30_000L
         private const val CRASH_WINDOW_MS = 5 * 60_000L
         private const val MAX_CRASHES = 5
+        private const val MAX_QUERY = 500
     }
 }

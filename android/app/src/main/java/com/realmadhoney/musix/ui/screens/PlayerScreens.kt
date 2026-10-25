@@ -83,51 +83,80 @@ fun MiniPlayer(
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (!state.hasTrack) {
-        return
-    }
     val colors = Musix.colors
     val openLabel = stringResource(R.string.action_open_player)
+    val playLabel = stringResource(if (state.isPlaying) R.string.action_pause else R.string.action_play)
     Column(modifier = modifier.fillMaxWidth().background(colors.surface)) {
         val progress = if (state.durationMs > 0) (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f
-        Box(Modifier.fillMaxWidth().height(2.dp).background(colors.border)) {
+        Box(Modifier.fillMaxWidth().height(2.dp).background(colors.surface2)) {
             Box(Modifier.fillMaxWidth(progress).height(2.dp).background(colors.accent))
         }
         Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(DesignTokens.MiniPlayerHeight)
-                    .clickable(role = Role.Button, onClickLabel = openLabel, onClick = onOpen)
+                    .height(DesignTokens.MiniPlayerHeight + 8.dp)
+                    .clickable(enabled = state.hasTrack, role = Role.Button, onClickLabel = openLabel, onClick = onOpen)
                     .padding(horizontal = DesignTokens.Space12),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Artwork(state.artworkUri, 44.dp)
+            Artwork(if (state.hasTrack) state.artworkUri else null, 48.dp, corner = DesignTokens.RadiusCard)
             Spacer(Modifier.width(DesignTokens.Space12))
             Column(Modifier.weight(1f)) {
                 Text(
-                    state.title.ifEmpty { stringResource(R.string.playing_ad) },
+                    if (state.hasTrack) {
+                        state.title.ifEmpty {
+                            stringResource(
+                                R.string.playing_ad,
+                            )
+                        }
+                    } else {
+                        stringResource(R.string.nothing_playing)
+                    },
                     style = MaterialTheme.typography.titleSmall,
                     color = colors.text,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (state.artist.isNotEmpty()) {
-                    Text(
-                        state.artist,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.textMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                Text(
+                    if (state.hasTrack) state.artist else stringResource(R.string.mini_idle_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Box(
+                modifier =
+                    Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .clickable(enabled = state.hasTrack, role = Role.Button, onClickLabel = playLabel, onClick = actions::togglePlay)
+                        .semantics { contentDescription = playLabel },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(if (state.hasTrack) colors.accent else colors.accent.copy(alpha = 0.6f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    MusixIcon(
+                        if (state.isPlaying) R.drawable.ic_pause_filled else R.drawable.ic_play_filled,
+                        null,
+                        tint = colors.onAccent,
+                        size = 20.dp,
                     )
                 }
             }
             IconAction(
-                if (state.isPlaying) R.drawable.ic_pause_filled else R.drawable.ic_play_filled,
-                stringResource(if (state.isPlaying) R.string.action_pause else R.string.action_play),
-                actions::togglePlay,
+                R.drawable.ic_skip_forward,
+                stringResource(R.string.action_next),
+                actions::next,
+                enabled = state.hasTrack && state.canSkip,
             )
-            IconAction(R.drawable.ic_skip_forward, stringResource(R.string.action_next), actions::next, enabled = state.canSkip)
         }
     }
 }

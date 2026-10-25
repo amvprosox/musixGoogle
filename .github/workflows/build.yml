@@ -152,3 +152,41 @@ jobs:
             desktop/release/Musix-Setup-*.exe
             desktop/release/Musix-Portable-*.exe
           if-no-files-found: error
+
+  macos:
+    name: macOS (dmg and zip)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared packages
+        run: |
+          npm run build -w @musix/design
+          npm run build -w @musix/bridge
+
+      - name: Typecheck and unit tests
+        run: |
+          npm run typecheck -w musix
+          npm test -w musix
+
+      - name: Build the app
+        run: npm run dist:mac -w musix
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Musix-macOS
+          path: |
+            desktop/release/Musix-*-mac.dmg
+            desktop/release/Musix-*-mac.zip
+          if-no-files-found: error

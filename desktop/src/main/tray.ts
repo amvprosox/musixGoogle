@@ -21,7 +21,8 @@ export class AppTray {
     private readonly handlers: TrayHandlers,
   ) {
     try {
-      const image = nativeImage.createFromPath(appIconPath(32));
+      const source = nativeImage.createFromPath(appIconPath(32));
+      const image = process.platform === 'darwin' ? source.resize({ width: 18, height: 18 }) : source;
       this.tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image);
       this.tray.setToolTip(APP_NAME);
       this.tray.on('click', () => {

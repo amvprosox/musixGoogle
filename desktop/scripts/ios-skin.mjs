@@ -1,11 +1,14 @@
 import * as esbuild from 'esbuild';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
 const repo = path.resolve(root, '..');
 const check = process.argv.includes('--check');
-const target = path.join(repo, 'ios', 'Musix', 'Resources', 'Web', 'ytm-skin.css');
+const targets = [
+  path.join(repo, 'ios', 'Musix', 'Resources', 'Web', 'ytm-skin.css'),
+  path.join(repo, 'android', 'app', 'src', 'main', 'assets', 'web', 'ytm-skin.css'),
+];
 
 const built = await esbuild.build({
   entryPoints: [path.join(root, 'src', 'shared', 'ytm-css.ts')],
@@ -49,13 +52,15 @@ ytmusic-app-layout > #content {
 `;
 
 const css = `${fonts}\n${shared}\n${touch}`;
-if (check) {
-  const current = readFileSync(target, 'utf8');
-  if (current !== css) {
-    console.error('ios/Musix/Resources/Web/ytm-skin.css is out of date. Run npm run ios-skin -w musix.');
-    process.exit(1);
+for (const target of targets) {
+  if (check) {
+    const current = existsSync(target) ? readFileSync(target, 'utf8') : '';
+    if (current !== css) {
+      console.error(`${path.relative(repo, target)} is out of date. Run npm run ios-skin -w musix.`);
+      process.exitCode = 1;
+    }
+  } else {
+    writeFileSync(target, css);
+    console.info(`Wrote ${path.relative(repo, target)} (${css.length} bytes)`);
   }
-} else {
-  writeFileSync(target, css);
-  console.info(`Wrote ${path.relative(repo, target)} (${css.length} bytes)`);
 }

@@ -49,7 +49,7 @@ const ICONS = {
 
 const FILLED = new Set(['heart', 'play', 'pause']);
 
-const IOS_ONLY = new Set(['play', 'pause', 'thumbs_down', 'compass']);
+const IOS_ONLY = new Set(['play', 'pause', 'thumbs_down']);
 
 const LOGO_BARS = [
   [90, 196, 44, 120],
@@ -320,6 +320,10 @@ let stale = 0;
 const generatedBinaries = [
   [path.join(assetCatalog, 'AppIcon.appiconset', 'AppIcon.png'), Buffer.from(appIconPng)],
   [path.join(assetCatalog, 'Logo.imageset', 'Logo.png'), Buffer.from(logoPng)],
+  [
+    path.join(repo, 'android', 'app', 'src', 'main', 'res', 'drawable-nodpi', 'musix_logo.png'),
+    Buffer.from(logoPng),
+  ],
 ];
 for (const [file, bytes] of generatedBinaries) {
   if (existsSync(file) && readFileSync(file).equals(bytes)) {

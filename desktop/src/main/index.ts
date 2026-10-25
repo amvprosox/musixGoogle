@@ -103,8 +103,15 @@ async function applyAutostart(enabled: boolean): Promise<void> {
   }
 }
 
+function applicationMenu(): Menu | null {
+  if (process.platform !== 'darwin') {
+    return null;
+  }
+  return Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]);
+}
+
 async function start(): Promise<void> {
-  Menu.setApplicationMenu(null);
+  Menu.setApplicationMenu(applicationMenu());
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => {
     callback(false);
   });
@@ -380,6 +387,12 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', () => {
     if (mainWindow) {
+      showWindow(mainWindow);
+    }
+  });
+
+  app.on('activate', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       showWindow(mainWindow);
     }
   });

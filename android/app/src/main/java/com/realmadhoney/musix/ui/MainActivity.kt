@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.SnackbarHost
@@ -23,8 +24,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -38,17 +42,22 @@ import com.realmadhoney.musix.BuildConfig
 import com.realmadhoney.musix.R
 import com.realmadhoney.musix.core.browse.MediaIds
 import com.realmadhoney.musix.core.browse.MediaRef
+import com.realmadhoney.musix.engine.AccountState
 import com.realmadhoney.musix.engine.WebEngine
 import com.realmadhoney.musix.platform.PlatformInfo
+import com.realmadhoney.musix.ui.screens.EngineBanner
 import com.realmadhoney.musix.ui.screens.FolderScreen
-import com.realmadhoney.musix.ui.screens.HomeScreen
 import com.realmadhoney.musix.ui.screens.MiniPlayer
 import com.realmadhoney.musix.ui.screens.NowPlayingScreen
 import com.realmadhoney.musix.ui.screens.PlayerActions
 import com.realmadhoney.musix.ui.screens.SaveToPlaylistDialog
 import com.realmadhoney.musix.ui.screens.SearchScreen
 import com.realmadhoney.musix.ui.screens.SettingsScreen
+import com.realmadhoney.musix.ui.screens.ShellTab
+import com.realmadhoney.musix.ui.screens.ShellTabBar
+import com.realmadhoney.musix.ui.screens.ShellTopBar
 import com.realmadhoney.musix.ui.screens.SignInScreen
+import com.realmadhoney.musix.ui.screens.WebContent
 import com.realmadhoney.musix.ui.theme.Musix
 import com.realmadhoney.musix.ui.theme.MusixTheme
 import kotlinx.coroutines.flow.filterNotNull
@@ -74,7 +83,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         setContent {
-            MusixTheme {
+            MusixTheme(dark = true) {
                 MusixApp(viewModel)
             }
         }
@@ -122,7 +131,6 @@ fun MusixApp(viewModel: MainViewModel) {
     val route = routes.lastOrNull() ?: Route.Home
     val nowPlaying by viewModel.connection.nowPlaying.collectAsState()
     val connected by viewModel.connection.connected.collectAsState()
-    val tab by viewModel.tab.collectAsState()
     val account by viewModel.account.collectAsState()
     val engine by viewModel.graph.engine.collectAsState()
     val query by viewModel.query.collectAsState()
@@ -140,7 +148,28 @@ fun MusixApp(viewModel: MainViewModel) {
     LaunchedEffect(Unit) {
         merge(viewModel.connection.messages, viewModel.graph.messages).collect { snackbar.showSnackbar(it) }
     }
+    var shellTab by rememberSaveable { mutableStateOf(ShellTab.Home) }
+    var webQuery by rememberSaveable { mutableStateOf("") }
+    val webBack = engine?.canNavigateBack?.collectAsState()?.value ?: false
     BackHandler(enabled = routes.size > 1) { viewModel.back() }
+    BackHandler(enabled = routes.size <= 1 && shellTab == ShellTab.Search) { shellTab = ShellTab.Home }
+    BackHandler(enabled = routes.size <= 1 && shellTab != ShellTab.Search && webBack) { engine?.goBack() }
+    val selectShell: (ShellTab) -> Unit = { next ->
+        when (next) {
+            ShellTab.Settings -> {
+                viewModel.navigate(Route.Settings)
+            }
+
+            ShellTab.Search -> {
+                shellTab = ShellTab.Search
+            }
+
+            else -> {
+                shellTab = next
+                next.route?.let { target -> engine?.navigate(target) }
+            }
+        }
+    }
 
     val actions =
         remember(viewModel) {
@@ -190,18 +219,27 @@ fun MusixApp(viewModel: MainViewModel) {
             Box(Modifier.weight(1f)) {
                 when (val current = route) {
                     Route.Home -> {
-                        HomeScreen(
-                            selected = tab,
-                            engineStatus = engineStatus,
-                            connected = connected,
-                            listFor = viewModel::list,
-                            onSelectTab = viewModel::selectTab,
-                            onSearch = { viewModel.navigate(Route.Search) },
-                            onSettings = { viewModel.navigate(Route.Settings) },
-                            onOpen = open,
-                            onSignIn = signIn,
-                            onRetryEngine = retryEngine,
-                        )
+                        val current = engine
+                        Column(Modifier.fillMaxSize()) {
+                            ShellTopBar(
+                                searching = shellTab == ShellTab.Search,
+                                query = webQuery,
+                                canGoBack = webBack,
+                                signedIn = account is AccountState.SignedIn,
+                                onQueryChange = { webQuery = it },
+                                onSubmit = { engine?.search(webQuery) },
+                                onBack = { engine?.goBack() },
+                                onSearch = { selectShell(ShellTab.Search) },
+                                onAccount = { viewModel.navigate(Route.Settings) },
+                                onSignIn = signIn,
+                            )
+                            EngineBanner(engineStatus, retryEngine)
+                            if (current == null) {
+                                Box(Modifier.weight(1f).fillMaxWidth())
+                            } else {
+                                WebContent(current, Modifier.weight(1f))
+                            }
+                        }
                     }
 
                     is Route.Folder -> {
@@ -268,6 +306,9 @@ fun MusixApp(viewModel: MainViewModel) {
             }
             if (route != Route.NowPlaying && route != Route.SignIn) {
                 MiniPlayer(nowPlaying, actions, onOpen = { viewModel.navigate(Route.NowPlaying) })
+            }
+            if (route == Route.Home) {
+                ShellTabBar(shellTab, selectShell)
             }
         }
         SnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter))

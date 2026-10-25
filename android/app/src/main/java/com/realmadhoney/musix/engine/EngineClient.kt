@@ -64,6 +64,14 @@ internal class EngineClient(
         engine.onPageStarted(url)
     }
 
+    override fun doUpdateVisitedHistory(
+        view: WebView,
+        url: String?,
+        isReload: Boolean,
+    ) {
+        engine.onHistoryChanged(view)
+    }
+
     override fun onReceivedError(
         view: WebView,
         request: WebResourceRequest,

@@ -181,7 +181,8 @@
 
 :root[data-window='maximized'],
 :root[data-window='fullscreen'],
-:root[data-platform='win32'] {
+:root[data-platform='win32'],
+:root[data-platform='darwin'] {
   --window-radius: 0px;
 }
 

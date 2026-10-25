@@ -55,7 +55,7 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     sidebarCollapsed: state.sidebarCollapsed,
     platform: desktopPlatform(process.platform),
   };
-  const windows = process.platform === 'win32';
+  const opaque = process.platform === 'win32' || process.platform === 'darwin';
 
   const win = new BrowserWindow({
     title: APP_NAME,
@@ -66,10 +66,11 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     minHeight: MIN_WINDOW_HEIGHT,
     show: false,
     frame: false,
-    transparent: !windows,
+    transparent: !opaque,
     resizable: true,
     hasShadow: true,
-    backgroundColor: windows ? THEME_BACKGROUND[theme] : '#00000000',
+    backgroundColor: opaque ? THEME_BACKGROUND[theme] : '#00000000',
+    roundedCorners: true,
     icon: appIconPath(512),
     autoHideMenuBar: true,
     webPreferences: {
@@ -192,11 +193,19 @@ export function readButtonLayout(): Promise<string> {
   });
 }
 
+const MAC_LAYOUT: { side: 'left' | 'right'; buttons: WindowButton[] } = {
+  side: 'left',
+  buttons: ['close', 'minimize', 'maximize'],
+};
+
 export class WindowChrome {
-  private layout: { side: 'left' | 'right'; buttons: WindowButton[] } = {
-    side: 'right',
-    buttons: ['minimize', 'maximize', 'close'],
-  };
+  private layout: { side: 'left' | 'right'; buttons: WindowButton[] } =
+    process.platform === 'darwin'
+      ? MAC_LAYOUT
+      : {
+          side: 'right',
+          buttons: ['minimize', 'maximize', 'close'],
+        };
   private lastMaximizeChange = 0;
 
   constructor(
@@ -216,7 +225,7 @@ export class WindowChrome {
     }
     readButtonLayout()
       .then((raw) => {
-        this.layout = parseButtonLayout(raw);
+        this.layout = process.platform === 'darwin' ? MAC_LAYOUT : parseButtonLayout(raw);
         this.emit();
       })
       .catch((error: unknown) => {
