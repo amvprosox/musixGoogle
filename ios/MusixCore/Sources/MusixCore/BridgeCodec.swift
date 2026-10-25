@@ -14,6 +14,7 @@ public enum BridgeCodec {
     static let maxItems = 2000
     static let maxSections = 200
     static let maxRequestId = 64
+    static let maxLyricLines = 1000
 
     public static func decodeEvent(_ raw: String) -> DecodeResult {
         guard raw.utf16.count <= maxMessageCharacters else {
@@ -87,6 +88,16 @@ public enum BridgeCodec {
             return isValidVideoId(videoId) && isValidPlaylistId(playlistId) ? nil : "invalid playlist target"
         case let .savePlaylist(playlistId, _):
             return isValidPlaylistId(playlistId) ? nil : "invalid playlist id"
+        case let .lyrics(videoId, title, artist, album, durationSec):
+            let valid = isValidVideoId(videoId)
+                && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && title.count <= maxText
+                && artist.count <= maxText
+                && album.count <= maxText
+                && nonNegative(durationSec)
+            return valid ? nil : "invalid lyrics request"
+        case let .suggest(query):
+            return query.count <= 500 ? nil : "query too long"
         case .play, .pause, .togglePlay, .next, .previous, .toggleMute, .toggleLike, .toggleDislike, .setShuffle, .setRepeat, .configure:
             return nil
         }
@@ -110,6 +121,10 @@ public enum BridgeCodec {
             return nil
         case let .ack(requestId):
             return requestIdProblem(requestId)
+        case let .lyricsResult(requestId, lyrics):
+            return requestIdProblem(requestId) ?? lyrics.flatMap { lyricsProblem($0) }
+        case let .suggestResult(requestId, suggestions):
+            return requestIdProblem(requestId) ?? suggestionsProblem(suggestions)
         case let .error(_, message, requestId):
             if message.count > maxText {
                 return "error message too long"
@@ -159,6 +174,23 @@ public enum BridgeCodec {
 
     private static func check(_ condition: Bool, _ message: String) -> String? {
         condition ? nil : message
+    }
+
+    private static func lyricsProblem(_ lyrics: Lyrics) -> String? {
+        firstProblem([
+            check(lyrics.videoId.count <= maxId, "lyrics video id too long"),
+            check(lyrics.source.count <= 200, "lyrics source too long"),
+            check(lyrics.lines.count <= maxLyricLines, "too many lyric lines"),
+            check(lyrics.lines.allSatisfy { nonNegative($0.timeMs) && $0.text.count <= maxText }, "invalid lyric line"),
+        ])
+    }
+
+    private static func suggestionsProblem(_ suggestions: SearchSuggestions) -> String? {
+        firstProblem([
+            check(suggestions.query.count <= 500, "query too long"),
+            check(suggestions.queries.count <= 50 && suggestions.queries.allSatisfy { $0.count <= 500 }, "invalid suggestions"),
+            check(suggestions.items.count <= 50, "too many suggested items"),
+        ] + suggestions.items.map { itemProblem($0) })
     }
 
     private static func stateProblem(_ state: BridgeState) -> String? {

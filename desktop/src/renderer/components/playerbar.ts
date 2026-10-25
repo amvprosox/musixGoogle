@@ -3,6 +3,7 @@ import { progressRatio, volumeIconName } from '../../shared/player-math';
 import type { PlayerState } from '../../shared/types';
 import type { AppContext } from '../context';
 import { h, hydrate, icon, iconButton, setAttr, setButtonIcon, setImage, setLabel, setText } from '../dom';
+import { lyricsToggle } from './lyrics';
 import { displayedPlaying, type ShellState } from '../state';
 import { Slider } from './slider';
 
@@ -269,6 +270,7 @@ export function mountPlayerBar(root: HTMLElement, ctx: AppContext): void {
       h('div', { className: 'right-controls' }, [
         h('div', { className: 'volume-group' }, [mute, volume.el]),
         volumePopoverButton,
+        lyricsToggle(ctx, 'top', 'lyrics-toggle'),
         queueToggle,
       ]),
     ],

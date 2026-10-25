@@ -1,3 +1,7 @@
+import type { Lyrics, SearchSuggestions } from '@musix/bridge/contract';
+
+export type { Lyrics, LyricLine, SearchSuggestions } from '@musix/bridge/contract';
+
 export type LikeStatus = 'LIKE' | 'DISLIKE' | 'INDIFFERENT';
 export type RepeatMode = 'NONE' | 'ALL' | 'ONE';
 
@@ -45,6 +49,8 @@ export type PlayerCommand =
   | { type: 'toggleShuffle' }
   | { type: 'cycleRepeat' }
   | { type: 'playQueueIndex'; index: number }
+  | { type: 'playVideo'; videoId: string; playlistId: string | null }
+  | { type: 'openBrowse'; browseId: string }
   | { type: 'search'; query: string }
   | { type: 'navigate'; route: NavRoute }
   | { type: 'signIn' }
@@ -235,6 +241,7 @@ export type DesktopViewEvent =
 export type DesktopViewCommand =
   | { type: 'navigate'; route: NavRoute }
   | { type: 'searchPage'; query: string }
+  | { type: 'browsePage'; browseId: string }
   | { type: 'signIn' }
   | { type: 'openAccountMenu' }
   | { type: 'itemInfo'; requestId: string; target: ItemTarget }
@@ -265,6 +272,13 @@ export interface ShellDialog {
 export interface YtmConfig {
   adSkipFallback: boolean;
 }
+
+export type LyricsResponse =
+  | { kind: 'found'; lyrics: Lyrics }
+  | { kind: 'missing'; videoId: string }
+  | { kind: 'error'; videoId: string; message: string };
+
+export type SuggestResponse = SearchSuggestions | null;
 
 export type AppCommand = 'open-settings' | 'focus-search' | 'toggle-queue';
 

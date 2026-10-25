@@ -13,6 +13,7 @@ import {
   SEL,
   textOfElement,
 } from './dom';
+import type { PlaybackGuard } from './guard';
 import { readPageConfig } from './innertube';
 import { bestThumbnail, parseClock, upgradeArtwork } from './parse';
 import {
@@ -112,6 +113,7 @@ export class PlayerObserver {
   private duckBase: number | null = null;
   private knownPlaylistId = '';
   private watchdog: number | null = null;
+  private guard: PlaybackGuard | null = null;
 
   constructor(
     private readonly doc: Document,
@@ -167,6 +169,11 @@ export class PlayerObserver {
     video.volume = Math.max(0, Math.min(1, this.duckBase * level));
   }
 
+  setGuard(guard: PlaybackGuard): void {
+    this.guard = guard;
+    guard.attach(this.video);
+  }
+
   rememberPlaylist(playlistId: string | null): void {
     this.knownPlaylistId = playlistId ?? '';
   }
@@ -176,6 +183,7 @@ export class PlayerObserver {
     this.attachVideo();
     this.attachQueue();
     this.checkAccount();
+    this.guard?.check();
     this.scheduleUpdate();
   }
 
@@ -250,6 +258,7 @@ export class PlayerObserver {
     this.adActive = false;
     this.adSaved = null;
     this.duckBase = null;
+    this.guard?.attach(video);
     if (!video) {
       return;
     }
@@ -568,6 +577,20 @@ export class PlayerObserver {
       this.updateScheduled = false;
       this.update();
     });
+  }
+
+  isVideoPlaying(): boolean {
+    const video = this.video;
+    return video !== null && !video.paused && !video.ended;
+  }
+
+  flush(): void {
+    if (this.progressTimer !== null) {
+      this.win.clearTimeout(this.progressTimer);
+      this.progressTimer = null;
+    }
+    this.lastProgressAt = 0;
+    this.update();
   }
 
   private update(): void {

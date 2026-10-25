@@ -12,6 +12,7 @@ export default defineConfig({
             'tests/innertube.test.ts',
             'tests/state.test.ts',
             'tests/contract.test.ts',
+            'tests/lyrics.test.ts',
           ],
           environment: 'node',
         },

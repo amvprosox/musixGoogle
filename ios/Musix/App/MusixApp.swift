@@ -10,6 +10,8 @@ final class AppModel {
     let engine: WebEngine
     let player: PlayerController
     let library: LibraryService
+    let lyrics: LyricsController
+    let suggester: SearchSuggester
 
     private init() {
         let settings = AppSettings()
@@ -18,6 +20,8 @@ final class AppModel {
         self.engine = engine
         self.player = PlayerController(engine: engine, settings: settings)
         self.library = LibraryService(queue: engine.commandQueue, settings: settings)
+        self.lyrics = LyricsController(engine: engine)
+        self.suggester = SearchSuggester(queue: engine.commandQueue)
         engine.start()
     }
 
@@ -51,7 +55,9 @@ struct MusixApp: App {
                 engine: AppModel.shared.engine,
                 player: AppModel.shared.player,
                 library: AppModel.shared.library,
-                settings: AppModel.shared.settings
+                settings: AppModel.shared.settings,
+                lyrics: AppModel.shared.lyrics,
+                suggester: AppModel.shared.suggester
             )
         }
     }

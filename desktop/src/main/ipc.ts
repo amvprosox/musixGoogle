@@ -25,7 +25,9 @@ import type {
   AppSettings,
   DesktopViewEvent,
   InitialData,
+  LyricsResponse,
   ShellMenuRequest,
+  SuggestResponse,
   WindowChromeState,
   WindowControl,
 } from '../shared/types';
@@ -53,6 +55,8 @@ export interface IpcContext {
   windowControl: (action: WindowControl) => void;
   openShellMenu: (request: ShellMenuRequest) => void;
   chrome: () => WindowChromeState;
+  lyrics: () => Promise<LyricsResponse>;
+  suggest: (query: string) => Promise<SuggestResponse>;
 }
 
 type AnyEvent = IpcMainEvent | IpcMainInvokeEvent;
@@ -382,6 +386,24 @@ export function registerIpc(ctx: IpcContext): () => void {
         }
         await ctx.view.clearCache();
         return true;
+      },
+    ],
+    [
+      'lyrics:get',
+      (event) => {
+        if (!fromShell(event)) {
+          return Promise.reject(new Error('Unauthorized sender'));
+        }
+        return ctx.lyrics();
+      },
+    ],
+    [
+      'search:suggest',
+      (event, payload) => {
+        if (!fromShell(event) || !isBoundedString(payload, 500)) {
+          return Promise.reject(new Error('Invalid suggestion request'));
+        }
+        return ctx.suggest(payload);
       },
     ],
     [

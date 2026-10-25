@@ -45,6 +45,8 @@ const ICONS = {
   car: 'Car',
   thumbs_down: 'ThumbsDown',
   compass: 'Compass',
+  lyrics: 'TextQuote',
+  fill_query: 'ArrowUpLeft',
 };
 
 const FILLED = new Set(['heart', 'play', 'pause']);

@@ -72,15 +72,30 @@ struct MiniPlayer: View {
 
 struct NowPlayingView: View {
     @ObservedObject var player: PlayerController
+    @ObservedObject var lyrics: LyricsController
     @Environment(\.dismiss) private var dismiss
     @State private var dragging: Double?
     @State private var showSave = false
+    @AppStorage("musix.showLyrics") private var showLyrics = false
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 IconButton(icon: "collapse", label: "Close player") { dismiss() }
                 Spacer()
+                if showLyrics, player.timeline.current != nil {
+                    Text("Lyrics")
+                        .font(.heading(DesignTokens.text18))
+                        .foregroundStyle(Palette.text)
+                }
+                Spacer()
+                if player.timeline.current != nil {
+                    IconButton(icon: "lyrics", label: showLyrics ? "Hide lyrics" : "Show lyrics", active: showLyrics) {
+                        showLyrics.toggle()
+                    }
+                } else {
+                    Color.clear.frame(width: 48, height: 48)
+                }
             }
             .padding(.horizontal, DesignTokens.space8)
             if let current = player.timeline.current {
@@ -100,10 +115,15 @@ struct NowPlayingView: View {
         let available = player.availability
         let duration = current.durationSec ?? 0
         return VStack(spacing: DesignTokens.space16) {
-            GeometryReader { proxy in
-                let side = min(proxy.size.width, proxy.size.height, 420)
-                ArtworkView(address: current.artworkUrl, size: side, corner: DesignTokens.radiusCard)
+            if showLyrics {
+                LyricsPanel(lyrics: lyrics, player: player)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                GeometryReader { proxy in
+                    let side = min(proxy.size.width, proxy.size.height, 420)
+                    ArtworkView(address: current.artworkUrl, size: side, corner: DesignTokens.radiusCard)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: DesignTokens.space4) {

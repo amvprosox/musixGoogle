@@ -189,6 +189,17 @@ class WebEngine(
         runNavigation(endpoint) { load(config.homeUrl + route.path) }
     }
 
+    fun openBrowse(browseId: String) {
+        checkMain()
+        if (browseId.isEmpty() || browseId.length > MAX_QUERY) {
+            return
+        }
+        val literal = BridgeCodec.json.encodeToString(String.serializer(), browseId)
+        runNavigation("{\"browseEndpoint\":{\"browseId\":$literal}}") {
+            load(config.homeUrl + "browse/" + android.net.Uri.encode(browseId))
+        }
+    }
+
     fun search(query: String) {
         checkMain()
         val trimmed = query.trim().take(MAX_QUERY)
@@ -415,7 +426,12 @@ class WebEngine(
                 errorFlow.tryEmit(EngineError(event.message))
             }
 
-            is BridgeEvent.Ack, is BridgeEvent.BrowseResult, is BridgeEvent.SearchResult -> {}
+            is BridgeEvent.Ack,
+            is BridgeEvent.BrowseResult,
+            is BridgeEvent.SearchResult,
+            is BridgeEvent.LyricsResult,
+            is BridgeEvent.SuggestResult,
+            -> {}
         }
     }
 
@@ -477,7 +493,7 @@ class WebEngine(
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun createView(): WebView {
-        val view = WebView(wrapper)
+        val view = MusixWebView(wrapper)
         view.setBackgroundColor(Color.BLACK)
         view.settings.apply {
             javaScriptEnabled = true

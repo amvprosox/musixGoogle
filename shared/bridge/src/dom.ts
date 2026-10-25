@@ -76,6 +76,14 @@ export const DOC_SEL = {
   signInLink: ['ytmusic-nav-bar a.sign-in-link', 'a.sign-in-link'],
   settingsButton: ['ytmusic-nav-bar ytmusic-settings-button', 'ytmusic-settings-button'],
   avatar: ['ytmusic-settings-button img', 'ytmusic-settings-button yt-img-shadow img'],
+  youThere: ['ytmusic-you-there-renderer'],
+  youThereConfirm: [
+    '.buttons yt-button-renderer button',
+    '.buttons button',
+    'yt-button-renderer button',
+    'tp-yt-paper-button',
+    'button',
+  ],
 } as const;
 
 export function queryFirst(root: ParentNode | null, selectors: readonly string[]): Element | null {

@@ -43,6 +43,20 @@
     <string name="save_none_body">Create a playlist in YouTube Music first.</string>
 
     <string name="search_hint">Search songs, albums, artists</string>
+    <string name="suggest_fill">Edit search: %1$s</string>
+    <string name="suggest_search">Search for %1$s</string>
+    <string name="lyrics_title">Lyrics</string>
+    <string name="action_show_lyrics">Show lyrics</string>
+    <string name="action_hide_lyrics">Hide lyrics</string>
+    <string name="lyrics_loading">Finding lyrics…</string>
+    <string name="lyrics_missing">No lyrics for this song</string>
+    <string name="lyrics_missing_body">Lyrics aren’t available for this track yet.</string>
+    <string name="lyrics_failed">Lyrics couldn’t load</string>
+    <string name="lyrics_instrumental">Instrumental</string>
+    <string name="lyrics_instrumental_body">This track has no lyrics.</string>
+    <string name="lyrics_unsynced">These lyrics aren’t time-synced for this version.</string>
+    <string name="lyrics_source">Lyrics from %1$s</string>
+    <string name="lyrics_seek">Play from this line</string>
     <string name="search_prompt">Search YouTube Music</string>
     <string name="search_prompt_body">Find songs, albums, playlists, and artists.</string>
     <string name="search_empty">No results for “%1$s”</string>

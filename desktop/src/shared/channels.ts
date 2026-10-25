@@ -12,11 +12,13 @@ import type {
   OverlayRenderPayload,
   OverlaySize,
   PlayerCommand,
+  LyricsResponse,
   PlayerState,
   QueueItem,
   ShellDialog,
   ShellMenuRequest,
   ShellNotice,
+  SuggestResponse,
   WindowChromeState,
   WindowControl,
   ToastLayerRequest,
@@ -34,6 +36,8 @@ export interface ShellInvokeChannels {
   'adblock:update-now': { request: null; response: AdblockStatus };
   'data:clear-cache': { request: null; response: boolean };
   'data:sign-out': { request: null; response: boolean };
+  'lyrics:get': { request: null; response: LyricsResponse };
+  'search:suggest': { request: string; response: SuggestResponse };
 }
 
 export interface ShellSendChannels {

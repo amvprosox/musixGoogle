@@ -9,6 +9,7 @@ export function baseViewVisible(state: ShellState): boolean {
     state.viewStatus.kind === 'ready' &&
     state.online &&
     !state.nowPlayingOpen &&
+    !state.lyricsOpen &&
     !state.searchOverlayOpen &&
     !(state.layout.queueMode === 'sheet' && state.queueOpen)
   );

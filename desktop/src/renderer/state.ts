@@ -51,6 +51,7 @@ export interface ShellState {
   sidebarDrawerOpen: boolean;
   queueOpen: boolean;
   nowPlayingOpen: boolean;
+  lyricsOpen: boolean;
   searchOverlayOpen: boolean;
   volumePopoverOpen: boolean;
   modal: ModalSpec | null;
@@ -92,6 +93,7 @@ export type Action =
   | { type: 'sidebar-drawer'; open: boolean }
   | { type: 'queue-open'; open: boolean }
   | { type: 'now-playing'; open: boolean }
+  | { type: 'lyrics-open'; open: boolean }
   | { type: 'search-overlay'; open: boolean }
   | { type: 'volume-popover'; open: boolean }
   | { type: 'modal'; modal: ModalSpec | null };
@@ -132,6 +134,7 @@ export function initialState(
     sidebarDrawerOpen: false,
     queueOpen: queueOpenByDefault(breakpoint, DEFAULT_SETTINGS.queueOpenOnWideScreens),
     nowPlayingOpen: false,
+    lyricsOpen: false,
     searchOverlayOpen: false,
     volumePopoverOpen: false,
     modal: null,
@@ -228,9 +231,17 @@ export function reducer(state: ShellState, action: Action): ShellState {
         searchQuery: route === 'search' ? searchQueryFromUrl(action.nav.url) : state.searchQuery,
       };
     }
+    case 'lyrics-open':
+      return {
+        ...state,
+        lyricsOpen: action.open,
+        settingsOpen: action.open ? false : state.settingsOpen,
+        nowPlayingOpen: action.open ? false : state.nowPlayingOpen,
+      };
     case 'settings-open':
       return {
         ...state,
+        lyricsOpen: action.open ? false : state.lyricsOpen,
         settingsOpen: action.open,
         sidebarDrawerOpen: false,
         searchOverlayOpen: false,

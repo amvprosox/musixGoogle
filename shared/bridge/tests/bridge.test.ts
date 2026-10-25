@@ -58,6 +58,7 @@ interface Harness {
   player: Record<string, unknown>;
   calls: string[];
   fetchBodies: Record<string, unknown>[];
+  lyricsUrls: string[];
   bridge: MusixBridge;
   config: Record<string, unknown>;
 }
@@ -81,6 +82,7 @@ function setup(): Harness {
   const events: BridgeEvent[] = [];
   const calls: string[] = [];
   const fetchBodies: Record<string, unknown>[] = [];
+  const lyricsUrls: string[] = [];
   const media: FakeMedia = {
     paused: true,
     currentTime: 0,
@@ -190,8 +192,24 @@ function setup(): Harness {
       },
     },
     fetch: (url: string, init: RequestInit) => {
+      if (url.startsWith('https://lrclib.net/api/')) {
+        lyricsUrls.push(url);
+        if (url.startsWith('https://lrclib.net/api/get')) {
+          return Promise.resolve(new Response(fixture('lrclib-get'), { status: 200 }));
+        }
+        return Promise.resolve(new Response(fixture('lrclib-search'), { status: 200 }));
+      }
       const body = JSON.parse(typeof init.body === 'string' ? init.body : '{}') as Record<string, unknown>;
       fetchBodies.push(body);
+      if (url.includes('/music/get_search_suggestions')) {
+        return Promise.resolve(new Response(fixture('search-suggestions'), { status: 200 }));
+      }
+      if (url.includes('/next')) {
+        return Promise.resolve(new Response(fixture('lyrics-next'), { status: 200 }));
+      }
+      if (typeof body.browseId === 'string' && body.browseId.startsWith('MPLY')) {
+        return Promise.resolve(new Response(fixture('lyrics-browse'), { status: 200 }));
+      }
       if (url.includes('/playlist/get_add_to_playlist')) {
         return Promise.resolve(new Response(fixture('add-to-playlist'), { status: 200 }));
       }
@@ -220,7 +238,7 @@ function setup(): Harness {
   if (!bridge) {
     throw new Error('bridge not installed');
   }
-  return { events, media, video, player, calls, fetchBodies, bridge, config };
+  return { events, media, video, player, calls, fetchBodies, lyricsUrls, bridge, config };
 }
 
 function last<T extends BridgeEvent['type']>(
@@ -305,6 +323,121 @@ describe('ytm bridge in a YouTube Music page', () => {
     await until(() => (last(h, 'state')?.state.isPlaying === false ? true : undefined));
     await ack(h, send(h, { type: 'togglePlay' }));
     await until(() => (last(h, 'state')?.state.isPlaying ? true : undefined));
+  });
+
+  it('publishes the new playing state before acknowledging play and pause', async () => {
+    const playId = send(h, { type: 'play' });
+    await ack(h, playId);
+    const playAck = h.events.findIndex((event) => event.type === 'ack' && event.requestId === playId);
+    const beforePlay = h.events.slice(0, playAck).filter((event) => event.type === 'state');
+    expect(beforePlay.at(-1)?.state.isPlaying).toBe(true);
+    const pauseId = send(h, { type: 'pause' });
+    await ack(h, pauseId);
+    const pauseAck = h.events.findIndex((event) => event.type === 'ack' && event.requestId === pauseId);
+    const beforePause = h.events.slice(0, pauseAck).filter((event) => event.type === 'state');
+    expect(beforePause.at(-1)?.state.isPlaying).toBe(false);
+  });
+
+  it('resumes from the real media state even when the last report is stale', async () => {
+    await ack(h, send(h, { type: 'play' }));
+    h.media.paused = true;
+    await ack(h, send(h, { type: 'play' }));
+    expect(h.media.paused).toBe(false);
+    h.media.paused = false;
+    await ack(h, send(h, { type: 'togglePlay' }));
+    expect(h.media.paused).toBe(true);
+  });
+
+  it('resumes playback the system paused while the app went to the background', async () => {
+    await ack(h, send(h, { type: 'play' }));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    h.media.paused = true;
+    h.video.dispatchEvent(new Event('pause'));
+    await until(() => (h.media.paused ? undefined : true));
+    Reflect.deleteProperty(document, 'visibilityState');
+  });
+
+  it('keeps a deliberate pause when the app goes to the background', async () => {
+    await ack(h, send(h, { type: 'play' }));
+    await ack(h, send(h, { type: 'pause' }));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    h.video.dispatchEvent(new Event('pause'));
+    await wait(600);
+    expect(h.media.paused).toBe(true);
+    Reflect.deleteProperty(document, 'visibilityState');
+  });
+
+  it('answers the still-watching prompt and keeps playing', async () => {
+    await ack(h, send(h, { type: 'play' }));
+    const prompt = document.createElement('ytmusic-you-there-renderer');
+    prompt.innerHTML =
+      '<div class="buttons"><yt-button-renderer><button>Yes</button></yt-button-renderer></div>';
+    const confirm = prompt.querySelector('button');
+    confirm?.addEventListener('click', () => {
+      h.calls.push('you-there');
+      prompt.remove();
+    });
+    document.body.append(prompt);
+    h.media.paused = true;
+    h.video.dispatchEvent(new Event('pause'));
+    await until(() => (h.calls.includes('you-there') && !h.media.paused ? true : undefined));
+  });
+
+  it('finds synced lyrics that match the track length', async () => {
+    const id = send(h, {
+      type: 'lyrics',
+      videoId: 'J7p4bzqLvCw',
+      title: 'Blinding Lights',
+      artist: 'The Weeknd',
+      album: 'After Hours',
+      durationSec: 200.4,
+    });
+    const result = await until(() =>
+      h.events.find(
+        (event): event is Extract<BridgeEvent, { type: 'lyricsResult' }> =>
+          event.type === 'lyricsResult' && event.requestId === id,
+      ),
+    );
+    expect(result.lyrics?.synced).toBe(true);
+    expect(result.lyrics?.source).toBe('LRCLIB');
+    expect(result.lyrics?.lines[0]).toEqual({ timeMs: 13130, text: 'Yeah' });
+    expect(h.lyricsUrls[0]).toContain('duration=200');
+    await ack(h, id);
+  });
+
+  it('falls back to unsynced YouTube Music lyrics when no timing matches the track', async () => {
+    const id = send(h, {
+      type: 'lyrics',
+      videoId: 'J7p4bzqLvCw',
+      title: 'Blinding Lights (Official Video)',
+      artist: 'The Weeknd',
+      album: '',
+      durationSec: 263 + 40,
+    });
+    const result = await until(() =>
+      h.events.find(
+        (event): event is Extract<BridgeEvent, { type: 'lyricsResult' }> =>
+          event.type === 'lyricsResult' && event.requestId === id,
+      ),
+    );
+    expect(result.lyrics?.synced).toBe(false);
+    expect(result.lyrics?.source).toBe('Musixmatch');
+    expect(result.lyrics?.lines[0]?.text).toBe('Yeah');
+  });
+
+  it('returns YouTube Music search suggestions', async () => {
+    const id = send(h, { type: 'suggest', query: 'blinding li' });
+    const result = await until(() =>
+      h.events.find(
+        (event): event is Extract<BridgeEvent, { type: 'suggestResult' }> =>
+          event.type === 'suggestResult' && event.requestId === id,
+      ),
+    );
+    expect(result.suggestions.queries).toContain('blinding lights the weeknd');
+    expect(result.suggestions.items[0]).toMatchObject({ videoId: 'J7p4bzqLvCw', type: 'song' });
+    expect(h.fetchBodies.at(-1)).toMatchObject({ input: 'blinding li' });
   });
 
   it('runs transport, seek, volume, mute, and like commands', async () => {

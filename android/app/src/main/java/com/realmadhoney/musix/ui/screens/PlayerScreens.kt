@@ -43,6 +43,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.media3.common.Player
 import com.realmadhoney.musix.R
 import com.realmadhoney.musix.core.bridge.FlatItem
+import com.realmadhoney.musix.ui.LyricsState
 import com.realmadhoney.musix.ui.NowPlaying
 import com.realmadhoney.musix.ui.SaveTargets
 import com.realmadhoney.musix.ui.components.Artwork
@@ -165,6 +166,11 @@ fun MiniPlayer(
 fun NowPlayingScreen(
     state: NowPlaying,
     actions: PlayerActions,
+    lyrics: LyricsState,
+    showLyrics: Boolean,
+    positionMs: () -> Long,
+    onToggleLyrics: () -> Unit,
+    onRetryLyrics: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -175,6 +181,19 @@ fun NowPlayingScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconAction(R.drawable.ic_collapse, stringResource(R.string.action_collapse_player), onClose)
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                if (showLyrics && state.hasTrack) {
+                    Text(stringResource(R.string.lyrics_title), style = MaterialTheme.typography.titleMedium, color = colors.text)
+                }
+            }
+            if (state.hasTrack) {
+                IconAction(
+                    R.drawable.ic_lyrics,
+                    stringResource(if (showLyrics) R.string.action_hide_lyrics else R.string.action_show_lyrics),
+                    onToggleLyrics,
+                    active = showLyrics,
+                )
+            }
         }
         if (!state.hasTrack) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -188,12 +207,23 @@ fun NowPlayingScreen(
             }
             return
         }
-        BoxWithConstraints(
-            Modifier.fillMaxWidth().weight(1f).padding(horizontal = DesignTokens.Space24),
-            contentAlignment = Alignment.Center,
-        ) {
-            val side = minOf(maxWidth, maxHeight, 420.dp)
-            Artwork(state.artworkUri, side, corner = DesignTokens.RadiusCard)
+        if (showLyrics) {
+            LyricsView(
+                state = lyrics,
+                isPlaying = state.isPlaying,
+                positionMs = positionMs,
+                onSeek = actions::seekTo,
+                onRetry = onRetryLyrics,
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = DesignTokens.Space24),
+            )
+        } else {
+            BoxWithConstraints(
+                Modifier.fillMaxWidth().weight(1f).padding(horizontal = DesignTokens.Space24),
+                contentAlignment = Alignment.Center,
+            ) {
+                val side = minOf(maxWidth, maxHeight, 420.dp)
+                Artwork(state.artworkUri, side, corner = DesignTokens.RadiusCard)
+            }
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space24)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

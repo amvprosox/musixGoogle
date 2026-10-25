@@ -1,6 +1,7 @@
 package com.realmadhoney.musix.player
 
 import android.os.Looper
+import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -65,6 +66,8 @@ class WebViewPlayer(
     private var timeline: TimelineSpec = TimelineSpec.EMPTY
     private var playlist: List<MediaItemData> = emptyList()
     private var orderedQueue: List<QueueEntry> = emptyList()
+    private var requestedPlay: Boolean? = null
+    private var requestedAt = 0L
     private val job: Job =
         scope.launch {
             combine(backend.bridgeState, backend.queueEntries, backend.status) { state, queue, engineStatus ->
@@ -105,7 +108,7 @@ class WebViewPlayer(
             State
                 .Builder()
                 .setAvailableCommands(commands(hasTrack))
-                .setPlayWhenReady(bridge.isPlaying && error == null, Player.PLAY_WHEN_READY_CHANGE_REASON_REMOTE)
+                .setPlayWhenReady(displayedPlaying() && error == null, Player.PLAY_WHEN_READY_CHANGE_REASON_REMOTE)
                 .setPlaybackState(playbackState)
                 .setPlayerError(error)
                 .setShuffleModeEnabled(bridge.shuffle)
@@ -126,10 +129,27 @@ class WebViewPlayer(
         return builder.build()
     }
 
-    override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> =
-        scope.future {
-            report(if (playWhenReady) backend.play() else backend.pause())
+    override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
+        requestedPlay = playWhenReady
+        requestedAt = SystemClock.elapsedRealtime()
+        return scope.future {
+            val result = if (playWhenReady) backend.play() else backend.pause()
+            if (result != CommandResult.Acknowledged) {
+                requestedPlay = null
+            }
+            report(result)
+            invalidateState()
         }
+    }
+
+    private fun displayedPlaying(): Boolean {
+        val wanted = requestedPlay ?: return bridge.isPlaying
+        if (wanted == bridge.isPlaying || SystemClock.elapsedRealtime() - requestedAt > PENDING_PLAY_MS) {
+            requestedPlay = null
+            return bridge.isPlaying
+        }
+        return wanted
+    }
 
     override fun handlePrepare(): ListenableFuture<*> {
         if (status is EngineStatus.Failed || status is EngineStatus.Offline) {
@@ -230,7 +250,7 @@ class WebViewPlayer(
     private fun report(result: CommandResult) {
         val message =
             when (result) {
-                CommandResult.Acknowledged, is CommandResult.Page -> null
+                CommandResult.Acknowledged, is CommandResult.Page, is CommandResult.LyricsFound, is CommandResult.Suggested -> null
                 CommandResult.NotReady -> "YouTube Music is still loading. Try again in a moment."
                 CommandResult.TimedOut -> "YouTube Music did not respond. Try again."
                 is CommandResult.Failed -> result.message
@@ -288,6 +308,7 @@ class WebViewPlayer(
         }
 
     private companion object {
+        const val PENDING_PLAY_MS = 4_000L
         val AUDIO_ATTRIBUTES: AudioAttributes =
             AudioAttributes
                 .Builder()

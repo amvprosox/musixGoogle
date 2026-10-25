@@ -25,7 +25,7 @@ struct EnginePageSource: PageSource {
             return .failed(.notReady)
         case .timedOut:
             return .failed(.timedOut)
-        case .acknowledged:
+        case .acknowledged, .lyrics, .suggestions:
             return .failed(.error("The page returned no results"))
         case let .failed(code, message):
             switch code {

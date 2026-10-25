@@ -186,3 +186,48 @@ data class BrowsePage(
     val items: List<FlatItem>,
     val continuation: String?,
 )
+
+@Serializable
+data class LyricLine(
+    val timeMs: Double,
+    val text: String,
+)
+
+@Serializable
+data class Lyrics(
+    val videoId: String,
+    val source: String,
+    val synced: Boolean,
+    val instrumental: Boolean,
+    val lines: List<LyricLine>,
+) {
+    fun activeIndex(positionMs: Double): Int {
+        if (!synced) {
+            return -1
+        }
+        var low = 0
+        var high = lines.size - 1
+        var found = -1
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            if (lines[mid].timeMs <= positionMs) {
+                found = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        return found
+    }
+}
+
+@Serializable
+data class SearchSuggestions(
+    val query: String,
+    val queries: List<String>,
+    val items: List<FlatItem>,
+) {
+    companion object {
+        val EMPTY = SearchSuggestions("", emptyList(), emptyList())
+    }
+}

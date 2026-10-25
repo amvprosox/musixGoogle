@@ -429,6 +429,10 @@ export class YtmView {
         this.load(ytmSearchUrl(command.query, this.base));
         return true;
       }
+      if (command.type === 'browsePage') {
+        this.load(`${this.base}/browse/${encodeURIComponent(command.browseId)}`);
+        return true;
+      }
       return false;
     }
     wc.send('ytm:desktop-command', command);

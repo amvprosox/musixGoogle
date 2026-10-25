@@ -22,6 +22,7 @@ object BridgeCodec {
     private const val MAX_ITEMS = 2000
     private const val MAX_SECTIONS = 200
     private const val MAX_REQUEST_ID = 64
+    private const val MAX_LYRIC_LINES = 1000
     private val VIDEO_ID = Regex("^[A-Za-z0-9_-]{6,20}$")
     private val PLAYLIST_ID = Regex("^[A-Za-z0-9_-]{2,128}$")
 
@@ -96,6 +97,14 @@ object BridgeCodec {
                 requestIdProblem(event.requestId)
             }
 
+            is BridgeEvent.LyricsResult -> {
+                requestIdProblem(event.requestId) ?: event.lyrics?.let { lyricsProblem(it) }
+            }
+
+            is BridgeEvent.SuggestResult -> {
+                requestIdProblem(event.requestId) ?: suggestionsProblem(event.suggestions)
+            }
+
             is BridgeEvent.Error -> {
                 (if (event.message.length > MAX_TEXT) "error message too long" else null)
                     ?: event.requestId?.let { requestIdProblem(it) }
@@ -155,6 +164,24 @@ object BridgeCodec {
 
             is BridgeCommand.SavePlaylist -> {
                 if (isValidPlaylistId(command.playlistId)) null else "invalid playlist id"
+            }
+
+            is BridgeCommand.FetchLyrics -> {
+                if (isValidVideoId(command.videoId) &&
+                    command.title.isNotBlank() &&
+                    command.title.length <= MAX_TEXT &&
+                    command.artist.length <= MAX_TEXT &&
+                    command.album.length <= MAX_TEXT &&
+                    nonNegative(command.durationSec)
+                ) {
+                    null
+                } else {
+                    "invalid lyrics request"
+                }
+            }
+
+            is BridgeCommand.Suggest -> {
+                if (command.query.length <= 500) null else "query too long"
             }
 
             is BridgeCommand.Play,
@@ -219,6 +246,23 @@ object BridgeCodec {
         }
         return if (value.isEmpty() || value.startsWith("https://")) null else "$field must be https"
     }
+
+    private fun lyricsProblem(lyrics: Lyrics): String? =
+        when {
+            lyrics.videoId.length > MAX_ID -> "lyrics video id too long"
+            lyrics.source.length > 200 -> "lyrics source too long"
+            lyrics.lines.size > MAX_LYRIC_LINES -> "too many lyric lines"
+            lyrics.lines.any { !nonNegative(it.timeMs) || it.text.length > MAX_TEXT } -> "invalid lyric line"
+            else -> null
+        }
+
+    private fun suggestionsProblem(suggestions: SearchSuggestions): String? =
+        when {
+            suggestions.query.length > 500 -> "query too long"
+            suggestions.queries.size > 50 || suggestions.queries.any { it.length > 500 } -> "invalid suggestions"
+            suggestions.items.size > 50 -> "too many suggested items"
+            else -> suggestions.items.firstNotNullOfOrNull { itemProblem(it) }
+        }
 
     private fun stateProblem(state: BridgeState): String? =
         textProblem(state.videoId, MAX_ID, "videoId")

@@ -5,7 +5,8 @@ export type InnertubeEndpoint =
   | 'playlist/get_add_to_playlist'
   | 'browse/edit_playlist'
   | 'like/like'
-  | 'like/removelike';
+  | 'like/removelike'
+  | 'music/get_search_suggestions';
 
 export interface PageConfig {
   context: unknown;

@@ -13,6 +13,9 @@ export class Router {
 
   go(route: NavRoute): void {
     const state = this.store.getState();
+    if (state.lyricsOpen) {
+      this.store.dispatch({ type: 'lyrics-open', open: false });
+    }
     if (state.settingsOpen) {
       this.store.dispatch({ type: 'settings-open', open: false });
     }
@@ -48,6 +51,9 @@ export class Router {
     const state = this.store.getState();
     if (state.settingsOpen) {
       this.store.dispatch({ type: 'settings-open', open: false });
+    }
+    if (state.lyricsOpen) {
+      this.store.dispatch({ type: 'lyrics-open', open: false });
     }
     if (state.searchOverlayOpen) {
       this.overlays.close('search');

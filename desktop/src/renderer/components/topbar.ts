@@ -1,5 +1,6 @@
 import type { AppContext } from '../context';
 import { h, hydrate, icon, iconButton, setAttr, setButtonIcon, setLabel } from '../dom';
+import { attachSuggestions } from './suggest';
 
 export function buildSearchForm(
   ctx: AppContext,
@@ -45,6 +46,7 @@ export function buildSearchForm(
         : null,
     ],
   );
+  attachSuggestions(ctx, form, input);
   return { form, input };
 }
 

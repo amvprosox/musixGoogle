@@ -53,6 +53,7 @@ import com.realmadhoney.musix.ui.screens.NowPlayingScreen
 import com.realmadhoney.musix.ui.screens.PlayerActions
 import com.realmadhoney.musix.ui.screens.SaveToPlaylistDialog
 import com.realmadhoney.musix.ui.screens.SearchScreen
+import com.realmadhoney.musix.ui.screens.SearchSuggestionsPanel
 import com.realmadhoney.musix.ui.screens.SettingsScreen
 import com.realmadhoney.musix.ui.screens.ShellTab
 import com.realmadhoney.musix.ui.screens.ShellTabBar
@@ -154,9 +155,14 @@ fun MusixApp(viewModel: MainViewModel) {
     }
     var shellTab by rememberSaveable { mutableStateOf(ShellTab.Home) }
     var webQuery by rememberSaveable { mutableStateOf("") }
+    var suggesting by rememberSaveable { mutableStateOf(false) }
+    var showLyrics by rememberSaveable { mutableStateOf(false) }
+    val suggestions by viewModel.suggestions.collectAsState()
+    val lyrics by viewModel.lyrics.collectAsState()
     val webBack = engine?.canNavigateBack?.collectAsState()?.value ?: false
     BackHandler(enabled = routes.size > 1) { viewModel.back() }
-    BackHandler(enabled = routes.size <= 1 && shellTab == ShellTab.Search) { shellTab = ShellTab.Home }
+    BackHandler(enabled = routes.size <= 1 && shellTab == ShellTab.Search && suggesting) { suggesting = false }
+    BackHandler(enabled = routes.size <= 1 && shellTab == ShellTab.Search && !suggesting) { shellTab = ShellTab.Home }
     BackHandler(enabled = routes.size <= 1 && shellTab != ShellTab.Search && webBack) { engine?.goBack() }
     val selectShell: (ShellTab) -> Unit = { next ->
         when (next) {
@@ -169,6 +175,7 @@ fun MusixApp(viewModel: MainViewModel) {
             }
 
             else -> {
+                suggesting = false
                 shellTab = next
                 next.route?.let { target -> engine?.navigate(target) }
             }
@@ -230,18 +237,62 @@ fun MusixApp(viewModel: MainViewModel) {
                                 query = webQuery,
                                 canGoBack = webBack,
                                 signedIn = account is AccountState.SignedIn,
-                                onQueryChange = { webQuery = it },
-                                onSubmit = { engine?.search(webQuery) },
+                                onQueryChange = {
+                                    webQuery = it
+                                    suggesting = it.isNotBlank()
+                                    viewModel.suggest(it)
+                                },
+                                onSubmit = {
+                                    suggesting = false
+                                    engine?.search(webQuery)
+                                },
                                 onBack = { engine?.goBack() },
                                 onSearch = { selectShell(ShellTab.Search) },
                                 onAccount = { viewModel.navigate(Route.Settings) },
                                 onSignIn = signIn,
                             )
                             EngineBanner(engineStatus, retryEngine)
-                            if (current == null) {
-                                Box(Modifier.weight(1f).fillMaxWidth())
-                            } else {
-                                WebContent(current, Modifier.weight(1f))
+                            Box(Modifier.weight(1f).fillMaxWidth()) {
+                                if (current != null) {
+                                    WebContent(current)
+                                }
+                                val visible =
+                                    shellTab == ShellTab.Search &&
+                                        suggesting &&
+                                        webQuery.isNotBlank() &&
+                                        (suggestions.queries.isNotEmpty() || suggestions.items.isNotEmpty())
+                                if (visible) {
+                                    SearchSuggestionsPanel(
+                                        suggestions = suggestions,
+                                        onSearch = { text ->
+                                            webQuery = text
+                                            suggesting = false
+                                            current?.search(text)
+                                        },
+                                        onFill = { text ->
+                                            webQuery = "$text "
+                                            viewModel.suggest(webQuery)
+                                        },
+                                        onItem = { item ->
+                                            suggesting = false
+                                            val videoId = item.videoId
+                                            val browseId = item.browseId
+                                            when {
+                                                item.playable && videoId != null -> {
+                                                    viewModel.connection.play(MediaIds.track(videoId, item.playlistId))
+                                                }
+
+                                                browseId != null -> {
+                                                    current?.openBrowse(browseId)
+                                                }
+
+                                                else -> {
+                                                    current?.search(item.title)
+                                                }
+                                            }
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
@@ -277,7 +328,16 @@ fun MusixApp(viewModel: MainViewModel) {
                     }
 
                     Route.NowPlaying -> {
-                        NowPlayingScreen(nowPlaying, actions, onClose = { viewModel.back() })
+                        NowPlayingScreen(
+                            state = nowPlaying,
+                            actions = actions,
+                            lyrics = lyrics,
+                            showLyrics = showLyrics,
+                            positionMs = viewModel.connection::positionMs,
+                            onToggleLyrics = { showLyrics = !showLyrics },
+                            onRetryLyrics = viewModel::retryLyrics,
+                            onClose = { viewModel.back() },
+                        )
                     }
 
                     Route.SignIn -> {

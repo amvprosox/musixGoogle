@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BRIDGE_VERSION, EMPTY_STATE, type BridgeEvent } from '../src/contract';
-import { parseBrowseResponse, parseQueueResponse } from '../src/parse';
+import { parseLrc } from '../src/lyrics';
+import { parseBrowseResponse, parseQueueResponse, parseSuggestions } from '../src/parse';
 import { isBridgeEvent } from '../src/validate';
 
 const FIXTURES = path.join(import.meta.dirname, 'fixtures');
@@ -92,6 +93,25 @@ function events(): Record<string, BridgeEvent> {
   out['adStart'] = { v: BRIDGE_VERSION, type: 'adStart' };
   out['adEnd'] = { v: BRIDGE_VERSION, type: 'adEnd' };
   out['ack'] = { v: BRIDGE_VERSION, type: 'ack', requestId: 'n3' };
+  out['lyricsResult-synced'] = {
+    v: BRIDGE_VERSION,
+    type: 'lyricsResult',
+    requestId: 'n5',
+    lyrics: {
+      videoId: 'J7p4bzqLvCw',
+      source: 'LRCLIB',
+      synced: true,
+      instrumental: false,
+      lines: parseLrc("[00:13.13] Yeah\n[00:16.56] ♪\n[00:27.16] I've been tryna call"),
+    },
+  };
+  out['lyricsResult-none'] = { v: BRIDGE_VERSION, type: 'lyricsResult', requestId: 'n6', lyrics: null };
+  out['suggestResult'] = {
+    v: BRIDGE_VERSION,
+    type: 'suggestResult',
+    requestId: 'n7',
+    suggestions: parseSuggestions(fixture('search-suggestions'), 'blinding li'),
+  };
   out['error-signed-out'] = {
     v: BRIDGE_VERSION,
     type: 'error',

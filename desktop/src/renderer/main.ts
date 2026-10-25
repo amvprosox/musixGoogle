@@ -7,6 +7,7 @@ import { mountNowPlaying } from './components/nowplaying';
 import { mountViewState } from './components/offline';
 import { mountPlayerBar } from './components/playerbar';
 import { mountQueue } from './components/queue';
+import { mountLyrics } from './components/lyrics';
 import { mountSearchOverlay } from './components/searchoverlay';
 import { mountSettings } from './components/settings';
 import { mountSidebar } from './components/sidebar';
@@ -121,6 +122,7 @@ function bootstrap(): void {
   mountBottomNav(bottomNav, ctx);
   mountNowPlaying(required('nowplaying', HTMLDivElement), ctx);
   mountSearchOverlay(required('search-overlay', HTMLDivElement), ctx);
+  mountLyrics(required('lyrics-panel', HTMLElement), ctx);
 
   installScrollAreas();
   installBrowserBehaviors(ctx);

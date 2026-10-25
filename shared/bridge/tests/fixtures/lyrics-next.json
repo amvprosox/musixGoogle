@@ -1,0 +1,54 @@
+{
+  "contents": {
+    "singleColumnMusicWatchNextResultsRenderer": {
+      "tabbedRenderer": {
+        "watchNextTabbedResultsRenderer": {
+          "tabs": [
+            {
+              "tabRenderer": {
+                "title": "Up next"
+              }
+            },
+            {
+              "tabRenderer": {
+                "endpoint": {
+                  "clickTrackingParams": "CBcQpLQFGAgiEwj679S019WXAxUB80wCHVRtJtHKAQTHY_o3",
+                  "browseEndpoint": {
+                    "browseId": "MPLYt_4U7yfKKFZLv-1",
+                    "browseEndpointContextSupportedConfigs": {
+                      "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_TRACK_LYRICS"
+                      }
+                    }
+                  }
+                },
+                "title": "Lyrics"
+              }
+            },
+            {
+              "tabRenderer": {
+                "title": "Comments"
+              }
+            },
+            {
+              "tabRenderer": {
+                "endpoint": {
+                  "clickTrackingParams": "CBMQlM0FGAoiEwj679S019WXAxUB80wCHVRtJtHKAQTHY_o3",
+                  "browseEndpoint": {
+                    "browseId": "MPTRt_4U7yfKKFZLv-1",
+                    "browseEndpointContextSupportedConfigs": {
+                      "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_TRACK_RELATED"
+                      }
+                    }
+                  }
+                },
+                "title": "Related"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

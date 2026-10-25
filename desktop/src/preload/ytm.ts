@@ -603,6 +603,16 @@ async function runDesktopCommand(command: DesktopViewCommand): Promise<void> {
     case 'searchPage':
       await searchPage(command.query);
       return;
+    case 'browsePage': {
+      const ok = await runInMainWorld(
+        navigateSource({ browseEndpoint: { browseId: command.browseId } }),
+        true,
+      );
+      if (ok !== true) {
+        location.assign(`${base}/browse/${encodeURIComponent(command.browseId)}`);
+      }
+      return;
+    }
     case 'signIn':
       signIn();
       return;

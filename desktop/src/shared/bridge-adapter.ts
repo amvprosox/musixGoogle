@@ -69,6 +69,13 @@ export function routeCommand(
       };
     case 'playQueueIndex':
       return { channel: 'bridge', command: { ...base, type: 'playQueueIndex', index: command.index } };
+    case 'playVideo':
+      return {
+        channel: 'bridge',
+        command: { ...base, type: 'playVideoId', videoId: command.videoId, playlistId: command.playlistId },
+      };
+    case 'openBrowse':
+      return { channel: 'desktop', command: { type: 'browsePage', browseId: command.browseId } };
     case 'search':
       return { channel: 'desktop', command: { type: 'searchPage', query: command.query } };
     case 'navigate':

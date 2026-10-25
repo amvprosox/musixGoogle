@@ -2,6 +2,7 @@ import { volumeIconName } from '../../shared/player-math';
 import type { AppContext } from '../context';
 import { h, hydrate, icon, iconButton, setAttr, setButtonIcon, setImage, setLabel, setText } from '../dom';
 import { displayedPlaying } from '../state';
+import { lyricsToggle } from './lyrics';
 import { createProgressSlider, createVolumeSlider, syncProgress, trackLabel } from './playerbar';
 
 export function mountNowPlaying(root: HTMLElement, ctx: AppContext): void {
@@ -125,6 +126,7 @@ export function mountNowPlaying(root: HTMLElement, ctx: AppContext): void {
     h('div', { className: 'sheet-header' }, [
       close,
       h('h2', { className: 'panel-title', text: 'Now Playing' }),
+      lyricsToggle(ctx, 'bottom', 'np-lyrics'),
       queueButton,
     ]),
     h('div', { className: 'sheet-body', attrs: { 'data-scroll': 'true' } }, [

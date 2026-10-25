@@ -94,6 +94,15 @@ export function isPlayerCommand(value: unknown): value is PlayerCommand {
       return isBoundedString(value.query, MAX_QUERY_LENGTH) && value.query.trim().length > 0;
     case 'navigate':
       return isNavRoute(value.route);
+    case 'playVideo':
+      return (
+        isString(value.videoId) &&
+        /^[A-Za-z0-9_-]{6,20}$/.test(value.videoId) &&
+        (value.playlistId === null ||
+          (isString(value.playlistId) && /^[A-Za-z0-9_-]{2,128}$/.test(value.playlistId)))
+      );
+    case 'openBrowse':
+      return isString(value.browseId) && /^[A-Za-z0-9_-]{2,200}$/.test(value.browseId);
     default:
       return false;
   }

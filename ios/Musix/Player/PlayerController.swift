@@ -25,6 +25,8 @@ final class PlayerController: ObservableObject {
     private var lastSavedAt = Date.distantPast
     private var lastSavedVideo = ""
     private var sessionActive = false
+    private var pendingPlay: (value: Bool, until: Date)?
+    private var stateAt = Date()
 
     init(engine: WebEngine, settings: AppSettings) {
         self.engine = engine
@@ -59,6 +61,15 @@ final class PlayerController: ObservableObject {
 
     var positionSec: Double { PlaybackModel.position(state) }
 
+    func livePositionSec(at date: Date) -> Double {
+        let base = positionSec
+        guard state.isPlaying, !state.isBuffering, !state.isAd, pendingPlay == nil else {
+            return base
+        }
+        let moved = base + max(0, date.timeIntervalSince(stateAt))
+        return state.durationSec > 0 ? min(moved, state.durationSec) : moved
+    }
+
     var availability: RemoteAvailability {
         PlaybackModel.availability(state: state, timeline: timeline, signedIn: engine.account == .signedIn)
     }
@@ -66,12 +77,35 @@ final class PlayerController: ObservableObject {
     func play() {
         activateSession()
         policy = InterruptionPolicy()
-        perform(.play)
+        expect(playing: true)
+        performPlayback(.play)
     }
 
     func pause() {
         policy.userPaused()
-        perform(.pause)
+        expect(playing: false)
+        performPlayback(.pause)
+    }
+
+    private func expect(playing: Bool) {
+        pendingPlay = (playing, Date().addingTimeInterval(4))
+        guard state.isPlaying != playing else {
+            return
+        }
+        var shown = state
+        shown.isPlaying = playing
+        state = shown
+        publishNowPlaying()
+    }
+
+    private func performPlayback(_ command: BridgeCommand) {
+        Task {
+            let result = await send(command)
+            if result != .acknowledged {
+                pendingPlay = nil
+                update(state: engine.state, queue: engine.queueEntries)
+            }
+        }
     }
 
     func togglePlay() {
@@ -152,7 +186,7 @@ final class PlayerController: ObservableObject {
             return .failure(PlaylistError(message: text))
         case .notReady:
             return .failure(PlaylistError(message: "YouTube Music is still loading. Try again in a moment."))
-        case .timedOut, .acknowledged:
+        case .timedOut, .acknowledged, .lyrics, .suggestions:
             return .failure(PlaylistError(message: "YouTube Music did not respond. Try again."))
         }
     }
@@ -185,12 +219,15 @@ final class PlayerController: ObservableObject {
     }
 
     private func perform(_ command: BridgeCommand) {
+        if command == .play || command == .pause {
+            pendingPlay = nil
+        }
         Task { await send(command) }
     }
 
     private func report(_ result: CommandResult) {
         switch result {
-        case .acknowledged, .page:
+        case .acknowledged, .page, .lyrics, .suggestions:
             break
         case .notReady:
             message = "YouTube Music is still loading. Try again in a moment."
@@ -201,8 +238,17 @@ final class PlayerController: ObservableObject {
         }
     }
 
-    private func update(state newState: BridgeState, queue: [QueueEntry]) {
+    private func update(state incoming: BridgeState, queue: [QueueEntry]) {
         let wasPlaying = state.isPlaying
+        var newState = incoming
+        if let pending = pendingPlay {
+            if incoming.isPlaying == pending.value || Date() > pending.until {
+                pendingPlay = nil
+            } else {
+                newState.isPlaying = pending.value
+            }
+        }
+        stateAt = Date()
         state = newState
         let newTimeline = PlaybackModel.timeline(state: newState, queue: queue)
         if newTimeline != timeline {

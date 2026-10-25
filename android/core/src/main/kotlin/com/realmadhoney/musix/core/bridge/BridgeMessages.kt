@@ -79,6 +79,22 @@ sealed interface BridgeEvent {
     ) : BridgeEvent
 
     @Serializable
+    @SerialName("lyricsResult")
+    data class LyricsResult(
+        override val v: Int,
+        val requestId: String,
+        val lyrics: Lyrics?,
+    ) : BridgeEvent
+
+    @Serializable
+    @SerialName("suggestResult")
+    data class SuggestResult(
+        override val v: Int,
+        val requestId: String,
+        val suggestions: SearchSuggestions,
+    ) : BridgeEvent
+
+    @Serializable
     @SerialName("error")
     data class Error(
         override val v: Int,
@@ -273,6 +289,26 @@ sealed interface BridgeCommand {
         override val requestId: String,
         val playlistId: String,
         val save: Boolean,
+        override val v: Int = BRIDGE_VERSION,
+    ) : BridgeCommand
+
+    @Serializable
+    @SerialName("lyrics")
+    data class FetchLyrics(
+        override val requestId: String,
+        val videoId: String,
+        val title: String,
+        val artist: String,
+        val album: String,
+        val durationSec: Double,
+        override val v: Int = BRIDGE_VERSION,
+    ) : BridgeCommand
+
+    @Serializable
+    @SerialName("suggest")
+    data class Suggest(
+        override val requestId: String,
+        val query: String,
         override val v: Int = BRIDGE_VERSION,
     ) : BridgeCommand
 }

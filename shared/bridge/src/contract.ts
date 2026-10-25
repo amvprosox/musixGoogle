@@ -67,6 +67,25 @@ export interface BrowsePage {
   continuation: string | null;
 }
 
+export interface LyricLine {
+  timeMs: number;
+  text: string;
+}
+
+export interface Lyrics {
+  videoId: string;
+  source: string;
+  synced: boolean;
+  instrumental: boolean;
+  lines: LyricLine[];
+}
+
+export interface SearchSuggestions {
+  query: string;
+  queries: string[];
+  items: FlatItem[];
+}
+
 export type BridgeEvent =
   | { v: 1; type: 'ready'; platform: Platform; clientVersion: string }
   | { v: 1; type: 'state'; state: BridgeState }
@@ -78,6 +97,8 @@ export type BridgeEvent =
   | { v: 1; type: 'adStart' }
   | { v: 1; type: 'adEnd' }
   | { v: 1; type: 'ack'; requestId: string }
+  | { v: 1; type: 'lyricsResult'; requestId: string; lyrics: Lyrics | null }
+  | { v: 1; type: 'suggestResult'; requestId: string; suggestions: SearchSuggestions }
   | { v: 1; type: 'error'; code: BridgeErrorCode; message: string; requestId: string | null };
 
 export type BridgeErrorCode =
@@ -119,7 +140,18 @@ export type BridgeCommand =
   | { v: 1; type: 'duck'; requestId: string; level: number }
   | { v: 1; type: 'playlistTargets'; requestId: string; videoId: string }
   | { v: 1; type: 'addToPlaylist'; requestId: string; videoId: string; playlistId: string }
-  | { v: 1; type: 'savePlaylist'; requestId: string; playlistId: string; save: boolean };
+  | { v: 1; type: 'savePlaylist'; requestId: string; playlistId: string; save: boolean }
+  | {
+      v: 1;
+      type: 'lyrics';
+      requestId: string;
+      videoId: string;
+      title: string;
+      artist: string;
+      album: string;
+      durationSec: number;
+    }
+  | { v: 1; type: 'suggest'; requestId: string; query: string };
 
 export type BridgeCommandType = BridgeCommand['type'];
 export type BridgeEventType = BridgeEvent['type'];

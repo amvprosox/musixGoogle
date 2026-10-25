@@ -23,6 +23,14 @@ sealed interface CommandResult {
         val message: String,
     ) : CommandResult
 
+    data class LyricsFound(
+        val lyrics: Lyrics?,
+    ) : CommandResult
+
+    data class Suggested(
+        val suggestions: SearchSuggestions,
+    ) : CommandResult
+
     data object TimedOut : CommandResult
 
     data object NotReady : CommandResult
@@ -63,14 +71,16 @@ class CommandQueue(
 
     suspend fun data(build: (String) -> BridgeCommand): CommandResult = send(CommandLane.DATA, build)
 
+    suspend fun slow(build: (String) -> BridgeCommand): CommandResult = dispatch(build, SLOW_TIMEOUT_MS)
+
     suspend fun send(
         lane: CommandLane,
         build: (String) -> BridgeCommand,
     ): CommandResult =
         if (lane == CommandLane.PLAYER) {
-            playerLock.withLock { dispatch(build) }
+            playerLock.withLock { dispatch(build, timeoutMs) }
         } else {
-            dispatch(build)
+            dispatch(build, timeoutMs)
         }
 
     fun onEvent(event: BridgeEvent): Boolean =
@@ -87,6 +97,14 @@ class CommandQueue(
                 complete(event.requestId, CommandResult.Page(event.page))
             }
 
+            is BridgeEvent.LyricsResult -> {
+                complete(event.requestId, CommandResult.LyricsFound(event.lyrics))
+            }
+
+            is BridgeEvent.SuggestResult -> {
+                complete(event.requestId, CommandResult.Suggested(event.suggestions))
+            }
+
             is BridgeEvent.Error -> {
                 val id = event.requestId
                 if (id == null) false else complete(id, CommandResult.Failed(event.code, event.message))
@@ -99,7 +117,10 @@ class CommandQueue(
 
     fun pendingCount(): Int = pending.size
 
-    private suspend fun dispatch(build: (String) -> BridgeCommand): CommandResult {
+    private suspend fun dispatch(
+        build: (String) -> BridgeCommand,
+        limitMs: Long,
+    ): CommandResult {
         val isUp = withTimeoutOrNull(readyTimeoutMs) { ready.first { it } }
         if (isUp == null) {
             return CommandResult.NotReady
@@ -125,7 +146,7 @@ class CommandQueue(
             if (!transport.deliver(payload)) {
                 return CommandResult.NotReady
             }
-            return withTimeoutOrNull(timeoutMs) { deferred.await() } ?: CommandResult.TimedOut
+            return withTimeoutOrNull(limitMs) { deferred.await() } ?: CommandResult.TimedOut
         } finally {
             pending.remove(requestId)
         }
@@ -142,5 +163,6 @@ class CommandQueue(
     companion object {
         const val DEFAULT_TIMEOUT_MS = 5_000L
         const val DEFAULT_READY_TIMEOUT_MS = 20_000L
+        const val SLOW_TIMEOUT_MS = 30_000L
     }
 }

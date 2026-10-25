@@ -50,7 +50,7 @@ struct SearchView: View {
             MiniPlayer(player: player) { showPlayer = true }
         }
         .sheet(isPresented: $showPlayer) {
-            NowPlayingView(player: player)
+            NowPlayingView(player: player, lyrics: AppModel.shared.lyrics)
         }
     }
 }

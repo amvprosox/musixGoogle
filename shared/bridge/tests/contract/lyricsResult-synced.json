@@ -1,0 +1,25 @@
+{
+  "v": 1,
+  "type": "lyricsResult",
+  "requestId": "n5",
+  "lyrics": {
+    "videoId": "J7p4bzqLvCw",
+    "source": "LRCLIB",
+    "synced": true,
+    "instrumental": false,
+    "lines": [
+      {
+        "timeMs": 13130,
+        "text": "Yeah"
+      },
+      {
+        "timeMs": 16560,
+        "text": "♪"
+      },
+      {
+        "timeMs": 27160,
+        "text": "I've been tryna call"
+      }
+    ]
+  }
+}

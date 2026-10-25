@@ -116,6 +116,10 @@ class PlaybackService : MediaLibraryService() {
         scope.launch {
             engine.bridgeState.map { it.isPlaying }.distinctUntilChanged().collect { playing ->
                 focus.onPlaybackChanged(playing)
+            }
+        }
+        scope.launch {
+            engine.bridgeState.map { it.isPlaying to it.videoId }.distinctUntilChanged().collect { (playing, _) ->
                 if (playing) acquireWakeLock() else releaseWakeLock()
             }
         }

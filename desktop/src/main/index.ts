@@ -6,7 +6,15 @@ import {
   APP_NAME,
   YTM_PARTITION,
 } from '../shared/constants';
-import type { AccountState, AppSettings, PlayerCommand, PlayerState } from '../shared/types';
+import type { BridgeCommand, BridgeEvent } from '@musix/bridge/contract';
+import type {
+  AccountState,
+  AppSettings,
+  LyricsResponse,
+  PlayerCommand,
+  PlayerState,
+  SuggestResponse,
+} from '../shared/types';
 import { AdblockManager } from './adblock';
 import {
   autostartExists,
@@ -29,6 +37,9 @@ import { AppTray } from './tray';
 import { startListRefreshSchedule } from './updater-lists';
 import { ASSET_SCHEME, configureYtmSession, YtmView } from './view';
 import { createMainWindow, currentTheme, showWindow, toggleWindow, WindowChrome } from './window';
+
+const LYRICS_TIMEOUT_MS = 30_000;
+const SUGGEST_TIMEOUT_MS = 5_000;
 
 const dataOverride = userDataOverride();
 if (dataOverride) {
@@ -193,6 +204,72 @@ async function start(): Promise<void> {
     view.command(cmd);
   };
 
+  const pendingRequests = new Map<
+    string,
+    { resolve: (event: BridgeEvent | null) => void; timer: NodeJS.Timeout }
+  >();
+  const settleRequest = (requestId: string, event: BridgeEvent | null): boolean => {
+    const pending = pendingRequests.get(requestId);
+    if (!pending) {
+      return false;
+    }
+    pendingRequests.delete(requestId);
+    clearTimeout(pending.timer);
+    pending.resolve(event);
+    return true;
+  };
+  const requestBridge = (request: BridgeCommand, timeoutMs: number): Promise<BridgeEvent | null> =>
+    new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        settleRequest(request.requestId, null);
+      }, timeoutMs);
+      pendingRequests.set(request.requestId, { resolve, timer });
+      if (!view.sendBridge(request)) {
+        settleRequest(request.requestId, null);
+      }
+    });
+  const lyrics = async (): Promise<LyricsResponse> => {
+    const state = lastState;
+    const videoId = state ? state.videoId : '';
+    if (!state || !state.hasTrack || state.isAd || videoId === '' || state.durationSec <= 0) {
+      return { kind: 'missing', videoId };
+    }
+    const event = await requestBridge(
+      {
+        v: 1,
+        type: 'lyrics',
+        requestId: view.nextRequestId(),
+        videoId,
+        title: state.title,
+        artist: state.artist,
+        album: state.album,
+        durationSec: state.durationSec,
+      },
+      LYRICS_TIMEOUT_MS,
+    );
+    if (!event) {
+      return { kind: 'error', videoId, message: 'YouTube Music did not respond. Try again.' };
+    }
+    if (event.type === 'lyricsResult') {
+      return event.lyrics ? { kind: 'found', lyrics: event.lyrics } : { kind: 'missing', videoId };
+    }
+    if (event.type === 'error') {
+      return { kind: 'error', videoId, message: event.message };
+    }
+    return { kind: 'missing', videoId };
+  };
+  const suggest = async (query: string): Promise<SuggestResponse> => {
+    const trimmed = query.trim();
+    if (trimmed === '') {
+      return { query: '', queries: [], items: [] };
+    }
+    const event = await requestBridge(
+      { v: 1, type: 'suggest', requestId: view.nextRequestId(), query: trimmed },
+      SUGGEST_TIMEOUT_MS,
+    );
+    return event && event.type === 'suggestResult' ? event.suggestions : null;
+  };
+
   const tray = new AppTray(win, {
     command,
     toggleWindow: () => {
@@ -225,6 +302,8 @@ async function start(): Promise<void> {
         chrome.control(action);
       },
       chrome: () => chrome.state(),
+      lyrics,
+      suggest,
       openShellMenu: (request) => {
         if (request.target.kind === 'shellText') {
           menus.open({ kind: 'shellText' }, request.x, request.y, {
@@ -304,7 +383,14 @@ async function start(): Promise<void> {
           case 'signedOut':
             setAccount({ signedIn: false, avatarUrl: '' });
             return;
+          case 'lyricsResult':
+          case 'suggestResult':
+            settleRequest(event.requestId, event);
+            return;
           case 'error':
+            if (event.requestId !== null && settleRequest(event.requestId, event)) {
+              return;
+            }
             if (event.code !== 'not_ready') {
               logWarn('bridge', `${event.code}: ${event.message}`);
             }

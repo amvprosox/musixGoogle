@@ -161,6 +161,16 @@ final class WebEngine: NSObject, ObservableObject {
         }
     }
 
+    func openBrowse(_ browseId: String) async {
+        guard !browseId.isEmpty, browseId.count <= 500 else {
+            return
+        }
+        let ok = await runNavigation(["browseEndpoint": ["browseId": browseId]])
+        if !ok, let encoded = browseId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) {
+            load(Self.homeAddress + "browse/" + encoded)
+        }
+    }
+
     func search(_ query: String) async {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -266,7 +276,7 @@ final class WebEngine: NSObject, ObservableObject {
             account = .signedOut
         case let .error(_, message, _):
             errors.send(message)
-        case .adStart, .adEnd, .ack, .browseResult, .searchResult:
+        case .adStart, .adEnd, .ack, .browseResult, .searchResult, .lyricsResult, .suggestResult:
             break
         }
     }

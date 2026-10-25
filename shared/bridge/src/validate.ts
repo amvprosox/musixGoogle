@@ -8,7 +8,10 @@ import {
   type FlatItem,
   type FlatSection,
   type ItemType,
+  type LyricLine,
+  type Lyrics,
   type QueueEntry,
+  type SearchSuggestions,
   type SearchFilter,
 } from './contract';
 
@@ -152,6 +155,38 @@ export function isBrowsePage(value: unknown): value is BrowsePage {
   );
 }
 
+const MAX_LYRIC_LINES = 1000;
+
+export function isLyricLine(value: unknown): value is LyricLine {
+  return isRecord(value) && num(value.timeMs) && value.timeMs >= 0 && str(value.text, MAX_TEXT);
+}
+
+export function isLyrics(value: unknown): value is Lyrics {
+  return (
+    isRecord(value) &&
+    str(value.videoId, MAX_ID) &&
+    str(value.source, 200) &&
+    bool(value.synced) &&
+    bool(value.instrumental) &&
+    Array.isArray(value.lines) &&
+    value.lines.length <= MAX_LYRIC_LINES &&
+    value.lines.every(isLyricLine)
+  );
+}
+
+export function isSearchSuggestions(value: unknown): value is SearchSuggestions {
+  return (
+    isRecord(value) &&
+    str(value.query, 500) &&
+    Array.isArray(value.queries) &&
+    value.queries.length <= 50 &&
+    value.queries.every((query) => str(query, 500)) &&
+    Array.isArray(value.items) &&
+    value.items.length <= 50 &&
+    value.items.every(isFlatItem)
+  );
+}
+
 export function isBridgeEvent(value: unknown): value is BridgeEvent {
   if (!isRecord(value) || value.v !== BRIDGE_VERSION || typeof value.type !== 'string') {
     return false;
@@ -181,6 +216,10 @@ export function isBridgeEvent(value: unknown): value is BridgeEvent {
       return true;
     case 'ack':
       return requestId(value.requestId);
+    case 'lyricsResult':
+      return requestId(value.requestId) && (value.lyrics === null || isLyrics(value.lyrics));
+    case 'suggestResult':
+      return requestId(value.requestId) && isSearchSuggestions(value.suggestions);
     case 'error':
       return (
         typeof value.code === 'string' &&
@@ -263,6 +302,18 @@ export function isBridgeCommand(value: unknown): value is BridgeCommand {
       return videoIdOk(value.videoId) && playlistIdOk(value.playlistId);
     case 'savePlaylist':
       return playlistIdOk(value.playlistId) && bool(value.save);
+    case 'lyrics':
+      return (
+        videoIdOk(value.videoId) &&
+        str(value.title, MAX_TEXT) &&
+        value.title.trim().length > 0 &&
+        str(value.artist, MAX_TEXT) &&
+        str(value.album, MAX_TEXT) &&
+        num(value.durationSec) &&
+        value.durationSec >= 0
+      );
+    case 'suggest':
+      return str(value.query, 500);
     default:
       return false;
   }

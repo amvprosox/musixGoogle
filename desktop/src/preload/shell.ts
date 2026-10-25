@@ -22,6 +22,8 @@ const INVOKE_CHANNELS: readonly ShellInvokeChannel[] = [
   'adblock:update-now',
   'data:clear-cache',
   'data:sign-out',
+  'lyrics:get',
+  'search:suggest',
 ];
 
 const SEND_CHANNELS: readonly ShellSendChannel[] = [

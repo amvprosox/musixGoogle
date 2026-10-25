@@ -3,11 +3,20 @@ import {
   SEARCH_FILTER_PARAMS,
   type BridgeCommand,
   type BridgeEvent,
+  type Lyrics,
   type RepeatMode,
 } from './contract';
 import { clickFirst, DOC_SEL, queryFirst, readRepeat, readShuffle, SEL } from './dom';
 import { InnertubeError, type InnertubeEndpoint } from './innertube';
-import { editSucceeded, isSignedOutResponse, parseAddToPlaylistTargets, parseBrowseResponse } from './parse';
+import type { PlaybackGuard } from './guard';
+import { LyricsError, type LyricsQuery } from './lyrics';
+import {
+  editSucceeded,
+  isSignedOutResponse,
+  parseAddToPlaylistTargets,
+  parseBrowseResponse,
+  parseSuggestions,
+} from './parse';
 import type { PlayerObserver } from './player';
 
 export type Emit = (event: BridgeEvent) => void;
@@ -19,6 +28,24 @@ export interface CommandDeps {
   emit: Emit;
   request: (endpoint: InnertubeEndpoint, body: Record<string, unknown>) => Promise<unknown>;
   wait: (ms: number) => Promise<void>;
+  guard: PlaybackGuard;
+  lyrics: (query: LyricsQuery) => Promise<Lyrics | null>;
+}
+
+const PLAY_CONFIRM_MS = 1500;
+
+export function startVideo(video: HTMLVideoElement | null): void {
+  if (!video) {
+    return;
+  }
+  try {
+    const started = video.play() as Promise<void> | undefined;
+    if (started) {
+      started.catch(() => undefined);
+    }
+  } catch {
+    return;
+  }
 }
 
 class CommandError extends Error {
@@ -86,11 +113,15 @@ export class CommandRunner {
     const { emit, observer } = this.deps;
     try {
       await this.execute(command);
-      observer.scheduleUpdate();
+      observer.flush();
       emit({ v: 1, type: 'ack', requestId: command.requestId });
     } catch (error) {
       if (error instanceof CommandError) {
         emit({ v: 1, type: 'error', code: error.code, message: error.message, requestId: command.requestId });
+        return;
+      }
+      if (error instanceof LyricsError) {
+        emit({ v: 1, type: 'error', code: 'network', message: error.message, requestId: command.requestId });
         return;
       }
       if (error instanceof InnertubeError) {
@@ -111,34 +142,17 @@ export class CommandRunner {
     const { observer, doc, win } = this.deps;
     const player = observer.player();
     switch (command.type) {
-      case 'play': {
-        if (observer.current().isPlaying) {
-          return;
-        }
-        if (!clickFirst(observer.findBar(), SEL.playPause)) {
-          if (!player || typeof player.playVideo !== 'function') {
-            throw new CommandError('element_missing', 'Play control not found');
-          }
-          player.playVideo();
-        }
+      case 'play':
+        await this.setPlaying(true);
         return;
-      }
-      case 'pause': {
-        if (!observer.current().isPlaying) {
-          return;
-        }
-        if (!clickFirst(observer.findBar(), SEL.playPause)) {
-          if (!player || typeof player.pauseVideo !== 'function') {
-            throw new CommandError('element_missing', 'Pause control not found');
-          }
-          player.pauseVideo();
-        }
+      case 'pause':
+        await this.setPlaying(false);
         return;
-      }
       case 'togglePlay':
-        this.click(SEL.playPause, 'Play');
+        await this.setPlaying(!observer.isVideoPlaying());
         return;
       case 'next':
+        this.deps.guard.commanded(true);
         if (!clickFirst(observer.findBar(), SEL.next)) {
           if (!player || typeof player.nextVideo !== 'function') {
             throw new CommandError('element_missing', 'Next control not found');
@@ -147,6 +161,7 @@ export class CommandRunner {
         }
         return;
       case 'previous':
+        this.deps.guard.commanded(true);
         if (!clickFirst(observer.findBar(), SEL.previous)) {
           if (!player || typeof player.previousVideo !== 'function') {
             throw new CommandError('element_missing', 'Previous control not found');
@@ -255,6 +270,7 @@ export class CommandRunner {
         return;
       }
       case 'playVideoId': {
+        this.deps.guard.commanded(true);
         observer.rememberPlaylist(command.playlistId);
         const watch: Record<string, unknown> = {};
         if (command.videoId !== '') {
@@ -280,6 +296,7 @@ export class CommandRunner {
         if (!item) {
           throw new CommandError('element_missing', `Queue item ${command.index} not found`);
         }
+        this.deps.guard.commanded(true);
         if (!clickFirst(item, DOC_SEL.queuePlayButton)) {
           item.click();
         }
@@ -354,7 +371,71 @@ export class CommandRunner {
         });
         return;
       }
+      case 'lyrics': {
+        const lyrics = await this.deps.lyrics({
+          videoId: command.videoId,
+          title: command.title,
+          artist: command.artist,
+          album: command.album,
+          durationSec: command.durationSec,
+        });
+        this.deps.emit({ v: 1, type: 'lyricsResult', requestId: command.requestId, lyrics });
+        return;
+      }
+      case 'suggest': {
+        const response = await this.deps.request('music/get_search_suggestions', { input: command.query });
+        this.deps.emit({
+          v: 1,
+          type: 'suggestResult',
+          requestId: command.requestId,
+          suggestions: parseSuggestions(response, command.query),
+        });
+        return;
+      }
     }
+  }
+
+  private async setPlaying(play: boolean): Promise<void> {
+    const { observer, guard } = this.deps;
+    guard.commanded(play);
+    if (play) {
+      guard.dismissYouThere();
+    }
+    if (observer.isVideoPlaying() === play) {
+      return;
+    }
+    const player = observer.player();
+    const video = observer.videoElement();
+    if (play && player && typeof player.playVideo === 'function') {
+      player.playVideo();
+    } else if (!play && player && typeof player.pauseVideo === 'function') {
+      player.pauseVideo();
+    } else if (!clickFirst(observer.findBar(), SEL.playPause)) {
+      if (!video) {
+        throw new CommandError(
+          'element_missing',
+          play ? 'Play control not found' : 'Pause control not found',
+        );
+      }
+      if (play) {
+        startVideo(video);
+      } else {
+        video.pause();
+      }
+    }
+    if (await this.waitFor(() => observer.isVideoPlaying() === play, PLAY_CONFIRM_MS)) {
+      return;
+    }
+    const current = observer.videoElement();
+    if (!current) {
+      return;
+    }
+    if (play) {
+      startVideo(current);
+    } else {
+      current.pause();
+    }
+    await this.waitFor(() => observer.isVideoPlaying() === play, PLAY_CONFIRM_MS);
   }
 
   private requireAccount(): void {

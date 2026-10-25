@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowUpLeft,
   Ban,
   Bell,
   ChevronDown,
@@ -42,6 +43,7 @@ import {
   SkipForward,
   Square,
   Sun,
+  TextQuote,
   ThumbsDown,
   ThumbsUp,
   Trash2,
@@ -58,6 +60,7 @@ import {
 export const ICONS = {
   ArrowLeft,
   ArrowRight,
+  ArrowUpLeft,
   Ban,
   Bell,
   ChevronDown,
@@ -98,6 +101,7 @@ export const ICONS = {
   SkipForward,
   Square,
   Sun,
+  TextQuote,
   ThumbsDown,
   ThumbsUp,
   Trash2,
@@ -114,6 +118,7 @@ export const ICONS = {
 export type IconName =
   | 'arrow-left'
   | 'arrow-right'
+  | 'arrow-up-left'
   | 'ban'
   | 'bell'
   | 'chevron-down'
@@ -154,6 +159,7 @@ export type IconName =
   | 'skip-back'
   | 'skip-forward'
   | 'sun'
+  | 'text-quote'
   | 'thumbs-down'
   | 'thumbs-up'
   | 'trash-2'

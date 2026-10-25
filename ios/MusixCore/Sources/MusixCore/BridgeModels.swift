@@ -206,3 +206,64 @@ public struct BrowsePage: Codable, Equatable, Sendable {
         self.continuation = continuation
     }
 }
+
+public struct LyricLine: Codable, Equatable, Sendable {
+    public var timeMs: Double
+    public var text: String
+
+    public init(timeMs: Double, text: String) {
+        self.timeMs = timeMs
+        self.text = text
+    }
+}
+
+public struct Lyrics: Codable, Equatable, Sendable {
+    public var videoId: String
+    public var source: String
+    public var synced: Bool
+    public var instrumental: Bool
+    public var lines: [LyricLine]
+
+    public init(videoId: String, source: String, synced: Bool, instrumental: Bool, lines: [LyricLine]) {
+        self.videoId = videoId
+        self.source = source
+        self.synced = synced
+        self.instrumental = instrumental
+        self.lines = lines
+    }
+
+    public func activeIndex(positionMs: Double) -> Int? {
+        guard synced else {
+            return nil
+        }
+        var low = 0
+        var high = lines.count - 1
+        var found: Int?
+        while low <= high {
+            let mid = (low + high) / 2
+            if lines[mid].timeMs <= positionMs {
+                found = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        return found
+    }
+}
+
+public struct SearchSuggestions: Codable, Equatable, Sendable {
+    public var query: String
+    public var queries: [String]
+    public var items: [FlatItem]
+
+    public init(query: String, queries: [String], items: [FlatItem]) {
+        self.query = query
+        self.queries = queries
+        self.items = items
+    }
+
+    public static let empty = SearchSuggestions(query: "", queries: [], items: [])
+
+    public var isEmpty: Bool { queries.isEmpty && items.isEmpty }
+}

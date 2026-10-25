@@ -3,6 +3,8 @@ import Foundation
 public enum CommandResult: Equatable, Sendable {
     case acknowledged
     case page(BrowsePage)
+    case lyrics(Lyrics?)
+    case suggestions(SearchSuggestions)
     case failed(code: BridgeErrorCode, message: String)
     case timedOut
     case notReady
@@ -61,6 +63,9 @@ public actor CommandQueue {
 
     public func send(_ command: BridgeCommand) async -> CommandResult {
         let lane = command.lane
+        if case .lyrics = command {
+            return await dispatch(command, limit: .seconds(30))
+        }
         if lane == .data {
             return await dispatch(command)
         }
@@ -82,6 +87,10 @@ public actor CommandQueue {
             return complete(requestId, .page(page))
         case let .searchResult(requestId, _, page):
             return complete(requestId, .page(page))
+        case let .lyricsResult(requestId, lyrics):
+            return complete(requestId, .lyrics(lyrics))
+        case let .suggestResult(requestId, suggestions):
+            return complete(requestId, .suggestions(suggestions))
         case let .error(code, message, requestId):
             guard let requestId else {
                 return false
@@ -92,7 +101,7 @@ public actor CommandQueue {
         }
     }
 
-    private func dispatch(_ command: BridgeCommand) async -> CommandResult {
+    private func dispatch(_ command: BridgeCommand, limit customLimit: Duration? = nil) async -> CommandResult {
         guard await waitForReady() else {
             return .notReady
         }
@@ -121,7 +130,7 @@ public actor CommandQueue {
             awaiting.remove(requestId)
             return result
         }
-        let limit = timeout
+        let limit = customLimit ?? timeout
         return await withCheckedContinuation { continuation in
             pending[requestId] = continuation
             Task {

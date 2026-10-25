@@ -43,6 +43,8 @@ struct RootView: View {
     @ObservedObject var player: PlayerController
     let library: LibraryService
     @ObservedObject var settings: AppSettings
+    let lyrics: LyricsController
+    @ObservedObject var suggester: SearchSuggester
 
     @State private var tab: ShellTab = .home
     @State private var showPlayer = false
@@ -55,9 +57,25 @@ struct RootView: View {
         VStack(spacing: 0) {
             topBar
             EngineStatusBanner(engine: engine)
-            EngineHost(engine: engine, role: .background)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black)
+            ZStack {
+                EngineHost(engine: engine, role: .background)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
+                if showSuggestions {
+                    SearchSuggestionsList(
+                        suggestions: suggester.suggestions,
+                        onSearch: { text in
+                            query = text
+                            runSearch()
+                        },
+                        onFill: { text in
+                            query = text + " "
+                            searchFocused = true
+                        },
+                        onItem: open
+                    )
+                }
+            }
             Rectangle().fill(Palette.border).frame(height: 1)
             MiniPlayer(player: player) { showPlayer = true }
             Rectangle().fill(Palette.border).frame(height: 1)
@@ -67,7 +85,7 @@ struct RootView: View {
         .preferredColorScheme(.dark)
         .tint(Palette.accent)
         .sheet(isPresented: $showPlayer) {
-            NowPlayingView(player: player)
+            NowPlayingView(player: player, lyrics: lyrics)
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(engine: engine, settings: settings, library: library, onSignIn: signIn)
@@ -85,6 +103,25 @@ struct RootView: View {
         }
         .onChange(of: settings.adSkip) { enabled in
             Task { await player.send(.configure(adSkip: enabled)) }
+        }
+        .onChange(of: query) { text in
+            suggester.update(text)
+        }
+    }
+
+    private var showSuggestions: Bool {
+        tab == .search && searchFocused && !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !suggester.suggestions.isEmpty
+    }
+
+    private func open(_ item: FlatItem) {
+        searchFocused = false
+        if item.playable, let videoId = item.videoId {
+            player.play(mediaId: MediaIds.track(videoId, playlistId: item.playlistId))
+        } else if let browseId = item.browseId {
+            Task { await engine.openBrowse(browseId) }
+        } else {
+            query = item.title
+            runSearch()
         }
     }
 

@@ -1,0 +1,60 @@
+{
+  "v": 1,
+  "type": "suggestResult",
+  "requestId": "n7",
+  "suggestions": {
+    "query": "blinding li",
+    "queries": [
+      "blinding lights the weeknd",
+      "blinding lights",
+      "blinding light",
+      "blinding lights slowed",
+      "blinding lights live",
+      "blinding lights karaoke"
+    ],
+    "items": [
+      {
+        "id": "J7p4bzqLvCw",
+        "title": "Blinding Lights",
+        "subtitle": "Song • The Weeknd • 3.6B plays • Blinding Lights",
+        "artworkUrl": "https://yt3.googleusercontent.com/R_cjQK3wwLPEzri1jerx-79zgzGocoKvwGU3NMONaTsaMM0Idd641pfB8r5jgfpn6I8JAoFtf9RBIcI=w544-h544-l90-rj",
+        "durationSec": null,
+        "continuation": null,
+        "type": "song",
+        "browsable": false,
+        "playable": true,
+        "videoId": "J7p4bzqLvCw",
+        "playlistId": null,
+        "browseId": null
+      },
+      {
+        "id": "4NRXx6U8ABQ",
+        "title": "Blinding Lights (Official Video)",
+        "subtitle": "Video • The Weeknd • 1B views",
+        "artworkUrl": "https://i.ytimg.com/vi/4NRXx6U8ABQ/sddefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCghqEJQEGHgg6AJIWg&rs=AOn4CLABcAvWuCy4KU4cIuoHh2aIJ2PINw",
+        "durationSec": null,
+        "continuation": null,
+        "type": "video",
+        "browsable": false,
+        "playable": true,
+        "videoId": "4NRXx6U8ABQ",
+        "playlistId": null,
+        "browseId": null
+      },
+      {
+        "id": "91WKx3tuDbs",
+        "title": "The Weeknd - Blinding Lights (Instrumental)",
+        "subtitle": "Video • 23K views",
+        "artworkUrl": "https://i.ytimg.com/vi/91WKx3tuDbs/sddefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCghqEJQEGHgg6AJIWg&rs=AOn4CLA93xRkP_Mllj58cxSOYzuGcRfaRg",
+        "durationSec": null,
+        "continuation": null,
+        "type": "video",
+        "browsable": false,
+        "playable": true,
+        "videoId": "91WKx3tuDbs",
+        "playlistId": null,
+        "browseId": null
+      }
+    ]
+  }
+}

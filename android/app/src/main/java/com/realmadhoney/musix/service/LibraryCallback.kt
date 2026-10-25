@@ -149,10 +149,21 @@ class LibraryCallback(
     ): ListenableFuture<SessionResult> =
         scope.future {
             when (val result = customCommand(customCommand.customAction)) {
-                CommandResult.Acknowledged, is CommandResult.Page -> SessionResult(SessionResult.RESULT_SUCCESS)
-                CommandResult.NotReady -> SessionResult(SessionError(SessionError.ERROR_INVALID_STATE, "YouTube Music is still loading"))
-                CommandResult.TimedOut -> SessionResult(SessionError(SessionError.ERROR_UNKNOWN, "YouTube Music did not respond"))
-                is CommandResult.Failed -> SessionResult(SessionError(SessionError.ERROR_UNKNOWN, result.message))
+                CommandResult.Acknowledged, is CommandResult.Page, is CommandResult.LyricsFound, is CommandResult.Suggested -> {
+                    SessionResult(SessionResult.RESULT_SUCCESS)
+                }
+
+                CommandResult.NotReady -> {
+                    SessionResult(SessionError(SessionError.ERROR_INVALID_STATE, "YouTube Music is still loading"))
+                }
+
+                CommandResult.TimedOut -> {
+                    SessionResult(SessionError(SessionError.ERROR_UNKNOWN, "YouTube Music did not respond"))
+                }
+
+                is CommandResult.Failed -> {
+                    SessionResult(SessionError(SessionError.ERROR_UNKNOWN, result.message))
+                }
             }
         }
 

@@ -10,14 +10,18 @@ import com.realmadhoney.musix.core.bridge.BridgeCodec
 import com.realmadhoney.musix.core.bridge.BridgeCommand
 import com.realmadhoney.musix.core.bridge.CommandResult
 import com.realmadhoney.musix.core.bridge.FlatItem
+import com.realmadhoney.musix.core.bridge.Lyrics
+import com.realmadhoney.musix.core.bridge.SearchSuggestions
 import com.realmadhoney.musix.core.browse.MediaIds
 import com.realmadhoney.musix.core.browse.RootTab
 import com.realmadhoney.musix.engine.AccountState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -41,6 +45,35 @@ sealed interface Route {
 
     data object Settings : Route
 }
+
+sealed interface LyricsState {
+    data object Idle : LyricsState
+
+    data class Loading(
+        val videoId: String,
+    ) : LyricsState
+
+    data class Found(
+        val lyrics: Lyrics,
+    ) : LyricsState
+
+    data class Missing(
+        val videoId: String,
+    ) : LyricsState
+
+    data class Failed(
+        val videoId: String,
+        val message: String,
+    ) : LyricsState
+}
+
+private data class LyricsKey(
+    val videoId: String,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val durationSec: Double,
+)
 
 sealed interface SaveTargets {
     data object Loading : SaveTargets
@@ -125,6 +158,7 @@ class PagedList(
 }
 
 @UnstableApi
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class MainViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
@@ -146,8 +180,68 @@ class MainViewModel(
 
     val listVersion = MutableStateFlow(0)
 
+    private val suggestQuery = MutableStateFlow("")
+    private val suggestionsFlow = MutableStateFlow(SearchSuggestions.EMPTY)
+    val suggestions: StateFlow<SearchSuggestions> = suggestionsFlow.asStateFlow()
+
+    private val lyricsFlow = MutableStateFlow<LyricsState>(LyricsState.Idle)
+    val lyrics: StateFlow<LyricsState> = lyricsFlow.asStateFlow()
+    private val lyricsRetry = MutableStateFlow(0)
+
     init {
         connection.connect()
+        viewModelScope.launch {
+            suggestQuery.collectLatest { text ->
+                val trimmed = text.trim()
+                if (trimmed.isEmpty()) {
+                    suggestionsFlow.value = SearchSuggestions.EMPTY
+                    return@collectLatest
+                }
+                delay(SUGGEST_DEBOUNCE_MS)
+                val engine = graph.engine.value ?: return@collectLatest
+                val result = engine.queue.data { BridgeCommand.Suggest(it, trimmed) }
+                if (result is CommandResult.Suggested && suggestQuery.value.trim() == trimmed) {
+                    suggestionsFlow.value = result.suggestions
+                }
+            }
+        }
+        viewModelScope.launch {
+            graph.engine
+                .filterNotNull()
+                .flatMapLatest { engine ->
+                    engine.bridgeState
+                        .map { state ->
+                            if (state.isAd || state.videoId.isEmpty() || state.title.isBlank() || state.durationSec <= 0.0) {
+                                null
+                            } else {
+                                LyricsKey(state.videoId, state.title, state.artist, state.album, state.durationSec)
+                            }
+                        }.distinctUntilChanged { old, new -> old?.videoId == new?.videoId }
+                        .filterNotNull()
+                        .flatMapLatest { key -> lyricsRetry.map { key } }
+                        .map { key -> engine to key }
+                }.collectLatest { (engine, key) ->
+                    lyricsFlow.value = LyricsState.Loading(key.videoId)
+                    val result =
+                        engine.queue.slow {
+                            BridgeCommand.FetchLyrics(it, key.videoId, key.title, key.artist, key.album, key.durationSec)
+                        }
+                    lyricsFlow.value =
+                        when (result) {
+                            is CommandResult.LyricsFound -> {
+                                result.lyrics?.let { LyricsState.Found(it) } ?: LyricsState.Missing(key.videoId)
+                            }
+
+                            is CommandResult.Failed -> {
+                                LyricsState.Failed(key.videoId, result.message)
+                            }
+
+                            else -> {
+                                LyricsState.Failed(key.videoId, describe(result))
+                            }
+                        }
+                }
+        }
         viewModelScope.launch {
             connection.connected.collect { isConnected ->
                 val query = pendingSearch
@@ -177,6 +271,14 @@ class MainViewModel(
 
     fun setQuery(value: String) {
         queryFlow.value = value.take(200)
+    }
+
+    fun suggest(value: String) {
+        suggestQuery.value = value.take(200)
+    }
+
+    fun retryLyrics() {
+        lyricsRetry.value += 1
     }
 
     fun selectTab(tab: RootTab) {
@@ -279,7 +381,7 @@ class MainViewModel(
             is CommandResult.Failed -> result.message
             CommandResult.NotReady -> "YouTube Music is still loading. Try again in a moment."
             CommandResult.TimedOut -> "YouTube Music did not respond. Try again."
-            CommandResult.Acknowledged, is CommandResult.Page -> "Done"
+            CommandResult.Acknowledged, is CommandResult.Page, is CommandResult.LyricsFound, is CommandResult.Suggested -> "Done"
         }
 
     fun refreshAll() {
@@ -305,5 +407,6 @@ class MainViewModel(
 
     companion object {
         const val PAGE_SIZE = 50
+        const val SUGGEST_DEBOUNCE_MS = 150L
     }
 }

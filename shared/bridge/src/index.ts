@@ -1,6 +1,16 @@
-import { BRIDGE_VERSION, type BridgeCommand, type BridgeEvent, type BridgeState } from './contract';
-import { CommandRunner } from './commands';
+import {
+  BRIDGE_VERSION,
+  type BridgeCommand,
+  type BridgeEvent,
+  type BridgeState,
+  type Lyrics,
+} from './contract';
+import { CommandRunner, startVideo } from './commands';
+import { clickFirst, SEL } from './dom';
+import { PlaybackGuard } from './guard';
 import { innertube, InnertubeError, readPageConfig, type InnertubeEndpoint } from './innertube';
+import { findLyrics, LyricsError, type LyricsQuery, type YtmLyrics } from './lyrics';
+import { lyricsBrowseId, parseYtmLyrics } from './parse';
 import { PlayerObserver } from './player';
 import { detectTransport } from './transport';
 import { parseBridgeCommand } from './validate';
@@ -14,6 +24,8 @@ export interface MusixBridge {
 }
 
 const READY_POLL_MS = 250;
+const LYRICS_TIMEOUT_MS = 6000;
+const LYRICS_CACHE_SIZE = 64;
 
 export function installBridge(win: Window, doc: Document): MusixBridge | null {
   const existing = (win as unknown as { __musixBridge?: MusixBridge }).__musixBridge;
@@ -68,12 +80,81 @@ export function installBridge(win: Window, doc: Document): MusixBridge | null {
       now: () => Date.now(),
     });
   };
+  const guard = new PlaybackGuard(doc, win, {
+    video: () => observer.videoElement(),
+    isAd: () => observer.isAdShowing(),
+    resume: () => {
+      const player = observer.player();
+      if (player && typeof player.playVideo === 'function') {
+        player.playVideo();
+        return;
+      }
+      if (clickFirst(observer.findBar(), SEL.playPause)) {
+        return;
+      }
+      startVideo(observer.videoElement());
+    },
+  });
+  observer.setGuard(guard);
+  const fetchJson = async (url: string): Promise<unknown> => {
+    const controller = new AbortController();
+    const timer = win.setTimeout(() => {
+      controller.abort();
+    }, LYRICS_TIMEOUT_MS);
+    try {
+      const response = await win.fetch(url, {
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        headers: { accept: 'application/json' },
+        signal: controller.signal,
+      });
+      if (response.status === 404) {
+        return null;
+      }
+      if (!response.ok) {
+        throw new LyricsError(`Lyrics request failed with status ${response.status}`);
+      }
+      return (await response.json()) as unknown;
+    } finally {
+      win.clearTimeout(timer);
+    }
+  };
+  const ytmLyrics = async (videoId: string): Promise<YtmLyrics | null> => {
+    const browseId = lyricsBrowseId(await request('next', { videoId, isAudioOnly: true }));
+    if (!browseId) {
+      return null;
+    }
+    return parseYtmLyrics(await request('browse', { browseId }));
+  };
+  const lyricsCache = new Map<string, Promise<Lyrics | null>>();
+  const lyrics = (query: LyricsQuery): Promise<Lyrics | null> => {
+    const key = `${query.videoId}|${Math.round(query.durationSec)}`;
+    const cached = lyricsCache.get(key);
+    if (cached) {
+      return cached;
+    }
+    const pending = findLyrics(query, { fetchJson, ytm: ytmLyrics });
+    lyricsCache.set(key, pending);
+    pending.catch(() => {
+      lyricsCache.delete(key);
+    });
+    while (lyricsCache.size > LYRICS_CACHE_SIZE) {
+      const oldest = lyricsCache.keys().next().value;
+      if (oldest === undefined) {
+        break;
+      }
+      lyricsCache.delete(oldest);
+    }
+    return pending;
+  };
   const runner = new CommandRunner({
     doc,
     win,
     observer,
     emit,
     request,
+    guard,
+    lyrics,
     wait: (ms) =>
       new Promise((resolve) => {
         win.setTimeout(resolve, ms);
@@ -122,6 +203,7 @@ export function installBridge(win: Window, doc: Document): MusixBridge | null {
     dispose: () => {
       disposed = true;
       observer.stop();
+      guard.stop();
       Reflect.deleteProperty(win, '__musixBridge');
     },
   };
@@ -139,6 +221,7 @@ export function installBridge(win: Window, doc: Document): MusixBridge | null {
     if (!started && doc.readyState !== 'loading') {
       started = true;
       observer.start();
+      guard.start();
     }
     if (!ready && started && observer.isReady()) {
       ready = true;

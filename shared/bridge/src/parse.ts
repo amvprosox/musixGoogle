@@ -1,4 +1,4 @@
-import type { BrowsePage, FlatItem, FlatSection, ItemType } from './contract';
+import type { BrowsePage, FlatItem, FlatSection, ItemType, SearchSuggestions } from './contract';
 
 type Rec = Record<string, unknown>;
 
@@ -838,4 +838,75 @@ export function editSucceeded(response: unknown): boolean {
     return false;
   }
   return record.status === undefined || record.status === 'STATUS_SUCCEEDED';
+}
+
+const MAX_SUGGESTED_QUERIES = 10;
+const MAX_SUGGESTED_ITEMS = 8;
+
+export function parseSuggestions(response: unknown, query: string): SearchSuggestions {
+  const queries: string[] = [];
+  const items: FlatItem[] = [];
+  for (const section of arr(at(response, 'contents'))) {
+    for (const entry of arr(at(section, 'searchSuggestionsSectionRenderer', 'contents'))) {
+      const suggestion =
+        rec(at(entry, 'searchSuggestionRenderer')) ?? rec(at(entry, 'historySuggestionRenderer'));
+      if (suggestion) {
+        const endpointQuery = at(suggestion, 'navigationEndpoint', 'searchEndpoint', 'query');
+        const text = (typeof endpointQuery === 'string' ? endpointQuery : textOf(suggestion.suggestion))
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 500);
+        if (text !== '' && !queries.includes(text) && queries.length < MAX_SUGGESTED_QUERIES) {
+          queries.push(text);
+        }
+        continue;
+      }
+      const item = parseItemRenderer(entry);
+      if (item && items.length < MAX_SUGGESTED_ITEMS && !items.some((existing) => existing.id === item.id)) {
+        items.push(item);
+      }
+    }
+  }
+  return { query, queries, items };
+}
+
+export function lyricsBrowseId(response: unknown): string | null {
+  const tabs = arr(
+    at(
+      response,
+      'contents',
+      'singleColumnMusicWatchNextResultsRenderer',
+      'tabbedRenderer',
+      'watchNextTabbedResultsRenderer',
+      'tabs',
+    ),
+  );
+  for (const tab of tabs) {
+    const browseId = at(tab, 'tabRenderer', 'endpoint', 'browseEndpoint', 'browseId');
+    if (typeof browseId === 'string' && browseId.startsWith('MPLY')) {
+      return browseId;
+    }
+  }
+  return null;
+}
+
+export function parseYtmLyrics(response: unknown): { text: string; source: string } | null {
+  for (const section of arr(at(response, 'contents', 'sectionListRenderer', 'contents'))) {
+    const shelf = rec(at(section, 'musicDescriptionShelfRenderer'));
+    if (!shelf) {
+      continue;
+    }
+    const text = arr(at(shelf, 'description', 'runs'))
+      .map((run) => str(rec(run)?.text))
+      .join('')
+      .trim();
+    if (text === '') {
+      continue;
+    }
+    const footer = textOf(shelf.footer)
+      .replace(/^source:\s*/i, '')
+      .trim();
+    return { text, source: footer === '' ? 'YouTube Music' : footer };
+  }
+  return null;
 }

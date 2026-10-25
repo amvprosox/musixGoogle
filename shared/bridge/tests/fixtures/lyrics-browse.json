@@ -1,0 +1,62 @@
+{
+  "responseContext": {
+    "visitorData": "CgtRcHB1VnZRMjJycyjs9fjWBjIKCgJQSBIEGgAgQg%3D%3D",
+    "serviceTrackingParams": [
+      {
+        "service": "GFEEDBACK",
+        "params": [
+          { "key": "browse_id", "value": "MPLYt_4U7yfKKFZLv-1" },
+          { "key": "browse_id_prefix", "value": "" },
+          { "key": "has_unlimited_entitlement", "value": "False" },
+          { "key": "logged_in", "value": "0" }
+        ]
+      },
+      {
+        "service": "CSI",
+        "params": [
+          { "key": "c", "value": "WEB_REMIX" },
+          { "key": "cver", "value": "1.20261020.10.00" },
+          { "key": "yt_li", "value": "0" },
+          { "key": "GetBrowseTrackLyricsPage_rid", "value": "0xf0ce0b9ae6729d91" }
+        ]
+      },
+      {
+        "service": "ECATCHER",
+        "params": [
+          { "key": "client.version", "value": "1.20000101" },
+          { "key": "client.name", "value": "WEB_REMIX" }
+        ]
+      }
+    ],
+    "responseId": "IhMIgaPitNfVlwMV0JhWAR3DvRlb"
+  },
+  "contents": {
+    "sectionListRenderer": {
+      "contents": [
+        {
+          "musicDescriptionShelfRenderer": {
+            "description": {
+              "runs": [
+                {
+                  "text": "Yeah\n\nI've been tryna call\nI've been on my own for long enough\nMaybe you can show me how to love, maybe\nI'm goin' through withdrawals\nYou don't even have to do too much\nYou can turn me on with just a touch, baby\n\nI look around and\nSin City's cold and empty (oh)\nNo one's around to judge me (oh)\nI can't see clearly when you're gone\n\nI said, \"Ooh, I'm blinded by the lights\nNo, I can't sleep until I feel your touch\"\nI said, \"Ooh, I'm drowning in the night\nOh, when I'm like this, you're the one I trust\"\n(Hey, hey, hey)\n\nI'm running out of time\n'Cause I can see the sun light up the sky\nSo I hit the road in overdrive, baby, oh\n\nThe city's cold and empty (oh)\nNo one's around to judge me (oh)\nI can't see clearly when you're gone\n\nI said, \"Ooh, I'm blinded by the lights\nNo, I can't sleep until I feel your touch\"\nI said, \"Ooh, I'm drowning in the night\nOh, when I'm like this, you're the one I trust\"\n\nI'm just walking by to let you know (by to let you know)\nI could never say it on the phone (say it on the phone)\nWill never let you go this time (ooh)\n\nI said, \"Ooh, I'm blinded by the lights\nNo, I can't sleep until I feel your touch\"\n(Hey, hey, hey)\n(Hey, hey, hey)\n\nI said, \"Ooh, I'm blinded by the lights\nNo, I can't sleep until I feel your touch\""
+                }
+              ]
+            },
+            "trackingParams": "CAIQ2fQEGAAiEwiBo-K019WXAxXQmFYBHcO9GVs=",
+            "maxCollapsedLines": 0,
+            "maxExpandedLines": 0,
+            "onShowCommands": [
+              {
+                "clickTrackingParams": "CAIQ2fQEGAAiEwiBo-K019WXAxXQmFYBHcO9GVvKAQTIjMD8",
+                "logLyricEventCommand": { "serializedLyricInfo": "Eg90XzRVN3lmS0tGWkx2LTEYAiIJMTA0MTg1NzQ4" }
+              }
+            ],
+            "footer": { "runs": [{ "text": "Source: Musixmatch" }] }
+          }
+        }
+      ],
+      "trackingParams": "CAEQui8iEwiBo-K019WXAxXQmFYBHcO9GVs="
+    }
+  },
+  "trackingParams": "CAAQhGciEwiBo-K019WXAxXQmFYBHcO9GVvKAQTIjMD8"
+}

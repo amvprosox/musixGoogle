@@ -128,7 +128,7 @@ class AppGraph(
                     PageLoad.Failed(LoadFailure.TimedOut)
                 }
 
-                CommandResult.Acknowledged -> {
+                CommandResult.Acknowledged, is CommandResult.LyricsFound, is CommandResult.Suggested -> {
                     PageLoad.Failed(LoadFailure.Error("The page returned no results"))
                 }
 

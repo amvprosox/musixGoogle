@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -41,14 +43,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.net.toUri
 import com.realmadhoney.musix.R
+import com.realmadhoney.musix.core.bridge.FlatItem
+import com.realmadhoney.musix.core.bridge.ItemType
+import com.realmadhoney.musix.core.bridge.SearchSuggestions
 import com.realmadhoney.musix.engine.WebEngine
 import com.realmadhoney.musix.engine.WebRoute
+import com.realmadhoney.musix.ui.components.EntryRow
 import com.realmadhoney.musix.ui.components.IconAction
 import com.realmadhoney.musix.ui.components.MusixIcon
 import com.realmadhoney.musix.ui.theme.DesignTokens
@@ -253,3 +264,88 @@ fun ShellTabBar(
         }
     }
 }
+
+@Composable
+fun SearchSuggestionsPanel(
+    suggestions: SearchSuggestions,
+    onSearch: (String) -> Unit,
+    onFill: (String) -> Unit,
+    onItem: (FlatItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = Musix.colors
+    val focusManager = LocalFocusManager.current
+    LazyColumn(modifier = modifier.fillMaxSize().background(colors.bg)) {
+        items(suggestions.queries, key = { "q:$it" }) { text ->
+            val searchLabel = stringResource(R.string.suggest_search, text)
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp)
+                        .clickable(role = Role.Button, onClickLabel = searchLabel) {
+                            focusManager.clearFocus()
+                            onSearch(text)
+                        }.padding(start = DesignTokens.Space16),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MusixIcon(R.drawable.ic_search, null, tint = colors.textMuted, size = 20.dp)
+                Spacer(Modifier.width(DesignTokens.Space16))
+                Text(
+                    highlighted(text, suggestions.query, colors.text, colors.textMuted),
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                IconAction(R.drawable.ic_fill_query, stringResource(R.string.suggest_fill, text), { onFill(text) }, iconSize = 20.dp)
+            }
+        }
+        if (suggestions.queries.isNotEmpty() && suggestions.items.isNotEmpty()) {
+            item(key = "divider") {
+                Box(
+                    Modifier
+                        .padding(vertical = DesignTokens.Space8)
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(colors.border),
+                )
+            }
+        }
+        items(suggestions.items, key = { "i:${it.id}" }) { item ->
+            EntryRow(
+                title = item.title,
+                subtitle = item.subtitle,
+                artwork = item.artworkUrl.takeIf { it.isNotEmpty() }?.toUri(),
+                browsable = item.browsable && !item.playable,
+                onClick = {
+                    focusManager.clearFocus()
+                    onItem(item)
+                },
+                fallback =
+                    when (item.type) {
+                        ItemType.ARTIST -> R.drawable.ic_artist
+                        ItemType.ALBUM -> R.drawable.ic_album
+                        ItemType.PLAYLIST -> R.drawable.ic_list_music
+                        else -> R.drawable.ic_music
+                    },
+            )
+        }
+    }
+}
+
+private fun highlighted(
+    text: String,
+    typed: String,
+    strong: Color,
+    soft: Color,
+): AnnotatedString =
+    buildAnnotatedString {
+        val prefix = typed.trim()
+        if (prefix.isNotEmpty() && text.startsWith(prefix, ignoreCase = true)) {
+            withStyle(SpanStyle(color = soft)) { append(text.substring(0, prefix.length)) }
+            withStyle(SpanStyle(color = strong, fontWeight = FontWeight.SemiBold)) { append(text.substring(prefix.length)) }
+        } else {
+            withStyle(SpanStyle(color = strong)) { append(text) }
+        }
+    }

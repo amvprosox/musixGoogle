@@ -212,6 +212,8 @@ class PlayerConnection(
         return true
     }
 
+    fun positionMs(): Long = browser?.currentPosition?.coerceAtLeast(0L) ?: nowPlayingFlow.value.positionMs
+
     fun togglePlay() {
         val current = browser ?: return notConnected()
         if (current.playWhenReady) current.pause() else current.play()

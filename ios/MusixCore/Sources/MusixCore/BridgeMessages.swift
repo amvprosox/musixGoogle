@@ -11,12 +11,14 @@ public enum BridgeEvent: Equatable, Sendable {
     case adStart
     case adEnd
     case ack(requestId: String)
+    case lyricsResult(requestId: String, lyrics: Lyrics?)
+    case suggestResult(requestId: String, suggestions: SearchSuggestions)
     case error(code: BridgeErrorCode, message: String, requestId: String?)
 }
 
 extension BridgeEvent: Decodable {
     private enum Keys: String, CodingKey {
-        case v, type, platform, clientVersion, state, items, requestId, page, query, avatarUrl, code, message
+        case v, type, platform, clientVersion, state, items, requestId, page, query, avatarUrl, code, message, lyrics, suggestions
     }
 
     public init(from decoder: Decoder) throws {
@@ -57,6 +59,19 @@ extension BridgeEvent: Decodable {
             self = .adEnd
         case "ack":
             self = .ack(requestId: try container.decode(String.self, forKey: .requestId))
+        case "lyricsResult":
+            guard container.contains(.lyrics) else {
+                throw BridgeDecodeError.missingField("lyrics")
+            }
+            self = .lyricsResult(
+                requestId: try container.decode(String.self, forKey: .requestId),
+                lyrics: try container.decode(Lyrics?.self, forKey: .lyrics)
+            )
+        case "suggestResult":
+            self = .suggestResult(
+                requestId: try container.decode(String.self, forKey: .requestId),
+                suggestions: try container.decode(SearchSuggestions.self, forKey: .suggestions)
+            )
         case "error":
             guard container.contains(.requestId) else {
                 throw BridgeDecodeError.missingField("requestId")
@@ -101,6 +116,8 @@ public enum BridgeCommand: Equatable, Sendable {
     case playlistTargets(videoId: String)
     case addToPlaylist(videoId: String, playlistId: String)
     case savePlaylist(playlistId: String, save: Bool)
+    case lyrics(videoId: String, title: String, artist: String, album: String, durationSec: Double)
+    case suggest(query: String)
 
     public var typeName: String {
         switch self {
@@ -126,12 +143,14 @@ public enum BridgeCommand: Equatable, Sendable {
         case .playlistTargets: return "playlistTargets"
         case .addToPlaylist: return "addToPlaylist"
         case .savePlaylist: return "savePlaylist"
+        case .lyrics: return "lyrics"
+        case .suggest: return "suggest"
         }
     }
 
     public var lane: CommandLane {
         switch self {
-        case .browse, .search, .loadContinuation, .playlistTargets, .addToPlaylist, .savePlaylist: return .data
+        case .browse, .search, .loadContinuation, .playlistTargets, .addToPlaylist, .savePlaylist, .lyrics, .suggest: return .data
         default: return .player
         }
     }
@@ -143,6 +162,7 @@ public struct CommandEnvelope: Encodable, Sendable {
 
     private enum Keys: String, CodingKey {
         case v, type, requestId, seconds, volume, enabled, mode, videoId, playlistId, index, nodeId, query, filter, token, kind, adSkip, level, save
+        case title, artist, album, durationSec
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -191,6 +211,14 @@ public struct CommandEnvelope: Encodable, Sendable {
         case let .savePlaylist(playlistId, save):
             try container.encode(playlistId, forKey: .playlistId)
             try container.encode(save, forKey: .save)
+        case let .lyrics(videoId, title, artist, album, durationSec):
+            try container.encode(videoId, forKey: .videoId)
+            try container.encode(title, forKey: .title)
+            try container.encode(artist, forKey: .artist)
+            try container.encode(album, forKey: .album)
+            try container.encode(durationSec, forKey: .durationSec)
+        case let .suggest(query):
+            try container.encode(query, forKey: .query)
         }
     }
 }
