@@ -413,10 +413,6 @@ final class PlayerController: ObservableObject {
         }
         switch type {
         case .began:
-            if let reasonRaw = note.userInfo?[AVAudioSessionInterruptionReasonKey] as? UInt,
-               AVAudioSession.InterruptionReason(rawValue: reasonRaw) == .appWasSuspended {
-                return
-            }
             sessionActive = false
             endKeepAlive()
             if policy.began(wasPlaying: actualPlaying) == .pause {
