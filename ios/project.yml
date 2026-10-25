@@ -33,16 +33,6 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Musix/Musix.entitlements
-        OTHER_LDFLAGS:
-          - "$(inherited)"
-          - "-Xlinker"
-          - "-weak-lswiftWebKit"
-        OTHER_SWIFT_FLAGS:
-          - "$(inherited)"
-          - "-Xfrontend"
-          - "-disable-autolink-library"
-          - "-Xfrontend"
-          - "swiftWebKit"
     info:
       path: Musix/Info.plist
       properties:
