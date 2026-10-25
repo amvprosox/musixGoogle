@@ -117,6 +117,14 @@ test('captures every breakpoint in dark and light themes', async () => {
     await shell.locator('#sidebar [data-nav="settings"]').click();
     await shell.waitForTimeout(800);
     writeFileSync(path.join(OUT, 'settings-dark.png'), await composite(app));
+    await shell.keyboard.press('Escape');
+    await viewEval(app, `location.assign('/watch?v=lYBUbBu4W08'); true`);
+    await expect(shell.locator('#player-title')).toHaveText('Never Gonna Give You Up', { timeout: 90000 });
+    await shell.waitForTimeout(4000);
+    writeFileSync(path.join(OUT, 'playing-dark.png'), await composite(app));
+    await setWindowSize(app, 390, 844);
+    await shell.waitForTimeout(1500);
+    writeFileSync(path.join(OUT, 'playing-mobile-dark.png'), await composite(app));
   } finally {
     await closeApp(launched);
   }

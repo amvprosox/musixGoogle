@@ -1,0 +1,82 @@
+name: Screenshots
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apple:
+    name: iOS simulator and macOS screenshots
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build for the simulator
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Musix.xcodeproj \
+            -scheme Musix \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tail -5
+
+      - name: Capture iOS screenshots
+        run: |
+          mkdir -p shots
+          DEVICE=$(xcrun simctl list devices available | grep -E "iPhone 16 Pro \(" | head -1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          if [ -z "$DEVICE" ]; then
+            DEVICE=$(xcrun simctl list devices available | grep -E "iPhone" | head -1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
+          fi
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl ui "$DEVICE" appearance dark
+          xcrun simctl install "$DEVICE" ios/build/Build/Products/Debug-iphonesimulator/Musix.app
+          xcrun simctl launch "$DEVICE" com.realmadhoney.musix
+          sleep 60
+          xcrun simctl io "$DEVICE" screenshot shots/ios-home.png
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Build the macOS app
+        run: |
+          npm ci
+          npm run build -w @musix/design
+          npm run build -w @musix/bridge
+          npm run build -w musix
+          cd desktop && npx electron-builder --config build/electron-builder.yml --mac dir --arm64
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Capture the macOS screenshot
+        run: |
+          APP=$(ls -d desktop/release/mac*/Musix.app | head -1)
+          open "$APP"
+          sleep 60
+          screencapture -x shots/macos.png
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Musix-Screenshots
+          path: shots/*.png
+          if-no-files-found: error
