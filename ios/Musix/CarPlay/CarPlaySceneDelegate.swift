@@ -7,13 +7,26 @@ import UIKit
 final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     private var coordinator: CarPlayCoordinator?
 
-    func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene, didConnect interfaceController: CPInterfaceController) {
+    nonisolated func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene, didConnect interfaceController: CPInterfaceController) {
+        Task { @MainActor in
+            self.connect(interfaceController)
+        }
+    }
+
+    nonisolated func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene, didDisconnectInterfaceController interfaceController: CPInterfaceController) {
+        Task { @MainActor in
+            self.disconnect()
+        }
+    }
+
+    private func connect(_ interfaceController: CPInterfaceController) {
+        coordinator?.stop()
         let coordinator = CarPlayCoordinator(model: AppModel.shared, interface: interfaceController)
         self.coordinator = coordinator
         coordinator.start()
     }
 
-    func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene, didDisconnectInterfaceController interfaceController: CPInterfaceController) {
+    private func disconnect() {
         coordinator?.stop()
         coordinator = nil
     }
