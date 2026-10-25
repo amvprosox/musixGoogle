@@ -37,6 +37,12 @@ targets:
           - "$(inherited)"
           - "-Xlinker"
           - "-weak-lswiftWebKit"
+        OTHER_SWIFT_FLAGS:
+          - "$(inherited)"
+          - "-Xfrontend"
+          - "-disable-autolink-library"
+          - "-Xfrontend"
+          - "swiftWebKit"
     info:
       path: Musix/Info.plist
       properties:
