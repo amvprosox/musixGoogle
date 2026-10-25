@@ -35,7 +35,9 @@ jobs:
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM= \
             build | tail -5
 
       - name: Capture iOS screenshots
@@ -49,7 +51,13 @@ jobs:
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl ui "$DEVICE" appearance dark
           xcrun simctl install "$DEVICE" ios/build/Build/Products/Debug-iphonesimulator/Musix.app
-          xcrun simctl launch "$DEVICE" com.realmadhoney.musix
+          sleep 20
+          for attempt in 1 2 3 4 5; do
+            if xcrun simctl launch "$DEVICE" com.realmadhoney.musix; then
+              break
+            fi
+            sleep 15
+          done
           sleep 60
           xcrun simctl io "$DEVICE" screenshot shots/ios-home.png
 
