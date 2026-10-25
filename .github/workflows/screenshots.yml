@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)"
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -43,10 +43,16 @@ jobs:
       - name: Capture iOS screenshots
         run: |
           mkdir -p shots
-          DEVICE=$(xcrun simctl list devices available | grep -E "iPhone 16 Pro \(" | head -1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
-          if [ -z "$DEVICE" ]; then
-            DEVICE=$(xcrun simctl list devices available | grep -E "iPhone" | head -1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')
-          fi
+          DEVICE=$(xcrun simctl list -j devices available | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)['devices']
+          runtimes = sorted((k for k in data if 'iOS' in k), key=lambda k: [int(x) for x in k.split('iOS-')[-1].split('-')])
+          for runtime in reversed(runtimes):
+              phones = [d for d in data[runtime] if d['name'].startswith('iPhone') and 'Pro' in d['name']] or [d for d in data[runtime] if d['name'].startswith('iPhone')]
+              if phones:
+                  print(phones[0]['udid'])
+                  break
+          ")
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl ui "$DEVICE" appearance dark
