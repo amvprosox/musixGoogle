@@ -38,7 +38,7 @@ jobs:
             CODE_SIGN_IDENTITY=- \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM= \
-            build | tail -5
+            build > build.log 2>&1 || { grep -E "error:|warning:" build.log | sort -u | head -60; exit 1; }
 
       - name: Capture iOS screenshots
         run: |
