@@ -4,11 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.realmadhoney.musix.core.audio.AudioFocusMachine
@@ -35,41 +31,11 @@ class AudioFocusController(
     private val commands: PlaybackCommands,
     private val scope: CoroutineScope,
 ) {
-    private val audioManager = context.getSystemService(AudioManager::class.java)
     private val machine = AudioFocusMachine()
     private val mutex = Mutex()
     private var noisyRegistered = false
 
     val state: FocusState get() = machine.state
-
-    private val focusListener =
-        AudioManager.OnAudioFocusChangeListener { change ->
-            val input =
-                when (change) {
-                    AudioManager.AUDIOFOCUS_GAIN -> FocusInput.Gain
-                    AudioManager.AUDIOFOCUS_LOSS -> FocusInput.Loss
-                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> FocusInput.LossTransient
-                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> FocusInput.LossTransientCanDuck
-                    else -> null
-                }
-            if (input != null) {
-                scope.launch { dispatch(input) }
-            }
-        }
-
-    private val request: AudioFocusRequest =
-        AudioFocusRequest
-            .Builder(AudioManager.AUDIOFOCUS_GAIN)
-            .setAudioAttributes(
-                AudioAttributes
-                    .Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build(),
-            ).setAcceptsDelayedFocusGain(false)
-            .setWillPauseWhenDucked(false)
-            .setOnAudioFocusChangeListener(focusListener, Handler(Looper.getMainLooper()))
-            .build()
 
     private val noisyReceiver =
         object : BroadcastReceiver() {
@@ -101,7 +67,6 @@ class AudioFocusController(
             context.unregisterReceiver(noisyReceiver)
             noisyRegistered = false
         }
-        audioManager?.abandonAudioFocusRequest(request)
     }
 
     private suspend fun dispatch(input: FocusInput): CommandResult =
@@ -111,13 +76,10 @@ class AudioFocusController(
             while (pending.isNotEmpty()) {
                 when (val effect = pending.removeFirst()) {
                     FocusEffect.RequestFocus -> {
-                        val granted = audioManager?.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-                        pending.addAll(0, machine.handle(if (granted) FocusInput.Granted else FocusInput.Denied))
+                        pending.addAll(0, machine.handle(FocusInput.Granted))
                     }
 
-                    FocusEffect.AbandonFocus -> {
-                        audioManager?.abandonAudioFocusRequest(request)
-                    }
+                    FocusEffect.AbandonFocus -> {}
 
                     FocusEffect.Play -> {
                         result = commands.play()

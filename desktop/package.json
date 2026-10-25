@@ -1,7 +1,7 @@
 {
   "name": "musix",
   "productName": "Musix",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Free and open-source YouTube Music desktop player with a built-in ad blocker",
   "desktopName": "musix.desktop",
   "main": "dist/main/index.mjs",
