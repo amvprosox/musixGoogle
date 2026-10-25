@@ -60,6 +60,7 @@ jobs:
           done
           sleep 60
           xcrun simctl io "$DEVICE" screenshot shots/ios-home.png
+          xcrun simctl list devices booted > shots/ios-device.txt
           xcrun simctl spawn "$DEVICE" log show --last 3m --style compact --predicate 'process == "Musix"' > shots/ios-log.txt 2>&1 || true
 
       - uses: actions/setup-node@v4
