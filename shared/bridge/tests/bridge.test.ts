@@ -77,7 +77,10 @@ async function until<T>(read: () => T | undefined, timeout = 3000): Promise<T> {
   throw new Error('Timed out waiting for condition');
 }
 
-function setup(): Harness {
+function setup(platform: 'android' | 'ios' = 'android'): Harness {
+  if (platform === 'ios') {
+    Reflect.deleteProperty(window, 'AndroidBridge');
+  }
   document.body.innerHTML = PAGE;
   const events: BridgeEvent[] = [];
   const calls: string[] = [];
@@ -186,11 +189,25 @@ function setup(): Harness {
   };
   Object.assign(window, {
     ytcfg: { get: (key: string) => config[key] },
-    AndroidBridge: {
-      receive: (json: string) => {
-        events.push(JSON.parse(json) as BridgeEvent);
-      },
-    },
+    ...(platform === 'android'
+      ? {
+          AndroidBridge: {
+            receive: (json: string) => {
+              events.push(JSON.parse(json) as BridgeEvent);
+            },
+          },
+        }
+      : {
+          webkit: {
+            messageHandlers: {
+              ytm: {
+                postMessage: (json: string) => {
+                  events.push(JSON.parse(json) as BridgeEvent);
+                },
+              },
+            },
+          },
+        }),
     fetch: (url: string, init: RequestInit) => {
       if (url.startsWith('https://lrclib.net/api/')) {
         lyricsUrls.push(url);
@@ -356,6 +373,14 @@ describe('ytm bridge in a YouTube Music page', () => {
     h.video.dispatchEvent(new Event('pause'));
     await until(() => (h.media.paused ? undefined : true));
     Reflect.deleteProperty(document, 'visibilityState');
+  });
+
+  it('does not resume an unexplained pause outside iOS while the page stays visible', async () => {
+    await ack(h, send(h, { type: 'play' }));
+    h.media.paused = true;
+    h.video.dispatchEvent(new Event('pause'));
+    await wait(600);
+    expect(h.media.paused).toBe(true);
   });
 
   it('keeps a deliberate pause when the app goes to the background', async () => {
@@ -695,5 +720,36 @@ describe('ytm bridge in a YouTube Music page', () => {
 
   it('installs only once', () => {
     expect(installBridge(window, document)).toBe(h.bridge);
+  });
+});
+
+describe('ytm bridge inside the iOS app', () => {
+  let h: Harness;
+
+  beforeEach(async () => {
+    h = setup('ios');
+    await until(() => last(h, 'ready'));
+    await until(() => last(h, 'state'));
+  });
+
+  afterEach(() => {
+    h.bridge.dispose();
+    Reflect.deleteProperty(window, 'webkit');
+  });
+
+  it('resumes a pause the listener did not ask for', async () => {
+    expect(last(h, 'ready')).toMatchObject({ platform: 'ios' });
+    await ack(h, send(h, { type: 'play' }));
+    h.media.paused = true;
+    h.video.dispatchEvent(new Event('pause'));
+    await until(() => (h.media.paused ? undefined : true));
+  });
+
+  it('keeps a pause the listener asked for', async () => {
+    await ack(h, send(h, { type: 'play' }));
+    await ack(h, send(h, { type: 'pause' }));
+    h.video.dispatchEvent(new Event('pause'));
+    await wait(600);
+    expect(h.media.paused).toBe(true);
   });
 });

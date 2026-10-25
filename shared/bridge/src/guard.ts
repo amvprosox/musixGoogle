@@ -9,6 +9,7 @@ export interface GuardMedia {
   video: () => HTMLVideoElement | null;
   isAd: () => boolean;
   resume: () => void;
+  resumeAnyPause: boolean;
 }
 
 export class PlaybackGuard {
@@ -175,7 +176,7 @@ export class PlaybackGuard {
     if (this.pausedAt - this.lastPauseCommandAt < GESTURE_WINDOW_MS) {
       return false;
     }
-    if (this.youThereDialog()) {
+    if (this.media.resumeAnyPause || this.youThereDialog()) {
       return true;
     }
     return Math.abs(this.pausedAt - this.hiddenAt) < HIDDEN_PAUSE_WINDOW_MS;

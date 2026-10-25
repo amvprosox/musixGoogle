@@ -27,6 +27,9 @@ final class PlayerController: ObservableObject {
     private var sessionActive = false
     private var pendingPlay: (value: Bool, until: Date)?
     private var stateAt = Date()
+    private var actualPlaying = false
+    private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+    private var keepAlive: Task<Void, Never>?
 
     init(engine: WebEngine, settings: AppSettings) {
         self.engine = engine
@@ -83,6 +86,7 @@ final class PlayerController: ObservableObject {
 
     func pause() {
         policy.userPaused()
+        endKeepAlive()
         expect(playing: false)
         performPlayback(.pause)
     }
@@ -249,6 +253,7 @@ final class PlayerController: ObservableObject {
             }
         }
         stateAt = Date()
+        actualPlaying = incoming.isPlaying
         state = newState
         let newTimeline = PlaybackModel.timeline(state: newState, queue: queue)
         if newTimeline != timeline {
@@ -380,6 +385,18 @@ final class PlayerController: ObservableObject {
                 self?.handleRouteChange(note)
             }
             .store(in: &cancellables)
+        center.publisher(for: UIApplication.didEnterBackgroundNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.enteredBackground()
+            }
+            .store(in: &cancellables)
+        center.publisher(for: UIApplication.willEnterForegroundNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.endKeepAlive()
+            }
+            .store(in: &cancellables)
         center.publisher(for: AVAudioSession.mediaServicesWereResetNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
@@ -396,8 +413,13 @@ final class PlayerController: ObservableObject {
         }
         switch type {
         case .began:
+            if let reasonRaw = note.userInfo?[AVAudioSessionInterruptionReasonKey] as? UInt,
+               AVAudioSession.InterruptionReason(rawValue: reasonRaw) == .appWasSuspended {
+                return
+            }
             sessionActive = false
-            if policy.began(wasPlaying: state.isPlaying) == .pause {
+            endKeepAlive()
+            if policy.began(wasPlaying: actualPlaying) == .pause {
                 perform(.pause)
             }
         case .ended:
@@ -418,10 +440,45 @@ final class PlayerController: ObservableObject {
               reason == .oldDeviceUnavailable else {
             return
         }
-        if policy.routeLost(wasPlaying: state.isPlaying) == .pause {
+        if policy.routeLost(wasPlaying: actualPlaying) == .pause {
+            endKeepAlive()
             perform(.pause)
         }
     }
+
+    private func enteredBackground() {
+        guard actualPlaying || pendingPlay?.value == true else {
+            return
+        }
+        endKeepAlive()
+        backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Musix keeps playing") { [weak self] in
+            Task { @MainActor in
+                self?.endKeepAlive()
+            }
+        }
+        let queue = engine.commandQueue
+        keepAlive = Task { [weak self] in
+            for delay in Self.backgroundResumeDelays {
+                try? await Task.sleep(for: .milliseconds(delay))
+                guard !Task.isCancelled else {
+                    return
+                }
+                _ = await queue.send(.play)
+            }
+            self?.endKeepAlive()
+        }
+    }
+
+    private func endKeepAlive() {
+        keepAlive?.cancel()
+        keepAlive = nil
+        if backgroundTask != .invalid {
+            UIApplication.shared.endBackgroundTask(backgroundTask)
+            backgroundTask = .invalid
+        }
+    }
+
+    private static let backgroundResumeDelays: [Int] = [400, 1100, 1500, 3000, 4000]
 
     private func configureRemoteCommands() {
         let center = MPRemoteCommandCenter.shared()

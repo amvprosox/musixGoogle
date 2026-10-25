@@ -81,6 +81,7 @@ export function installBridge(win: Window, doc: Document): MusixBridge | null {
     });
   };
   const guard = new PlaybackGuard(doc, win, {
+    resumeAnyPause: detectTransport(win).platform === 'ios',
     video: () => observer.videoElement(),
     isAd: () => observer.isAdShowing(),
     resume: () => {
