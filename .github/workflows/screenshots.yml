@@ -87,6 +87,11 @@ jobs:
       - name: Capture the macOS screenshot
         if: always()
         run: |
+          xcrun simctl shutdown all || true
+          killall Simulator || true
+          sleep 10
+          killall "Problem Reporter" || true
+          killall UserNotificationCenter || true
           APP=$(ls -d desktop/release/mac*/Musix.app | head -1)
           open "$APP"
           sleep 60
