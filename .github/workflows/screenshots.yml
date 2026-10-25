@@ -31,7 +31,7 @@ jobs:
           xcodebuild \
             -project Musix.xcodeproj \
             -scheme Musix \
-            -configuration Debug \
+            -configuration Release \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
@@ -50,7 +50,7 @@ jobs:
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl ui "$DEVICE" appearance dark
-          xcrun simctl install "$DEVICE" ios/build/Build/Products/Debug-iphonesimulator/Musix.app
+          xcrun simctl install "$DEVICE" ios/build/Build/Products/Release-iphonesimulator/Musix.app
           sleep 20
           for attempt in 1 2 3 4 5; do
             if xcrun simctl launch "$DEVICE" com.realmadhoney.musix; then
