@@ -60,6 +60,7 @@ jobs:
           done
           sleep 60
           xcrun simctl io "$DEVICE" screenshot shots/ios-home.png
+          xcrun simctl spawn "$DEVICE" log show --last 3m --style compact --predicate 'process == "Musix"' > shots/ios-log.txt 2>&1 || true
 
       - uses: actions/setup-node@v4
         with:
@@ -77,14 +78,20 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
       - name: Capture the macOS screenshot
+        if: always()
         run: |
           APP=$(ls -d desktop/release/mac*/Musix.app | head -1)
           open "$APP"
           sleep 60
           screencapture -x shots/macos.png
+          mkdir -p shots/reports
+          cp ~/Library/Logs/DiagnosticReports/*.ips shots/reports/ 2>/dev/null || true
+          cp ~/Library/Logs/DiagnosticReports/*.crash shots/reports/ 2>/dev/null || true
+          ls -la ~/Library/Logs/DiagnosticReports/ || true
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: Musix-Screenshots
-          path: shots/*.png
+          path: shots
           if-no-files-found: error
