@@ -401,41 +401,41 @@ export class CommandRunner {
     if (play) {
       guard.dismissYouThere();
     }
-    if (observer.isVideoPlaying() === play) {
+    const matches = (): boolean => observer.isVideoPlaying() === play;
+    if (matches()) {
       return;
     }
+    if (!clickFirst(observer.findBar(), SEL.playPause) && !this.drivePlayer(play)) {
+      throw new CommandError('element_missing', play ? 'Play control not found' : 'Pause control not found');
+    }
+    if (await this.waitFor(matches, PLAY_CONFIRM_MS)) {
+      return;
+    }
+    this.drivePlayer(play);
+    await this.waitFor(matches, PLAY_CONFIRM_MS);
+  }
+
+  private drivePlayer(play: boolean): boolean {
+    const { observer } = this.deps;
     const player = observer.player();
-    const video = observer.videoElement();
     if (play && player && typeof player.playVideo === 'function') {
       player.playVideo();
-    } else if (!play && player && typeof player.pauseVideo === 'function') {
+      return true;
+    }
+    if (!play && player && typeof player.pauseVideo === 'function') {
       player.pauseVideo();
-    } else if (!clickFirst(observer.findBar(), SEL.playPause)) {
-      if (!video) {
-        throw new CommandError(
-          'element_missing',
-          play ? 'Play control not found' : 'Pause control not found',
-        );
-      }
-      if (play) {
-        startVideo(video);
-      } else {
-        video.pause();
-      }
+      return true;
     }
-    if (await this.waitFor(() => observer.isVideoPlaying() === play, PLAY_CONFIRM_MS)) {
-      return;
-    }
-    const current = observer.videoElement();
-    if (!current) {
-      return;
+    const video = observer.videoElement();
+    if (!video) {
+      return false;
     }
     if (play) {
-      startVideo(current);
+      startVideo(video);
     } else {
-      current.pause();
+      video.pause();
     }
-    await this.waitFor(() => observer.isVideoPlaying() === play, PLAY_CONFIRM_MS);
+    return true;
   }
 
   private requireAccount(): void {

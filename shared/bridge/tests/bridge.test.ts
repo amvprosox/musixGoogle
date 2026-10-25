@@ -369,6 +369,58 @@ describe('ytm bridge in a YouTube Music page', () => {
     Reflect.deleteProperty(document, 'visibilityState');
   });
 
+  it('ignores a still-watching prompt that is hidden', async () => {
+    await ack(h, send(h, { type: 'play' }));
+    const prompt = document.createElement('ytmusic-you-there-renderer');
+    prompt.innerHTML =
+      '<div class="buttons"><yt-button-renderer><button>Yes</button></yt-button-renderer></div>';
+    prompt.querySelector('button')?.addEventListener('click', () => {
+      h.calls.push('hidden-you-there');
+    });
+    const dialog = document.createElement('tp-yt-paper-dialog');
+    dialog.setAttribute('aria-hidden', 'true');
+    dialog.style.display = 'none';
+    dialog.append(prompt);
+    document.body.append(dialog);
+    await wait(1300);
+    await ack(h, send(h, { type: 'play' }));
+    expect(h.calls).not.toContain('hidden-you-there');
+    dialog.remove();
+  });
+
+  it('presses the page play button first so YouTube Music keeps its own state', async () => {
+    const calls: string[] = [];
+    Object.assign(h.player, {
+      playVideo: () => {
+        calls.push('playVideo');
+      },
+      pauseVideo: () => {
+        calls.push('pauseVideo');
+      },
+    });
+    await ack(h, send(h, { type: 'play' }));
+    await ack(h, send(h, { type: 'pause' }));
+    expect(calls).toEqual([]);
+    expect(h.calls.filter((call) => call === 'click:#play-pause-button')).toHaveLength(2);
+  });
+
+  it('falls back to the player when the page button does not start playback', async () => {
+    const calls: string[] = [];
+    Object.assign(h.player, {
+      playVideo: () => {
+        calls.push('playVideo');
+        h.media.paused = false;
+        h.video.dispatchEvent(new Event('play'));
+      },
+    });
+    const button = document.getElementById('play-pause-button') as HTMLElement;
+    const blocked = button.cloneNode(true) as HTMLElement;
+    button.replaceWith(blocked);
+    await ack(h, send(h, { type: 'play' }));
+    expect(calls).toEqual(['playVideo']);
+    expect(h.media.paused).toBe(false);
+  });
+
   it('answers the still-watching prompt and keeps playing', async () => {
     await ack(h, send(h, { type: 'play' }));
     const prompt = document.createElement('ytmusic-you-there-renderer');

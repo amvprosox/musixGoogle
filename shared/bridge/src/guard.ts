@@ -110,7 +110,27 @@ export class PlaybackGuard {
   }
 
   youThereDialog(): Element | null {
-    return queryFirst(this.doc, DOC_SEL.youThere);
+    const dialog = queryFirst(this.doc, DOC_SEL.youThere);
+    if (!dialog || !dialog.isConnected || !this.isShown(dialog)) {
+      return null;
+    }
+    return dialog;
+  }
+
+  private isShown(element: Element): boolean {
+    const visible = element as Element & { checkVisibility?: unknown };
+    if (typeof visible.checkVisibility === 'function') {
+      return (element as Element & { checkVisibility: () => boolean }).checkVisibility();
+    }
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      if (node.hasAttribute('hidden') || node.getAttribute('aria-hidden') === 'true') {
+        return false;
+      }
+      if (this.win.getComputedStyle(node).display === 'none') {
+        return false;
+      }
+    }
+    return true;
   }
 
   dismissYouThere(): boolean {
@@ -118,12 +138,7 @@ export class PlaybackGuard {
     if (!dialog) {
       return false;
     }
-    if (!clickFirst(dialog, DOC_SEL.youThereConfirm)) {
-      const fallback = dialog.querySelector('button');
-      if (fallback instanceof HTMLElement) {
-        fallback.click();
-      }
-    }
+    clickFirst(dialog, DOC_SEL.youThereConfirm);
     this.markActive();
     return true;
   }
