@@ -8,17 +8,17 @@ Get the files from the [latest release](https://github.com/amvprosox/musixGoogle
 
 | Platform | File |
 | --- | --- |
-| Ubuntu | `Musix-1.0.5-amd64.deb` or `Musix-1.0.5-x86_64.AppImage` |
-| Windows | `Musix-Setup-1.0.5.exe` or `Musix-Portable-1.0.5.exe` |
+| Ubuntu | `Musix-1.0.6-amd64.deb` or `Musix-1.0.6-x86_64.AppImage` |
+| Windows | `Musix-Setup-1.0.6.exe` or `Musix-Portable-1.0.6.exe` |
 | macOS | `Musix-1.0.6-mac.dmg` or `Musix-1.0.6-mac.zip` |
-| Android | `Musix-1.0.5-android.apk` |
-| Android Automotive | `Musix-1.0.5-android-automotive.apk` |
+| Android | `Musix-1.0.6-android.apk` |
+| Android Automotive | `Musix-1.0.6-android-automotive.apk` |
 | iOS | `Musix-1.0.6-ios.ipa` |
 
 ## Install on Ubuntu
 
 ```bash
-sudo apt install ./Musix-1.0.5-amd64.deb
+sudo apt install ./Musix-1.0.6-amd64.deb
 ```
 
 Run this in the folder where you downloaded the file, then open **Musix** from the app grid.
@@ -26,17 +26,17 @@ Run this in the folder where you downloaded the file, then open **Musix** from t
 To use the AppImage instead:
 
 ```bash
-chmod +x Musix-1.0.5-x86_64.AppImage
-./Musix-1.0.5-x86_64.AppImage
+chmod +x Musix-1.0.6-x86_64.AppImage
+./Musix-1.0.6-x86_64.AppImage
 ```
 
 ## Install on Windows
 
-1. Run `Musix-Setup-1.0.5.exe`.
+1. Run `Musix-Setup-1.0.6.exe`.
 2. If SmartScreen appears, click **More info** then **Run anyway**.
 3. Open **Musix** from the Start menu.
 
-`Musix-Portable-1.0.5.exe` runs without installing.
+`Musix-Portable-1.0.6.exe` runs without installing.
 
 ## Install on macOS
 
@@ -53,7 +53,7 @@ xattr -dr com.apple.quarantine /Applications/Musix.app
 
 ## Install on Android
 
-1. Copy `Musix-1.0.5-android.apk` to the phone and open it.
+1. Copy `Musix-1.0.6-android.apk` to the phone and open it.
 2. Allow installs from that source when asked, then tap **Install**.
 3. Open **Musix** and sign in.
 
