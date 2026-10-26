@@ -153,6 +153,42 @@ jobs:
             desktop/release/Musix-Portable-*.exe
           if-no-files-found: error
 
+  linux:
+    name: Ubuntu (deb and AppImage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared packages
+        run: |
+          npm run build -w @musix/design
+          npm run build -w @musix/bridge
+
+      - name: Typecheck and unit tests
+        run: |
+          npm run typecheck -w musix
+          npm test -w musix
+
+      - name: Build the packages
+        run: npm run dist -w musix
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Musix-Linux
+          path: |
+            desktop/release/*.deb
+            desktop/release/*.AppImage
+          if-no-files-found: error
+
   macos:
     name: macOS (dmg and zip)
     runs-on: macos-15
