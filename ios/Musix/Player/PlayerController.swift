@@ -422,12 +422,8 @@ final class PlayerController: ObservableObject {
         switch type {
         case .began:
             sessionActive = false
-            endKeepAlive()
             let action = policy.began(wasPlaying: actualPlaying)
-            PlaybackLog.shared.add("Audio interrupted by a call, alarm or another app, \(action == .pause ? "pausing" : "nothing playing")")
-            if action == .pause {
-                perform(.pause)
-            }
+            PlaybackLog.shared.add("Audio session interrupted, \(action == .pause ? "leaving playback to iOS" : "nothing playing")")
         case .ended:
             let optionsRaw = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
             let shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume)
