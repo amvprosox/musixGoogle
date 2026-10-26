@@ -22,6 +22,7 @@ final class AppModel {
         self.library = LibraryService(queue: engine.commandQueue, settings: settings)
         self.lyrics = LyricsController(engine: engine)
         self.suggester = SearchSuggester(queue: engine.commandQueue)
+        PlaybackLog.shared.add("Musix \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "")) started")
         engine.start()
     }
 

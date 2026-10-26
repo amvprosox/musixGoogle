@@ -214,18 +214,22 @@ class MainViewModel(
                             if (state.isAd || state.videoId.isEmpty() || state.title.isBlank() || state.durationSec <= 0.0) {
                                 null
                             } else {
-                                LyricsKey(state.videoId, state.title, state.artist, state.album, state.durationSec)
+                                LyricsKey(state.videoId, state.title, state.artist, state.album, Math.round(state.durationSec).toDouble())
                             }
-                        }.distinctUntilChanged { old, new -> old?.videoId == new?.videoId }
+                        }.distinctUntilChanged()
                         .filterNotNull()
                         .flatMapLatest { key -> lyricsRetry.map { key } }
                         .map { key -> engine to key }
                 }.collectLatest { (engine, key) ->
                     lyricsFlow.value = LyricsState.Loading(key.videoId)
+                    delay(LYRICS_SETTLE_MS)
                     val result =
                         engine.queue.slow {
                             BridgeCommand.FetchLyrics(it, key.videoId, key.title, key.artist, key.album, key.durationSec)
                         }
+                    if (result is CommandResult.LyricsFound && result.lyrics != null && result.lyrics?.videoId != key.videoId) {
+                        return@collectLatest
+                    }
                     lyricsFlow.value =
                         when (result) {
                             is CommandResult.LyricsFound -> {
@@ -408,5 +412,6 @@ class MainViewModel(
     companion object {
         const val PAGE_SIZE = 50
         const val SUGGEST_DEBOUNCE_MS = 150L
+        const val LYRICS_SETTLE_MS = 1_200L
     }
 }

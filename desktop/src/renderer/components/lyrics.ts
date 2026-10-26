@@ -6,6 +6,7 @@ import { h, hydrate, icon, iconButton, setText } from '../dom';
 const LEAD_MS = 150;
 const USER_SCROLL_HOLD_MS = 3500;
 const ANCHOR = 0.33;
+const SETTLE_MS = 1200;
 
 type LyricsView =
   { kind: 'idle' } | { kind: 'loading'; videoId: string } | { kind: 'ready'; response: LyricsResponse };
@@ -44,6 +45,8 @@ export function mountLyrics(root: HTMLElement, ctx: AppContext): void {
   let receivedAt = performance.now();
   let lastPlayer: PlayerState | null = null;
   let token = 0;
+  let shownKey = '';
+  let settleTimer: number | null = null;
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -59,10 +62,6 @@ export function mountLyrics(root: HTMLElement, ctx: AppContext): void {
             text: 'Try again',
             on: {
               click: () => {
-                const player = store.getState().player;
-                if (player) {
-                  cache.delete(player.videoId);
-                }
                 load(true);
               },
             },
@@ -187,33 +186,48 @@ export function mountLyrics(root: HTMLElement, ctx: AppContext): void {
 
   const load = (force: boolean): void => {
     const player = store.getState().player;
-    const videoId = player && player.hasTrack && !player.isAd ? player.videoId : '';
-    if (videoId === '') {
+    const key = trackKey(player);
+    if (key === '' || !player) {
+      shownKey = '';
       view = { kind: 'ready', response: { kind: 'missing', videoId: '' } };
       render();
       return;
     }
-    if (!force && view.kind !== 'idle') {
-      const current = view.kind === 'loading' ? view.videoId : responseVideo(view.response);
-      if (current === videoId) {
-        return;
-      }
+    if (!force && key === shownKey) {
+      return;
     }
-    const cached = cache.get(videoId);
+    shownKey = key;
+    const cached = force ? undefined : cache.get(key);
     if (cached) {
       view = { kind: 'ready', response: cached };
       render();
       return;
     }
+    view = { kind: 'loading', videoId: player.videoId };
+    render();
+    if (settleTimer !== null) {
+      window.clearTimeout(settleTimer);
+    }
+    settleTimer = window.setTimeout(() => {
+      settleTimer = null;
+      request(key, player.videoId);
+    }, SETTLE_MS);
+  };
+
+  const request = (key: string, videoId: string): void => {
+    if (trackKey(store.getState().player) !== key) {
+      return;
+    }
     token += 1;
     const mine = token;
-    view = { kind: 'loading', videoId };
-    render();
     api
       .invoke('lyrics:get', null)
       .then((response) => {
+        if (response.kind === 'found' && response.lyrics.videoId !== videoId) {
+          return;
+        }
         if (response.kind !== 'error') {
-          cache.set(videoId, response);
+          cache.set(key, response);
         }
         if (cache.size > 50) {
           const oldest = cache.keys().next().value;
@@ -221,14 +235,14 @@ export function mountLyrics(root: HTMLElement, ctx: AppContext): void {
             cache.delete(oldest);
           }
         }
-        if (mine !== token) {
+        if (mine !== token || shownKey !== key) {
           return;
         }
         view = { kind: 'ready', response };
         render();
       })
       .catch((error: unknown) => {
-        if (mine !== token) {
+        if (mine !== token || shownKey !== key) {
           return;
         }
         view = {
@@ -309,6 +323,9 @@ export function lyricsToggle(ctx: AppContext, placement: 'top' | 'bottom', id: s
   return toggle;
 }
 
-function responseVideo(response: LyricsResponse): string {
-  return response.kind === 'found' ? response.lyrics.videoId : response.videoId;
+function trackKey(player: PlayerState | null): string {
+  if (!player || !player.hasTrack || player.isAd || player.videoId === '' || player.durationSec <= 0) {
+    return '';
+  }
+  return [player.videoId, player.title, player.artist, Math.round(player.durationSec)].join('|');
 }

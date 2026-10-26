@@ -17,7 +17,7 @@ final class LyricsController: ObservableObject {
     private let engine: WebEngine
     private var cancellables = Set<AnyCancellable>()
     private var task: Task<Void, Never>?
-    private var currentVideo = ""
+    private var currentKey = ""
 
     init(engine: WebEngine) {
         self.engine = engine
@@ -30,34 +30,45 @@ final class LyricsController: ObservableObject {
     }
 
     func retry() {
-        currentVideo = ""
+        currentKey = ""
         track(engine.state)
     }
 
     private func track(_ state: BridgeState) {
         let title = state.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !state.isAd, !state.videoId.isEmpty, !title.isEmpty, state.durationSec > 0, state.videoId != currentVideo else {
+        guard !state.isAd, !state.videoId.isEmpty, !title.isEmpty, state.durationSec > 0 else {
             return
         }
-        let video = state.videoId
-        currentVideo = video
+        let key = [state.videoId, state.title, state.artist, String(Int(state.durationSec.rounded()))].joined(separator: "|")
+        guard key != currentKey else {
+            return
+        }
+        currentKey = key
         task?.cancel()
         load = .loading
         let command = BridgeCommand.lyrics(
-            videoId: video,
+            videoId: state.videoId,
             title: state.title,
             artist: state.artist,
             album: state.album,
             durationSec: state.durationSec
         )
+        let video = state.videoId
         let queue = engine.commandQueue
         task = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(Self.settleMilliseconds))
+            guard !Task.isCancelled else {
+                return
+            }
             let result = await queue.send(command)
-            guard let self, !Task.isCancelled, self.currentVideo == video else {
+            guard let self, !Task.isCancelled, self.currentKey == key else {
                 return
             }
             switch result {
             case let .lyrics(lyrics):
+                if let lyrics, lyrics.videoId != video {
+                    return
+                }
                 self.load = lyrics.map { .found($0) } ?? .missing
             case let .failed(_, message):
                 self.load = .failed(message)
@@ -70,6 +81,8 @@ final class LyricsController: ObservableObject {
             }
         }
     }
+
+    private static let settleMilliseconds = 1200
 }
 
 @MainActor

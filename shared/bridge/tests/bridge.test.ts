@@ -504,6 +504,30 @@ describe('ytm bridge in a YouTube Music page', () => {
     expect(result.lyrics?.lines[0]?.text).toBe('Yeah');
   });
 
+  it('looks lyrics up again when the song details change for the same video', async () => {
+    const ask = (title: string, durationSec: number): string =>
+      send(h, {
+        type: 'lyrics',
+        videoId: 'J7p4bzqLvCw',
+        title,
+        artist: 'The Weeknd',
+        album: '',
+        durationSec,
+      });
+    const first = ask('Old Song', 300);
+    await until(() => h.events.find((e) => e.type === 'lyricsResult' && e.requestId === first));
+    const before = h.lyricsUrls.length;
+    const second = ask('Blinding Lights', 200.4);
+    const result = await until(() =>
+      h.events.find(
+        (e): e is Extract<BridgeEvent, { type: 'lyricsResult' }> =>
+          e.type === 'lyricsResult' && e.requestId === second,
+      ),
+    );
+    expect(h.lyricsUrls.length).toBeGreaterThan(before);
+    expect(result.lyrics?.synced).toBe(true);
+  });
+
   it('returns YouTube Music search suggestions', async () => {
     const id = send(h, { type: 'suggest', query: 'blinding li' });
     const result = await until(() =>
@@ -743,6 +767,15 @@ describe('ytm bridge inside the iOS app', () => {
     h.media.paused = true;
     h.video.dispatchEvent(new Event('pause'));
     await until(() => (h.media.paused ? undefined : true));
+  });
+
+  it('leaves the player alone while the next song loads', async () => {
+    await ack(h, send(h, { type: 'play' }));
+    h.video.dispatchEvent(new Event('emptied'));
+    h.media.paused = true;
+    h.video.dispatchEvent(new Event('pause'));
+    await wait(600);
+    expect(h.media.paused).toBe(true);
   });
 
   it('keeps a pause the listener asked for', async () => {

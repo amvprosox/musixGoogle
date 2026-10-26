@@ -30,6 +30,8 @@ final class PlayerController: ObservableObject {
     private var actualPlaying = false
     private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
     private var keepAlive: Task<Void, Never>?
+    private var lastIncoming: BridgeState?
+    private var bufferingSince: Date?
 
     init(engine: WebEngine, settings: AppSettings) {
         self.engine = engine
@@ -47,6 +49,7 @@ final class PlayerController: ObservableObject {
         engine.errors
             .receive(on: RunLoop.main)
             .sink { [weak self] text in
+                PlaybackLog.shared.add("YouTube Music error: \(text)")
                 self?.message = text
             }
             .store(in: &cancellables)
@@ -78,6 +81,7 @@ final class PlayerController: ObservableObject {
     }
 
     func play() {
+        PlaybackLog.shared.add("Play requested")
         activateSession()
         policy = InterruptionPolicy()
         expect(playing: true)
@@ -85,6 +89,7 @@ final class PlayerController: ObservableObject {
     }
 
     func pause() {
+        PlaybackLog.shared.add("Pause requested")
         policy.userPaused()
         endKeepAlive()
         expect(playing: false)
@@ -106,6 +111,7 @@ final class PlayerController: ObservableObject {
         Task {
             let result = await send(command)
             if result != .acknowledged {
+                PlaybackLog.shared.add("\(command.typeName) did not go through: \(result)")
                 pendingPlay = nil
                 update(state: engine.state, queue: engine.queueEntries)
             }
@@ -254,6 +260,8 @@ final class PlayerController: ObservableObject {
         }
         stateAt = Date()
         actualPlaying = incoming.isPlaying
+        logChanges(from: lastIncoming, to: incoming)
+        lastIncoming = incoming
         state = newState
         let newTimeline = PlaybackModel.timeline(state: newState, queue: queue)
         if newTimeline != timeline {
@@ -415,13 +423,17 @@ final class PlayerController: ObservableObject {
         case .began:
             sessionActive = false
             endKeepAlive()
-            if policy.began(wasPlaying: actualPlaying) == .pause {
+            let action = policy.began(wasPlaying: actualPlaying)
+            PlaybackLog.shared.add("Audio interrupted by a call, alarm or another app, \(action == .pause ? "pausing" : "nothing playing")")
+            if action == .pause {
                 perform(.pause)
             }
         case .ended:
             let optionsRaw = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
             let shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume)
-            if policy.ended(shouldResume: shouldResume) == .resume {
+            let action = policy.ended(shouldResume: shouldResume)
+            PlaybackLog.shared.add("Interruption ended, \(action == .resume ? "resuming" : "staying paused")")
+            if action == .resume {
                 activateSession()
                 perform(.play)
             }
@@ -437,6 +449,7 @@ final class PlayerController: ObservableObject {
             return
         }
         if policy.routeLost(wasPlaying: actualPlaying) == .pause {
+            PlaybackLog.shared.add("Headphones or speaker disconnected, pausing")
             endKeepAlive()
             perform(.pause)
         }
@@ -444,8 +457,10 @@ final class PlayerController: ObservableObject {
 
     private func enteredBackground() {
         guard actualPlaying || pendingPlay?.value == true else {
+            PlaybackLog.shared.add("App went to the background while paused")
             return
         }
+        PlaybackLog.shared.add("App went to the background while playing, keeping playback alive")
         endKeepAlive()
         backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Musix keeps playing") { [weak self] in
             Task { @MainActor in
@@ -459,9 +474,33 @@ final class PlayerController: ObservableObject {
                 guard !Task.isCancelled else {
                     return
                 }
-                _ = await queue.send(.play)
+                let result = await queue.send(.play)
+                PlaybackLog.shared.add("Background keep-alive play: \(result == .acknowledged ? "ok" : "\(result)")")
             }
             self?.endKeepAlive()
+        }
+    }
+
+    private func logChanges(from old: BridgeState?, to new: BridgeState) {
+        let log = PlaybackLog.shared
+        let at = formatTime(new.positionSec)
+        if new.videoId != old?.videoId, !new.videoId.isEmpty {
+            log.add("Song: \(new.title.isEmpty ? new.videoId : new.title)\(new.artist.isEmpty ? "" : " - \(new.artist)")")
+        }
+        if new.isAd != (old?.isAd ?? false) {
+            log.add(new.isAd ? "Ad started" : "Ad ended")
+        }
+        let wasPlaying = old?.isPlaying ?? false
+        if new.isPlaying != wasPlaying {
+            log.add(new.isPlaying ? "Playing at \(at)" : "Stopped at \(at)\(new.durationSec > 0 ? " of \(formatTime(new.durationSec))" : "")")
+        }
+        let wasBuffering = old?.isBuffering ?? false
+        if new.isBuffering, !wasBuffering {
+            bufferingSince = Date()
+            log.add("Waiting for audio from YouTube at \(at)")
+        } else if !new.isBuffering, wasBuffering, let since = bufferingSince {
+            bufferingSince = nil
+            log.add("Audio arrived after \(String(format: "%.1f", Date().timeIntervalSince(since))) s")
         }
     }
 
@@ -479,15 +518,24 @@ final class PlayerController: ObservableObject {
     private func configureRemoteCommands() {
         let center = MPRemoteCommandCenter.shared()
         center.playCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.play() }
+            Task { @MainActor in
+                PlaybackLog.shared.add("Lock screen or headphones: play")
+                self?.play()
+            }
             return .success
         }
         center.pauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.pause() }
+            Task { @MainActor in
+                PlaybackLog.shared.add("Lock screen or headphones: pause")
+                self?.pause()
+            }
             return .success
         }
         center.togglePlayPauseCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.togglePlay() }
+            Task { @MainActor in
+                PlaybackLog.shared.add("Lock screen or headphones: play/pause")
+                self?.togglePlay()
+            }
             return .success
         }
         center.nextTrackCommand.addTarget { [weak self] _ in

@@ -180,6 +180,18 @@ struct SettingsView: View {
                     Text("Storage").font(.body(DesignTokens.text14, weight: .semibold))
                 }
                 Section {
+                    NavigationLink {
+                        PlaybackLogView(log: PlaybackLog.shared)
+                    } label: {
+                        Text("Playback log").font(.body(DesignTokens.text16, weight: .semibold))
+                    }
+                    Text("Shows every play, pause and stall with its cause. Copy it to report a problem.")
+                        .font(.body(DesignTokens.text14))
+                        .foregroundStyle(Palette.textMuted)
+                } header: {
+                    Text("Troubleshooting").font(.body(DesignTokens.text14, weight: .semibold))
+                }
+                Section {
                     Text("Musix \(Self.version)").font(.body(DesignTokens.text16))
                     Text("Musix is free and open source. It is not affiliated with Google or YouTube, and it never downloads or extracts audio.")
                         .font(.body(DesignTokens.text14))

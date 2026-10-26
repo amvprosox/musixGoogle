@@ -4,6 +4,7 @@ export const GESTURE_WINDOW_MS = 1500;
 export const HIDDEN_PAUSE_WINDOW_MS = 3000;
 export const RESUME_DELAYS_MS: readonly number[] = [250, 900, 2000, 4000];
 export const ACTIVITY_INTERVAL_MS = 60_000;
+export const TRACK_CHANGE_WINDOW_MS = 3000;
 
 export interface GuardMedia {
   video: () => HTMLVideoElement | null;
@@ -18,6 +19,7 @@ export class PlaybackGuard {
   private lastPauseCommandAt = Number.NEGATIVE_INFINITY;
   private hiddenAt = Number.NEGATIVE_INFINITY;
   private pausedAt = Number.NEGATIVE_INFINITY;
+  private loadedAt = Number.NEGATIVE_INFINITY;
   private attempt = 0;
   private timer: number | null = null;
   private activityTimer: number | null = null;
@@ -108,6 +110,15 @@ export class PlaybackGuard {
       },
       options,
     );
+    for (const name of ['emptied', 'loadstart']) {
+      video.addEventListener(
+        name,
+        () => {
+          this.loadedAt = this.now();
+        },
+        options,
+      );
+    }
   }
 
   youThereDialog(): Element | null {
@@ -168,6 +179,9 @@ export class PlaybackGuard {
   private shouldResume(): boolean {
     const video = this.attached;
     if (!this.wantsPlay || !video || !video.paused || video.ended || this.media.isAd()) {
+      return false;
+    }
+    if (video.readyState === 0 || this.pausedAt - this.loadedAt < TRACK_CHANGE_WINDOW_MS) {
       return false;
     }
     if (this.pausedAt - this.lastGestureAt < GESTURE_WINDOW_MS) {

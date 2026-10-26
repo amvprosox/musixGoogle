@@ -10,10 +10,10 @@ Get the files from the [latest release](https://github.com/amvprosox/musixGoogle
 | --- | --- |
 | Ubuntu | `Musix-1.0.5-amd64.deb` or `Musix-1.0.5-x86_64.AppImage` |
 | Windows | `Musix-Setup-1.0.5.exe` or `Musix-Portable-1.0.5.exe` |
-| macOS | `Musix-1.0.8-mac.dmg` or `Musix-1.0.8-mac.zip` |
+| macOS | `Musix-1.0.6-mac.dmg` or `Musix-1.0.6-mac.zip` |
 | Android | `Musix-1.0.5-android.apk` |
 | Android Automotive | `Musix-1.0.5-android-automotive.apk` |
-| iOS | `Musix-1.0.8-ios.ipa` |
+| iOS | `Musix-1.0.6-ios.ipa` |
 
 ## Install on Ubuntu
 
@@ -42,7 +42,7 @@ chmod +x Musix-1.0.5-x86_64.AppImage
 
 Works on macOS 12 or newer, on both Apple Silicon and Intel Macs.
 
-1. Open `Musix-1.0.8-mac.dmg` and drag **Musix** into **Applications**.
+1. Open `Musix-1.0.6-mac.dmg` and drag **Musix** into **Applications**.
 2. Run this once in Terminal so macOS allows the app:
 
 ```bash
@@ -71,7 +71,7 @@ Requires a computer, a USB cable and a free Apple ID. The app must be reinstalle
 1. Download [Impactor](https://github.com/claration/impactor/releases) for your computer.
 2. Plug in the iPhone, unlock it and tap **Trust**.
 3. Open Impactor, sign in with your Apple ID and enter the code shown on the iPhone.
-4. Select `Musix-1.0.8-ios.ipa`, choose your iPhone and click **Install**.
+4. Select `Musix-1.0.6-ios.ipa`, choose your iPhone and click **Install**.
 5. On the iPhone, open **Settings > Privacy & Security > Developer Mode**, turn it on and restart.
 6. Open **Settings > General > VPN & Device Management**, tap your Apple ID and tap **Trust**.
 7. Open **Musix**.

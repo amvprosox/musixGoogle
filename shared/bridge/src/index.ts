@@ -9,7 +9,7 @@ import { CommandRunner, startVideo } from './commands';
 import { clickFirst, SEL } from './dom';
 import { PlaybackGuard } from './guard';
 import { innertube, InnertubeError, readPageConfig, type InnertubeEndpoint } from './innertube';
-import { findLyrics, LyricsError, type LyricsQuery, type YtmLyrics } from './lyrics';
+import { findLyrics, LyricsError, normalize, type LyricsQuery, type YtmLyrics } from './lyrics';
 import { lyricsBrowseId, parseYtmLyrics } from './parse';
 import { PlayerObserver } from './player';
 import { detectTransport } from './transport';
@@ -129,7 +129,12 @@ export function installBridge(win: Window, doc: Document): MusixBridge | null {
   };
   const lyricsCache = new Map<string, Promise<Lyrics | null>>();
   const lyrics = (query: LyricsQuery): Promise<Lyrics | null> => {
-    const key = `${query.videoId}|${Math.round(query.durationSec)}`;
+    const key = [
+      query.videoId,
+      normalize(query.title),
+      normalize(query.artist),
+      Math.round(query.durationSec),
+    ].join('|');
     const cached = lyricsCache.get(key);
     if (cached) {
       return cached;
