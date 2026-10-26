@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -187,6 +188,7 @@ class MainViewModel(
     private val lyricsFlow = MutableStateFlow<LyricsState>(LyricsState.Idle)
     val lyrics: StateFlow<LyricsState> = lyricsFlow.asStateFlow()
     private val lyricsRetry = MutableStateFlow(0)
+    private val lyricsWanted = MutableStateFlow(false)
 
     init {
         connection.connect()
@@ -208,7 +210,11 @@ class MainViewModel(
         viewModelScope.launch {
             graph.engine
                 .filterNotNull()
+                .flatMapLatest { engine -> lyricsWanted.map { wanted -> engine.takeIf { wanted } } }
                 .flatMapLatest { engine ->
+                    if (engine == null) {
+                        return@flatMapLatest emptyFlow()
+                    }
                     engine.bridgeState
                         .map { state ->
                             if (state.isAd || state.videoId.isEmpty() || state.title.isBlank() || state.durationSec <= 0.0) {
@@ -279,6 +285,10 @@ class MainViewModel(
 
     fun suggest(value: String) {
         suggestQuery.value = value.take(200)
+    }
+
+    fun setLyricsVisible(visible: Boolean) {
+        lyricsWanted.value = visible
     }
 
     fun retryLyrics() {

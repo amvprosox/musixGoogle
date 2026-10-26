@@ -159,6 +159,7 @@ fun MusixApp(viewModel: MainViewModel) {
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     val suggestions by viewModel.suggestions.collectAsState()
     val lyrics by viewModel.lyrics.collectAsState()
+    LaunchedEffect(route, showLyrics) { viewModel.setLyricsVisible(route == Route.NowPlaying && showLyrics) }
     val webBack = engine?.canNavigateBack?.collectAsState()?.value ?: false
     BackHandler(enabled = routes.size > 1) { viewModel.back() }
     BackHandler(enabled = routes.size <= 1 && shellTab == ShellTab.Search && suggesting) { suggesting = false }
@@ -264,6 +265,7 @@ fun MusixApp(viewModel: MainViewModel) {
                                 if (visible) {
                                     SearchSuggestionsPanel(
                                         suggestions = suggestions,
+                                        artworkFor = { url -> viewModel.graph.artwork.contentUri(url) },
                                         onSearch = { text ->
                                             webQuery = text
                                             suggesting = false

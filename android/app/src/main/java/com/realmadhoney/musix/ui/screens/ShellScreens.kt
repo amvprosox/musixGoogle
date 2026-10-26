@@ -52,7 +52,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.net.toUri
 import com.realmadhoney.musix.R
 import com.realmadhoney.musix.core.bridge.FlatItem
 import com.realmadhoney.musix.core.bridge.ItemType
@@ -271,6 +270,7 @@ fun SearchSuggestionsPanel(
     onSearch: (String) -> Unit,
     onFill: (String) -> Unit,
     onItem: (FlatItem) -> Unit,
+    artworkFor: (String) -> android.net.Uri?,
     modifier: Modifier = Modifier,
 ) {
     val colors = Musix.colors
@@ -316,7 +316,7 @@ fun SearchSuggestionsPanel(
             EntryRow(
                 title = item.title,
                 subtitle = item.subtitle,
-                artwork = item.artworkUrl.takeIf { it.isNotEmpty() }?.toUri(),
+                artwork = item.artworkUrl.takeIf { it.isNotEmpty() }?.let(artworkFor),
                 browsable = item.browsable && !item.playable,
                 onClick = {
                     focusManager.clearFocus()

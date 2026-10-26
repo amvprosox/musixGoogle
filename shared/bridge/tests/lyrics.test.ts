@@ -13,7 +13,7 @@ import {
   type LrclibRecord,
   type LyricsQuery,
 } from '../src/lyrics';
-import { lyricsBrowseId, parseSuggestions, parseYtmLyrics } from '../src/parse';
+import { parseSuggestions } from '../src/parse';
 import { isLyrics, isSearchSuggestions } from '../src/validate';
 
 function fixture(name: string): unknown {
@@ -88,7 +88,6 @@ describe('track matching', () => {
         urls.push(url);
         return Promise.resolve(url.includes('/get?') ? fixture('lrclib-get') : []);
       },
-      ytm: () => Promise.resolve(null),
     };
     const synced = await findLyrics(QUERY, deps);
     expect(synced?.synced).toBe(true);
@@ -102,10 +101,9 @@ describe('track matching', () => {
   it('reports a network failure only when every source failed', async () => {
     const failing = {
       fetchJson: () => Promise.reject(new Error('offline')),
-      ytm: () => Promise.reject(new Error('offline')),
     };
     await expect(findLyrics(QUERY, failing)).rejects.toThrow('Lyrics could not be loaded');
-    const empty = { fetchJson: () => Promise.resolve(null), ytm: () => Promise.resolve(null) };
+    const empty = { fetchJson: () => Promise.resolve(null) };
     await expect(findLyrics(QUERY, empty)).resolves.toBeNull();
   });
 });
@@ -117,12 +115,5 @@ describe('youtube music responses', () => {
     expect(suggestions.items.length).toBeGreaterThan(0);
     expect(suggestions.items[0]).toMatchObject({ title: 'Blinding Lights', playable: true });
     expect(isSearchSuggestions(suggestions)).toBe(true);
-  });
-
-  it('finds the lyrics tab and reads its text and source', () => {
-    expect(lyricsBrowseId(fixture('lyrics-next'))).toBe('MPLYt_4U7yfKKFZLv-1');
-    const lyrics = parseYtmLyrics(fixture('lyrics-browse'));
-    expect(lyrics?.source).toBe('Musixmatch');
-    expect(lyrics?.text.startsWith('Yeah')).toBe(true);
   });
 });

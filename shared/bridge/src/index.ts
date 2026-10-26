@@ -6,11 +6,9 @@ import {
   type Lyrics,
 } from './contract';
 import { CommandRunner, startVideo } from './commands';
-import { clickFirst, SEL } from './dom';
 import { PlaybackGuard } from './guard';
 import { innertube, InnertubeError, readPageConfig, type InnertubeEndpoint } from './innertube';
-import { findLyrics, LyricsError, normalize, type LyricsQuery, type YtmLyrics } from './lyrics';
-import { lyricsBrowseId, parseYtmLyrics } from './parse';
+import { findLyrics, LyricsError, normalize, type LyricsQuery } from './lyrics';
 import { PlayerObserver } from './player';
 import { detectTransport } from './transport';
 import { parseBridgeCommand } from './validate';
@@ -81,16 +79,10 @@ export function installBridge(win: Window, doc: Document): MusixBridge | null {
     });
   };
   const guard = new PlaybackGuard(doc, win, {
-    resumeAnyPause: detectTransport(win).platform === 'ios',
-    video: () => observer.videoElement(),
-    isAd: () => observer.isAdShowing(),
     resume: () => {
       const player = observer.player();
       if (player && typeof player.playVideo === 'function') {
         player.playVideo();
-        return;
-      }
-      if (clickFirst(observer.findBar(), SEL.playPause)) {
         return;
       }
       startVideo(observer.videoElement());
@@ -120,13 +112,6 @@ export function installBridge(win: Window, doc: Document): MusixBridge | null {
       win.clearTimeout(timer);
     }
   };
-  const ytmLyrics = async (videoId: string): Promise<YtmLyrics | null> => {
-    const browseId = lyricsBrowseId(await request('next', { videoId, isAudioOnly: true }));
-    if (!browseId) {
-      return null;
-    }
-    return parseYtmLyrics(await request('browse', { browseId }));
-  };
   const lyricsCache = new Map<string, Promise<Lyrics | null>>();
   const lyrics = (query: LyricsQuery): Promise<Lyrics | null> => {
     const key = [
@@ -139,7 +124,7 @@ export function installBridge(win: Window, doc: Document): MusixBridge | null {
     if (cached) {
       return cached;
     }
-    const pending = findLyrics(query, { fetchJson, ytm: ytmLyrics });
+    const pending = findLyrics(query, { fetchJson });
     lyricsCache.set(key, pending);
     pending.catch(() => {
       lyricsCache.delete(key);

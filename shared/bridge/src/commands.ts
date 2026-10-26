@@ -33,6 +33,7 @@ export interface CommandDeps {
 }
 
 const PLAY_CONFIRM_MS = 1500;
+const LOADING_WAIT_MS = 4000;
 
 export function startVideo(video: HTMLVideoElement | null): void {
   if (!video) {
@@ -403,6 +404,17 @@ export class CommandRunner {
     }
     const matches = (): boolean => observer.isVideoPlaying() === play;
     if (matches()) {
+      return;
+    }
+    if (guard.isLoading()) {
+      if (!play) {
+        this.drivePlayer(false);
+      }
+      if (await this.waitFor(matches, LOADING_WAIT_MS)) {
+        return;
+      }
+      this.drivePlayer(play);
+      await this.waitFor(matches, PLAY_CONFIRM_MS);
       return;
     }
     if (!clickFirst(observer.findBar(), SEL.playPause) && !this.drivePlayer(play)) {

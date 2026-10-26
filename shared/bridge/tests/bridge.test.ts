@@ -221,12 +221,6 @@ function setup(platform: 'android' | 'ios' = 'android'): Harness {
       if (url.includes('/music/get_search_suggestions')) {
         return Promise.resolve(new Response(fixture('search-suggestions'), { status: 200 }));
       }
-      if (url.includes('/next')) {
-        return Promise.resolve(new Response(fixture('lyrics-next'), { status: 200 }));
-      }
-      if (typeof body.browseId === 'string' && body.browseId.startsWith('MPLY')) {
-        return Promise.resolve(new Response(fixture('lyrics-browse'), { status: 200 }));
-      }
       if (url.includes('/playlist/get_add_to_playlist')) {
         return Promise.resolve(new Response(fixture('add-to-playlist'), { status: 200 }));
       }
@@ -365,16 +359,6 @@ describe('ytm bridge in a YouTube Music page', () => {
     expect(h.media.paused).toBe(true);
   });
 
-  it('resumes playback the system paused while the app went to the background', async () => {
-    await ack(h, send(h, { type: 'play' }));
-    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
-    document.dispatchEvent(new Event('visibilitychange'));
-    h.media.paused = true;
-    h.video.dispatchEvent(new Event('pause'));
-    await until(() => (h.media.paused ? undefined : true));
-    Reflect.deleteProperty(document, 'visibilityState');
-  });
-
   it('does not resume an unexplained pause outside iOS while the page stays visible', async () => {
     await ack(h, send(h, { type: 'play' }));
     h.media.paused = true;
@@ -447,6 +431,12 @@ describe('ytm bridge in a YouTube Music page', () => {
   });
 
   it('answers the still-watching prompt and keeps playing', async () => {
+    Object.assign(h.player, {
+      playVideo: () => {
+        h.media.paused = false;
+        h.video.dispatchEvent(new Event('play'));
+      },
+    });
     await ack(h, send(h, { type: 'play' }));
     const prompt = document.createElement('ytmusic-you-there-renderer');
     prompt.innerHTML =
@@ -484,7 +474,7 @@ describe('ytm bridge in a YouTube Music page', () => {
     await ack(h, id);
   });
 
-  it('falls back to unsynced YouTube Music lyrics when no timing matches the track', async () => {
+  it('shows unsynced LRCLIB lyrics when no timing matches the track', async () => {
     const id = send(h, {
       type: 'lyrics',
       videoId: 'J7p4bzqLvCw',
@@ -500,8 +490,9 @@ describe('ytm bridge in a YouTube Music page', () => {
       ),
     );
     expect(result.lyrics?.synced).toBe(false);
-    expect(result.lyrics?.source).toBe('Musixmatch');
+    expect(result.lyrics?.source).toBe('LRCLIB');
     expect(result.lyrics?.lines[0]?.text).toBe('Yeah');
+    expect(h.fetchBodies.some((body) => body.videoId === 'J7p4bzqLvCw')).toBe(false);
   });
 
   it('looks lyrics up again when the song details change for the same video', async () => {
@@ -761,12 +752,27 @@ describe('ytm bridge inside the iOS app', () => {
     Reflect.deleteProperty(window, 'webkit');
   });
 
-  it('resumes a pause the listener did not ask for', async () => {
+  it('leaves a pause it did not cause alone, like 1.0.5', async () => {
     expect(last(h, 'ready')).toMatchObject({ platform: 'ios' });
     await ack(h, send(h, { type: 'play' }));
     h.media.paused = true;
     h.video.dispatchEvent(new Event('pause'));
-    await until(() => (h.media.paused ? undefined : true));
+    await wait(600);
+    expect(h.media.paused).toBe(true);
+  });
+
+  it('never presses the play toggle while the next song is loading', async () => {
+    await ack(h, send(h, { type: 'play' }));
+    const clicks = h.calls.filter((call) => call === 'click:#play-pause-button').length;
+    h.video.dispatchEvent(new Event('emptied'));
+    h.media.paused = true;
+    setTimeout(() => {
+      h.media.paused = false;
+      h.video.dispatchEvent(new Event('play'));
+    }, 300);
+    await ack(h, send(h, { type: 'play' }));
+    expect(h.calls.filter((call) => call === 'click:#play-pause-button')).toHaveLength(clicks);
+    expect(h.media.paused).toBe(false);
   });
 
   it('leaves the player alone while the next song loads', async () => {

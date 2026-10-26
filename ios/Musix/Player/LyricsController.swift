@@ -18,6 +18,7 @@ final class LyricsController: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var task: Task<Void, Never>?
     private var currentKey = ""
+    private var visible = false
 
     init(engine: WebEngine) {
         self.engine = engine
@@ -29,6 +30,16 @@ final class LyricsController: ObservableObject {
             .store(in: &cancellables)
     }
 
+    func setVisible(_ visible: Bool) {
+        self.visible = visible
+        if visible {
+            track(engine.state)
+        } else {
+            task?.cancel()
+            currentKey = ""
+        }
+    }
+
     func retry() {
         currentKey = ""
         track(engine.state)
@@ -36,7 +47,7 @@ final class LyricsController: ObservableObject {
 
     private func track(_ state: BridgeState) {
         let title = state.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !state.isAd, !state.videoId.isEmpty, !title.isEmpty, state.durationSec > 0 else {
+        guard visible, !state.isAd, !state.videoId.isEmpty, !title.isEmpty, state.durationSec > 0 else {
             return
         }
         let key = [state.videoId, state.title, state.artist, String(Int(state.durationSec.rounded()))].joined(separator: "|")

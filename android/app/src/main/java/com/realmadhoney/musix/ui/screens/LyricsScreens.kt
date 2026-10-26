@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -106,7 +106,7 @@ private fun LyricLines(
     modifier: Modifier,
 ) {
     val colors = Musix.colors
-    val listState = rememberLazyListState()
+    val listState = remember(lyrics) { LazyListState() }
     var position by remember(lyrics) { mutableLongStateOf(positionMs()) }
     var touchedAt by remember(lyrics) { mutableLongStateOf(0L) }
     val active by remember(lyrics) { derivedStateOf { lyrics.activeIndex((position + LYRIC_LEAD_MS).toDouble()) } }

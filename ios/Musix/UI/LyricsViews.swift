@@ -8,6 +8,17 @@ struct LyricsPanel: View {
     private static let leadMs = 150.0
 
     var body: some View {
+        content
+            .onAppear {
+                lyrics.setVisible(true)
+            }
+            .onDisappear {
+                lyrics.setVisible(false)
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch lyrics.load {
         case .idle, .loading:
             Text("Finding lyrics…")
@@ -33,9 +44,11 @@ struct LyricsPanel: View {
                         active: value.activeIndex(positionMs: player.livePositionSec(at: context.date) * 1000 + Self.leadMs),
                         onSeek: { seconds in player.seek(to: seconds) }
                     )
+                    .id(value.videoId)
                 }
             } else {
                 LyricLinesView(lyrics: value, active: nil, onSeek: { _ in })
+                    .id(value.videoId)
             }
         }
     }

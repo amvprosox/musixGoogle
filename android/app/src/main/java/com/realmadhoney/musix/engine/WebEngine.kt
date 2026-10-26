@@ -493,6 +493,9 @@ class WebEngine(
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun createView(): WebView {
+        if (com.realmadhoney.musix.BuildConfig.DEBUG) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
         val view = MusixWebView(wrapper)
         view.setBackgroundColor(Color.BLACK)
         view.settings.apply {

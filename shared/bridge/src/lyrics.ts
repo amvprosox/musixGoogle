@@ -18,14 +18,8 @@ export interface LrclibRecord {
   syncedLyrics: string | null;
 }
 
-export interface YtmLyrics {
-  text: string;
-  source: string;
-}
-
 export interface LyricsDeps {
   fetchJson: (url: string) => Promise<unknown>;
-  ytm: (videoId: string) => Promise<YtmLyrics | null>;
 }
 
 export class LyricsError extends Error {
@@ -308,26 +302,13 @@ export async function findLyrics(query: LyricsQuery, deps: LyricsDeps): Promise<
   }
   plain.push(...found);
 
-  let ytmFailed = false;
-  try {
-    const ytm = await deps.ytm(query.videoId);
-    if (ytm) {
-      const lines = plainLines(ytm.text);
-      if (lines.length > 0) {
-        return { videoId: query.videoId, source: ytm.source, synced: false, instrumental: false, lines };
-      }
-    }
-  } catch {
-    ytmFailed = true;
-  }
-
   for (const record of plain) {
     const lyrics = lyricsFromRecord(record, query);
     if (lyrics) {
       return lyrics;
     }
   }
-  if (ytmFailed && failures === attempts) {
+  if (failures === attempts) {
     throw new LyricsError('Lyrics could not be loaded. Check your connection.');
   }
   return null;
