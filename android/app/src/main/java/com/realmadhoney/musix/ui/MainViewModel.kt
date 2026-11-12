@@ -8,6 +8,7 @@ import com.realmadhoney.musix.AppGraph
 import com.realmadhoney.musix.MusixApplication
 import com.realmadhoney.musix.core.bridge.BridgeCodec
 import com.realmadhoney.musix.core.bridge.BridgeCommand
+import com.realmadhoney.musix.core.bridge.BrowsePage
 import com.realmadhoney.musix.core.bridge.CommandResult
 import com.realmadhoney.musix.core.bridge.FlatItem
 import com.realmadhoney.musix.core.bridge.Lyrics
@@ -15,6 +16,7 @@ import com.realmadhoney.musix.core.bridge.SearchSuggestions
 import com.realmadhoney.musix.core.browse.MediaIds
 import com.realmadhoney.musix.core.browse.MediaRef
 import com.realmadhoney.musix.core.browse.RootTab
+import com.realmadhoney.musix.download.DetectedLibrary
 import com.realmadhoney.musix.download.DownloadItem
 import com.realmadhoney.musix.download.DownloadTrackSpec
 import com.realmadhoney.musix.engine.AccountState
@@ -329,7 +331,176 @@ class MainViewModel(
     val saveTargets: StateFlow<SaveTargets?> = targetsFlow.asStateFlow()
 
     val downloads: StateFlow<List<DownloadItem>> = graph.downloads.items
+    val downloadLogs: StateFlow<List<String>> = graph.downloads.logs
     val offlineNowPlaying: StateFlow<NowPlaying?> = graph.downloads.offlineNowPlaying
+
+    private val detectedLibrariesFlow = MutableStateFlow<List<DetectedLibrary>>(emptyList())
+    val detectedLibraries: StateFlow<List<DetectedLibrary>> = detectedLibrariesFlow.asStateFlow()
+
+    private val librariesLoadingFlow = MutableStateFlow(false)
+    val librariesLoading: StateFlow<Boolean> = librariesLoadingFlow.asStateFlow()
+    private var librariesLoadedOnce = false
+
+    fun clearDownloadLogs() {
+        graph.downloads.clearLogs()
+    }
+
+    fun downloadBatch(
+        title: String,
+        specs: List<DownloadTrackSpec>,
+    ) {
+        graph.downloads.downloadBatch(title, specs)
+    }
+
+    fun detectLibraries(force: Boolean = false) {
+        if (librariesLoadingFlow.value || (librariesLoadedOnce && !force)) {
+            return
+        }
+        val engine = graph.engine.value ?: return
+        librariesLoadingFlow.value = true
+        viewModelScope.launch {
+            try {
+                val libs = ArrayList<DetectedLibrary>()
+                suspend fun browseNode(nodeId: String): BrowsePage? {
+                    val res = engine.queue.data { BridgeCommand.Browse(it, nodeId) }
+                    return (res as? CommandResult.Page)?.page
+                }
+                val likedPage = browseNode("library-liked")
+                if (likedPage != null) {
+                    val tracks = extractTracks(likedPage)
+                    if (tracks.isNotEmpty()) {
+                        libs.add(
+                            DetectedLibrary(
+                                id = "library-liked",
+                                title = "Liked Music",
+                                subtitle = "${tracks.size} songs",
+                                artworkUrl = tracks.first().artworkUrl,
+                                tracks = tracks,
+                            ),
+                        )
+                    }
+                }
+                val recentPage = browseNode("recent")
+                if (recentPage != null) {
+                    val tracks = extractTracks(recentPage)
+                    if (tracks.isNotEmpty()) {
+                        libs.add(
+                            DetectedLibrary(
+                                id = "recent",
+                                title = "Recently Played",
+                                subtitle = "${tracks.size} songs",
+                                artworkUrl = tracks.first().artworkUrl,
+                                tracks = tracks,
+                            ),
+                        )
+                    }
+                }
+                val playlistsPage = browseNode("playlists")
+                if (playlistsPage != null) {
+                    val collections =
+                        (playlistsPage.items + playlistsPage.sections.flatMap { it.items })
+                            .filter { !it.browseId.isNullOrBlank() && it.browseId != "VLLM" && it.browseId != "LM" }
+                            .distinctBy { it.browseId }
+                            .take(10)
+                    for (col in collections) {
+                        val bId = col.browseId ?: continue
+                        val subPage = browseNode(bId) ?: continue
+                        val tracks = extractTracks(subPage)
+                        if (tracks.isNotEmpty()) {
+                            libs.add(
+                                DetectedLibrary(
+                                    id = bId,
+                                    title = col.title.ifBlank { subPage.title },
+                                    subtitle =
+                                        if (col.subtitle.isNotBlank()) {
+                                            "${col.subtitle} • ${tracks.size} songs"
+                                        } else {
+                                            "${tracks.size} songs"
+                                        },
+                                    artworkUrl = col.artworkUrl.ifEmpty { tracks.first().artworkUrl },
+                                    tracks = tracks,
+                                ),
+                            )
+                        }
+                    }
+                }
+                val albumsPage = browseNode("library-albums")
+                if (albumsPage != null) {
+                    val albums =
+                        (albumsPage.items + albumsPage.sections.flatMap { it.items })
+                            .filter { !it.browseId.isNullOrBlank() }
+                            .distinctBy { it.browseId }
+                            .take(8)
+                    for (alb in albums) {
+                        val bId = alb.browseId ?: continue
+                        val subPage = browseNode(bId) ?: continue
+                        val tracks = extractTracks(subPage)
+                        if (tracks.isNotEmpty()) {
+                            libs.add(
+                                DetectedLibrary(
+                                    id = bId,
+                                    title = alb.title.ifBlank { subPage.title },
+                                    subtitle = "Album • ${tracks.size} songs",
+                                    artworkUrl = alb.artworkUrl.ifEmpty { tracks.first().artworkUrl },
+                                    tracks = tracks,
+                                ),
+                            )
+                        }
+                    }
+                }
+                if (libs.isEmpty()) {
+                    val homePage = browseNode("home")
+                    if (homePage != null) {
+                        for (sec in homePage.sections) {
+                            val tracks = extractTracksFromList(sec.items)
+                            if (tracks.isNotEmpty()) {
+                                libs.add(
+                                    DetectedLibrary(
+                                        id = "home-${sec.id}",
+                                        title = sec.title.ifBlank { "Home Shelf" },
+                                        subtitle = "${tracks.size} songs",
+                                        artworkUrl = tracks.first().artworkUrl,
+                                        tracks = tracks,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+                detectedLibrariesFlow.value = libs
+                librariesLoadedOnce = libs.isNotEmpty()
+                graph.downloads.appendLog("Auto-detected ${libs.size} libraries")
+            } finally {
+                librariesLoadingFlow.value = false
+            }
+        }
+    }
+
+    private fun extractTracks(page: BrowsePage): List<DownloadTrackSpec> =
+        extractTracksFromList(page.items + page.sections.flatMap { it.items })
+
+    private fun extractTracksFromList(items: List<FlatItem>): List<DownloadTrackSpec> {
+        val seen = HashSet<String>()
+        val result = ArrayList<DownloadTrackSpec>()
+        for (item in items) {
+            val vid = item.videoId ?: continue
+            if (!BridgeCodec.isValidVideoId(vid) || item.title.isBlank() || !seen.add(vid)) {
+                continue
+            }
+            val parts = item.subtitle.split(" • ").map { it.trim() }.filter { it.isNotEmpty() }
+            result.add(
+                DownloadTrackSpec(
+                    videoId = vid,
+                    title = item.title,
+                    artist = parts.getOrNull(0).orEmpty(),
+                    album = parts.getOrNull(1).orEmpty(),
+                    durationSec = item.durationSec?.toLong()?.coerceAtLeast(0L) ?: 0L,
+                    artworkUrl = item.artworkUrl,
+                ),
+            )
+        }
+        return result
+    }
 
     fun currentTrackVideoId(state: NowPlaying): String {
         val parsed = (MediaIds.parse(state.mediaId) as? MediaRef.Track)?.videoId

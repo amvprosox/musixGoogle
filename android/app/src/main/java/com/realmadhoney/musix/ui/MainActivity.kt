@@ -139,6 +139,9 @@ fun MusixApp(viewModel: MainViewModel) {
     val onlineNowPlaying by viewModel.connection.nowPlaying.collectAsState()
     val offlineNowPlaying by viewModel.offlineNowPlaying.collectAsState()
     val downloads by viewModel.downloads.collectAsState()
+    val downloadLogs by viewModel.downloadLogs.collectAsState()
+    val detectedLibraries by viewModel.detectedLibraries.collectAsState()
+    val librariesLoading by viewModel.librariesLoading.collectAsState()
     LaunchedEffect(onlineNowPlaying.isPlaying, onlineNowPlaying.mediaId) {
         if (onlineNowPlaying.isPlaying && onlineNowPlaying.hasTrack && offlineNowPlaying != null) {
             viewModel.stopOffline()
@@ -307,10 +310,15 @@ fun MusixApp(viewModel: MainViewModel) {
                                     WebContent(current)
                                 }
                                 if (shellTab == ShellTab.Downloads) {
+                                    LaunchedEffect(engine, account) { viewModel.detectLibraries() }
                                     DownloadsScreen(
                                         items = downloads,
                                         currentVideoId = currentVideoId,
                                         isPlaying = nowPlaying.isPlaying,
+                                        libraries = detectedLibraries,
+                                        librariesLoading = librariesLoading,
+                                        logs = downloadLogs,
+                                        artworkFor = { url -> viewModel.graph.artwork.contentUri(url) },
                                         onPlay = { item ->
                                             if (currentVideoId == item.videoId && offlineNowPlaying != null) {
                                                 actions.togglePlay()
@@ -320,6 +328,12 @@ fun MusixApp(viewModel: MainViewModel) {
                                         },
                                         onRetry = viewModel::retryDownload,
                                         onDelete = viewModel::deleteDownload,
+                                        onRefreshLibraries = { viewModel.detectLibraries(force = true) },
+                                        onDownloadLibrary = { lib -> viewModel.downloadBatch(lib.title, lib.tracks) },
+                                        onDownloadAllLibraries = {
+                                            viewModel.downloadBatch("All Libraries", detectedLibraries.flatMap { it.tracks })
+                                        },
+                                        onClearLogs = viewModel::clearDownloadLogs,
                                     )
                                 }
                                 val visible =

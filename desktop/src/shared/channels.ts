@@ -2,6 +2,9 @@ import type {
   AccountState,
   DesktopViewCommand,
   DesktopViewEvent,
+  DetectedLibrary,
+  DownloadBatchRequest,
+  DownloadBatchResult,
   DownloadItem,
   DownloadTrackRequest,
   AdblockStatus,
@@ -42,7 +45,11 @@ export interface ShellInvokeChannels {
   'search:suggest': { request: string; response: SuggestResponse };
   'downloads:list': { request: null; response: DownloadItem[] };
   'downloads:start': { request: DownloadTrackRequest; response: DownloadItem };
+  'downloads:batch': { request: DownloadBatchRequest; response: DownloadBatchResult };
   'downloads:delete': { request: string; response: boolean };
+  'downloads:logs': { request: null; response: string[] };
+  'downloads:logs-clear': { request: null; response: boolean };
+  'downloads:libraries': { request: null; response: DetectedLibrary[] };
 }
 
 export interface ShellSendChannels {
@@ -75,6 +82,7 @@ export interface ShellEventChannels {
   notice: ShellNotice;
   'dialog:show': ShellDialog;
   'downloads:changed': DownloadItem[];
+  'downloads:logs-changed': string[];
 }
 
 export interface YtmSendChannels {
@@ -122,6 +130,7 @@ export const SHELL_EVENT_CHANNELS: readonly ShellEventChannel[] = [
   'notice',
   'dialog:show',
   'downloads:changed',
+  'downloads:logs-changed',
 ];
 
 export interface ShellApi {

@@ -1,5 +1,6 @@
 import MusixCore
 import SwiftUI
+import UIKit
 
 struct MiniPlayer: View {
     @ObservedObject var player: PlayerController
@@ -276,41 +277,274 @@ struct NowPlayingView: View {
 struct DownloadsView: View {
     @ObservedObject var downloads: DownloadController
     @ObservedObject var player: PlayerController
+    let account: WebEngine.Account
+    @State private var query = ""
+    @State private var showLogs = false
+    @State private var copiedLogs = false
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
-        Group {
-            if downloads.items.isEmpty {
-                StateMessage(
-                    icon: "download",
-                    title: "No downloads yet",
-                    detail: "Tap the download icon on any playing song to save its MP3, thumbnail, and description for offline playback."
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: DesignTokens.space8) {
-                        HStack(spacing: DesignTokens.space12) {
-                            Text("Downloads")
-                                .font(.heading(DesignTokens.text24, weight: .bold))
-                                .foregroundStyle(Palette.text)
-                            let completedCount = downloads.items.filter { $0.status == .completed }.count
-                            Text("\(completedCount) \(completedCount == 1 ? "track" : "tracks")")
-                                .font(.body(DesignTokens.text14, weight: .medium))
-                                .foregroundStyle(Palette.textMuted)
-                                .padding(.horizontal, DesignTokens.space12)
-                                .padding(.vertical, DesignTokens.space4)
-                                .background(Palette.surface2, in: Capsule())
-                        }
-                        .padding(.bottom, DesignTokens.space8)
-                        ForEach(downloads.items) { item in
-                            row(item)
-                        }
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let completedIds = Set(downloads.items.filter { $0.status == .completed }.map(\.videoId))
+        let libs = filteredLibraries(needle)
+        let tracks = filteredItems(needle)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: DesignTokens.space8) {
+                header
+                searchField
+                toolbar
+                if showLogs {
+                    logsPanel
+                }
+                if let notice = downloads.notice {
+                    noticeBanner(notice)
+                }
+                sectionTitle(downloads.detectingLibraries && downloads.libraries.isEmpty ? "Libraries (detecting...)" : "Libraries")
+                if libs.isEmpty {
+                    Text(librariesEmptyText(needle))
+                        .font(.body(DesignTokens.text14))
+                        .foregroundStyle(Palette.textMuted)
+                        .padding(.vertical, DesignTokens.space8)
+                } else {
+                    ForEach(libs) { lib in
+                        libraryRow(lib, completedIds: completedIds)
                     }
-                    .padding(DesignTokens.space16)
+                }
+                sectionTitle(needle.isEmpty ? "Downloaded Tracks (\(downloads.items.count))" : "Downloaded Tracks (\(tracks.count)/\(downloads.items.count))")
+                if tracks.isEmpty {
+                    StateMessage(
+                        icon: "download",
+                        title: needle.isEmpty ? "No downloads yet" : "No matching downloads",
+                        detail: needle.isEmpty
+                            ? "Tap the download icon on any playing song, or download a whole library above, to save MP3s for offline playback."
+                            : "Try a different search term."
+                    )
+                } else {
+                    ForEach(tracks) { item in
+                        row(item)
+                    }
+                }
+            }
+            .padding(DesignTokens.space16)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .background(Palette.bg)
+        .task(id: account) {
+            await downloads.detectLibraries()
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: DesignTokens.space12) {
+            Text("Downloads")
+                .font(.heading(DesignTokens.text24, weight: .bold))
+                .foregroundStyle(Palette.text)
+            let completedCount = downloads.items.filter { $0.status == .completed }.count
+            Text("\(completedCount) \(completedCount == 1 ? "track" : "tracks")")
+                .font(.body(DesignTokens.text14, weight: .medium))
+                .foregroundStyle(Palette.textMuted)
+                .padding(.horizontal, DesignTokens.space12)
+                .padding(.vertical, DesignTokens.space4)
+                .background(Palette.surface2, in: Capsule())
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: DesignTokens.space8) {
+            Icon(name: "search", size: 20).foregroundStyle(Palette.textMuted)
+            TextField("Search downloads and libraries", text: $query)
+                .font(.body(DesignTokens.text16))
+                .foregroundStyle(Palette.text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($searchFocused)
+                .onSubmit { searchFocused = false }
+                .onChange(of: query) { value in
+                    if value.count > 200 {
+                        query = String(value.prefix(200))
+                    }
+                }
+            if !query.isEmpty {
+                IconButton(icon: "close", label: "Clear search", size: 20) {
+                    query = ""
                 }
             }
         }
-        .background(Palette.bg)
+        .padding(.leading, DesignTokens.space12)
+        .frame(height: DesignTokens.controlHeight + 4)
+        .background(Palette.surface2, in: RoundedRectangle(cornerRadius: DesignTokens.radiusCard))
+        .overlay(RoundedRectangle(cornerRadius: DesignTokens.radiusCard).stroke(Palette.border, lineWidth: 1))
+    }
+
+    private var toolbar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: DesignTokens.space8) {
+                pill(showLogs ? "Hide Logs" : "Logs", icon: "lyrics", highlighted: showLogs) {
+                    showLogs.toggle()
+                }
+                pill(downloads.detectingLibraries ? "Detecting..." : "Refresh", icon: "refresh", enabled: !downloads.detectingLibraries) {
+                    Task { await downloads.detectLibraries(force: true) }
+                }
+                if !downloads.libraries.isEmpty {
+                    pill("Download All", icon: "download") {
+                        downloads.downloadBatch(title: "All Libraries", tracks: downloads.libraries.flatMap(\.tracks))
+                    }
+                }
+            }
+        }
+    }
+
+    private var logsPanel: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.space8) {
+            HStack(spacing: DesignTokens.space8) {
+                Text("Download Logs")
+                    .font(.body(DesignTokens.text16, weight: .bold))
+                    .foregroundStyle(Palette.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                pill(copiedLogs ? "Copied" : "Copy", icon: "check", enabled: !downloads.logs.isEmpty) {
+                    UIPasteboard.general.string = downloads.logsText
+                    copiedLogs = true
+                    Task {
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        copiedLogs = false
+                    }
+                }
+                pill("Clear", icon: "trash", enabled: !downloads.logs.isEmpty) {
+                    downloads.clearLogs()
+                }
+            }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Text(downloads.logs.isEmpty ? "No download logs yet." : downloads.logs.suffix(150).joined(separator: "\n"))
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(Palette.textMuted)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .id("download-logs-end")
+                }
+                .frame(maxHeight: 320)
+                .onAppear {
+                    proxy.scrollTo("download-logs-end", anchor: .bottom)
+                }
+                .onChange(of: downloads.logs.count) { _ in
+                    proxy.scrollTo("download-logs-end", anchor: .bottom)
+                }
+            }
+        }
+        .padding(DesignTokens.space12)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: DesignTokens.radiusCard))
+        .overlay(RoundedRectangle(cornerRadius: DesignTokens.radiusCard).stroke(Palette.border, lineWidth: 1))
+    }
+
+    private func noticeBanner(_ text: String) -> some View {
+        HStack(spacing: DesignTokens.space8) {
+            Icon(name: "check", size: 18).foregroundStyle(Palette.accent)
+            Text(text)
+                .font(.body(DesignTokens.text14, weight: .semibold))
+                .foregroundStyle(Palette.text)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(DesignTokens.space12)
+        .background(Palette.accentSoft, in: RoundedRectangle(cornerRadius: DesignTokens.radiusCard))
+        .overlay(RoundedRectangle(cornerRadius: DesignTokens.radiusCard).stroke(Palette.accent, lineWidth: 1))
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.body(DesignTokens.text16, weight: .bold))
+            .foregroundStyle(Palette.text)
+            .padding(.top, DesignTokens.space8)
+    }
+
+    private func pill(_ title: String, icon: String, enabled: Bool = true, highlighted: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: DesignTokens.space8) {
+                Icon(name: icon, size: 16)
+                Text(title)
+                    .font(.body(DesignTokens.text14, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(enabled ? (highlighted ? Palette.accent : Palette.text) : Palette.textMuted.opacity(0.6))
+            .padding(.horizontal, DesignTokens.space12)
+            .frame(minHeight: 36)
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.radiusControl)
+                    .stroke(highlighted ? Palette.accent : Palette.border, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+    }
+
+    private func libraryRow(_ lib: DetectedLibrary, completedIds: Set<String>) -> some View {
+        let total = lib.tracks.count
+        let done = lib.tracks.filter { completedIds.contains($0.videoId) }.count
+        let remaining = total - done
+        let allDone = total > 0 && remaining == 0
+        let label = allDone ? "Already Downloaded" : (done > 0 ? "Download (\(remaining) left)" : "Download All")
+        return HStack(spacing: DesignTokens.space12) {
+            ArtworkView(address: lib.artworkUrl, size: 56, corner: DesignTokens.radiusControl)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(lib.title)
+                    .font(.body(DesignTokens.text16, weight: .semibold))
+                    .foregroundStyle(Palette.text)
+                    .lineLimit(1)
+                Text(lib.subtitle)
+                    .font(.body(DesignTokens.text14))
+                    .foregroundStyle(Palette.textMuted)
+                    .lineLimit(1)
+                Text("\(done)/\(total) downloaded")
+                    .font(.body(DesignTokens.text14))
+                    .foregroundStyle(allDone ? Palette.accent : Palette.textMuted)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            pill(label, icon: allDone ? "check" : "download", highlighted: allDone) {
+                downloads.downloadBatch(title: lib.title, tracks: lib.tracks)
+            }
+            .accessibilityLabel(allDone ? "\(lib.title) already downloaded" : "Download \(lib.title)")
+        }
+        .padding(DesignTokens.space12)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: DesignTokens.radiusCard))
+        .overlay(RoundedRectangle(cornerRadius: DesignTokens.radiusCard).stroke(Palette.border, lineWidth: 1))
+    }
+
+    private func librariesEmptyText(_ needle: String) -> String {
+        if downloads.detectingLibraries {
+            return "Detecting your YouTube Music libraries..."
+        }
+        if !needle.isEmpty {
+            return "No libraries match your search."
+        }
+        return account == .signedIn ? "No libraries detected yet. Tap Refresh." : "No libraries detected yet. Sign in and tap Refresh."
+    }
+
+    private func filteredLibraries(_ needle: String) -> [DetectedLibrary] {
+        guard !needle.isEmpty else {
+            return downloads.libraries
+        }
+        return downloads.libraries.filter { lib in
+            lib.title.lowercased().contains(needle) ||
+                lib.subtitle.lowercased().contains(needle) ||
+                lib.tracks.contains {
+                    $0.title.lowercased().contains(needle) ||
+                        $0.artist.lowercased().contains(needle) ||
+                        $0.album.lowercased().contains(needle)
+                }
+        }
+    }
+
+    private func filteredItems(_ needle: String) -> [DownloadItem] {
+        guard !needle.isEmpty else {
+            return downloads.items
+        }
+        return downloads.items.filter {
+            $0.title.lowercased().contains(needle) ||
+                $0.artist.lowercased().contains(needle) ||
+                $0.album.lowercased().contains(needle)
+        }
     }
 
     private func row(_ item: DownloadItem) -> some View {

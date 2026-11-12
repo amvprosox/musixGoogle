@@ -68,7 +68,7 @@ struct RootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.black)
                 if tab == .downloads {
-                    DownloadsView(downloads: downloads, player: player)
+                    DownloadsView(downloads: downloads, player: player, account: engine.account)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if showSuggestions {
                     SearchSuggestionsList(

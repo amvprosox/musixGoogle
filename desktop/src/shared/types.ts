@@ -58,6 +58,26 @@ export interface DownloadTrackRequest {
   artworkUrl: string;
 }
 
+export interface DetectedLibrary {
+  id: string;
+  title: string;
+  subtitle: string;
+  artworkUrl: string;
+  tracks: DownloadTrackRequest[];
+}
+
+export interface DownloadBatchRequest {
+  title: string;
+  tracks: DownloadTrackRequest[];
+}
+
+export interface DownloadBatchResult {
+  started: number;
+  skipped: number;
+  total: number;
+  alreadyDownloaded: boolean;
+}
+
 export type NavRoute = 'home' | 'explore' | 'library' | 'liked' | 'playlists';
 export type ShellRoute = NavRoute | 'downloads' | 'search' | 'settings' | 'other';
 
@@ -179,6 +199,7 @@ export interface InitialData {
   ytmBase: string;
   chrome: WindowChromeState;
   downloads: DownloadItem[];
+  downloadLogs: string[];
 }
 
 export type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right';

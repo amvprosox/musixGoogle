@@ -10,6 +10,7 @@ import { isNavRoute, MAX_QUERY_LENGTH } from './routes';
 import type {
   AccountState,
   DesktopViewEvent,
+  DownloadBatchRequest,
   DownloadTrackRequest,
   ItemMenuInfo,
   MenuAction,
@@ -351,5 +352,17 @@ export function isDownloadTrackRequest(value: unknown): value is DownloadTrackRe
     isFiniteNumber(value.durationSec) &&
     value.durationSec >= 0 &&
     isBoundedString(value.artworkUrl, MAX_URL)
+  );
+}
+
+export function isDownloadBatchRequest(value: unknown): value is DownloadBatchRequest {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    isBoundedString(value.title, MAX_TEXT) &&
+    Array.isArray(value.tracks) &&
+    value.tracks.length <= 5000 &&
+    value.tracks.every(isDownloadTrackRequest)
   );
 }

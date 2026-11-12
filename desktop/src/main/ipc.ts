@@ -5,6 +5,7 @@ import { isBoolean } from '../shared/guards';
 import { isSettingsPatch } from '../shared/settings';
 import {
   isDesktopViewEvent,
+  isDownloadBatchRequest,
   isDownloadTrackRequest,
   isHistoryDirection,
   isKeyPayload,
@@ -26,6 +27,7 @@ import type {
   AccountState,
   AppSettings,
   DesktopViewEvent,
+  DetectedLibrary,
   InitialData,
   LyricsResponse,
   ShellMenuRequest,
@@ -61,6 +63,7 @@ export interface IpcContext {
   chrome: () => WindowChromeState;
   lyrics: () => Promise<LyricsResponse>;
   suggest: (query: string) => Promise<SuggestResponse>;
+  detectLibraries: () => Promise<DetectedLibrary[]>;
 }
 
 type AnyEvent = IpcMainEvent | IpcMainInvokeEvent;
@@ -342,6 +345,7 @@ export function registerIpc(ctx: IpcContext): () => void {
           ytmBase: ctx.base,
           chrome: ctx.chrome(),
           downloads: ctx.downloads.list(),
+          downloadLogs: ctx.downloads.getLogs(),
         };
         return Promise.resolve(data);
       },
@@ -365,12 +369,48 @@ export function registerIpc(ctx: IpcContext): () => void {
       },
     ],
     [
+      'downloads:batch',
+      (event, payload) => {
+        if (!fromShell(event) || !isDownloadBatchRequest(payload)) {
+          return Promise.reject(new Error('Invalid download batch request'));
+        }
+        return Promise.resolve(ctx.downloads.downloadBatch(payload));
+      },
+    ],
+    [
       'downloads:delete',
       (event, payload) => {
         if (!fromShell(event) || !isVideoId(payload)) {
           return Promise.reject(new Error('Invalid download delete request'));
         }
         return ctx.downloads.deleteDownload(payload);
+      },
+    ],
+    [
+      'downloads:logs',
+      (event) => {
+        if (!fromShell(event)) {
+          return Promise.reject(new Error('Unauthorized sender'));
+        }
+        return Promise.resolve(ctx.downloads.getLogs());
+      },
+    ],
+    [
+      'downloads:logs-clear',
+      (event) => {
+        if (!fromShell(event)) {
+          return Promise.reject(new Error('Unauthorized sender'));
+        }
+        return Promise.resolve(ctx.downloads.clearLogs());
+      },
+    ],
+    [
+      'downloads:libraries',
+      (event) => {
+        if (!fromShell(event)) {
+          return Promise.reject(new Error('Unauthorized sender'));
+        }
+        return ctx.detectLibraries();
       },
     ],
     [

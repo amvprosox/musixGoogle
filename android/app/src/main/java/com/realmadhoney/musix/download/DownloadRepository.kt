@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -33,6 +35,9 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
@@ -75,6 +80,14 @@ data class DownloadTrackSpec(
     val artworkUrl: String,
 )
 
+data class DetectedLibrary(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val artworkUrl: String,
+    val tracks: List<DownloadTrackSpec>,
+)
+
 class DownloadRepository(
     context: Context,
     private val ioScope: CoroutineScope,
@@ -85,11 +98,16 @@ class DownloadRepository(
     private val thumbnailsDir = File(directory, "thumbnails")
     private val miscDir = File(directory, "misc")
     private val storeFile = File(miscDir, "downloads.json")
+    private val logFile = File(miscDir, "downloads.log")
     private val json = Json { ignoreUnknownKeys = true }
     private val jobs = ConcurrentHashMap<String, Job>()
+    private val downloadSlots = Semaphore(MAX_CONCURRENT_DOWNLOADS)
 
     private val itemsFlow = MutableStateFlow<List<DownloadItem>>(emptyList())
     val items: StateFlow<List<DownloadItem>> = itemsFlow.asStateFlow()
+
+    private val logsFlow = MutableStateFlow<List<String>>(emptyList())
+    val logs: StateFlow<List<String>> = logsFlow.asStateFlow()
 
     private val offlinePlayingFlow = MutableStateFlow<NowPlaying?>(null)
     val offlineNowPlaying: StateFlow<NowPlaying?> = offlinePlayingFlow.asStateFlow()
@@ -98,9 +116,11 @@ class DownloadRepository(
     private var offlineVideoId: String? = null
     private var tickerJob: Job? = null
     private var cachedVisitorData: String = ""
+    private var logFileLines = 0
 
     init {
         ensureDirectories()
+        loadLogs()
         load()
     }
 
@@ -108,6 +128,53 @@ class DownloadRepository(
         musicDir.mkdirs()
         thumbnailsDir.mkdirs()
         miscDir.mkdirs()
+    }
+
+    @Synchronized
+    private fun loadLogs() {
+        if (!logFile.isFile) {
+            logsFlow.value = emptyList()
+            return
+        }
+        try {
+            val lines = logFile.readLines(Charsets.UTF_8).filter { it.isNotBlank() }
+            logFileLines = lines.size
+            logsFlow.value = lines.takeLast(MAX_LOG_LINES)
+        } catch (error: IOException) {
+            logsFlow.value = emptyList()
+        }
+    }
+
+    @Synchronized
+    @Synchronized
+    fun appendLog(message: String) {
+        val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+        val line = "[$stamp] $message"
+        val next = (logsFlow.value + line).takeLast(MAX_LOG_LINES)
+        logsFlow.value = next
+        try {
+            ensureDirectories()
+            logFileLines++
+            if (logFileLines > MAX_LOG_LINES * 2) {
+                logFile.writeText(next.joinToString("\n") + "\n", Charsets.UTF_8)
+                logFileLines = next.size
+            } else {
+                logFile.appendText(line + "\n", Charsets.UTF_8)
+            }
+        } catch (error: IOException) {
+            Log.w(TAG, "Failed to write downloads.log", error)
+        }
+    }
+
+    @Synchronized
+    fun clearLogs() {
+        logsFlow.value = emptyList()
+        logFileLines = 0
+        try {
+            logFile.writeText("", Charsets.UTF_8)
+        } catch (error: IOException) {
+            Log.w(TAG, "Failed to clear downloads.log", error)
+        }
     }
 
     private fun sanitizeTitle(
@@ -169,40 +236,104 @@ class DownloadRepository(
         }
         val current = itemsFlow.value.firstOrNull { it.videoId == spec.videoId }
         if (current != null && current.status == DownloadStatus.DOWNLOADING) {
+            appendLog("Skip ${spec.title} (${spec.videoId}): already downloading")
             onMessage("Already downloading ${spec.title}")
             return
         }
         if (current != null && current.status == DownloadStatus.COMPLETED && File(current.audioPath).isFile) {
-            onMessage("${spec.title} is already downloaded")
+            appendLog("Skip ${spec.title} (${spec.videoId}): already downloaded")
+            onMessage("Already downloaded")
             return
         }
+        queueTrack(spec)
+        onMessage("Downloading MP3: ${spec.title.trim()}")
+    }
 
-        val item =
-            DownloadItem(
-                id = spec.videoId,
-                videoId = spec.videoId,
-                title = spec.title.trim(),
-                artist = spec.artist.trim(),
-                album = spec.album.trim(),
-                durationSec = spec.durationSec.coerceAtLeast(0L),
-                artworkPath = "",
-                audioPath = "",
-                status = DownloadStatus.DOWNLOADING,
-                progress = 0f,
-                error = null,
-                createdAt = System.currentTimeMillis(),
-            )
+    fun downloadBatch(
+        title: String,
+        specs: List<DownloadTrackSpec>,
+    ) {
+        val unique = LinkedHashMap<String, DownloadTrackSpec>()
+        for (spec in specs) {
+            if (BridgeCodec.isValidVideoId(spec.videoId) && spec.title.isNotBlank() && !unique.containsKey(spec.videoId)) {
+                unique[spec.videoId] = spec
+            }
+        }
+        if (unique.isEmpty()) {
+            return
+        }
+        var skipped = 0
+        val existingById = itemsFlow.value.associateBy { it.videoId }
+        val toQueue = ArrayList<DownloadTrackSpec>()
+        for (spec in unique.values) {
+            val existing = existingById[spec.videoId]
+            val done = existing != null && existing.status == DownloadStatus.COMPLETED && File(existing.audioPath).isFile
+            val active = existing != null && existing.status == DownloadStatus.DOWNLOADING && jobs.containsKey(spec.videoId)
+            if (done || active) {
+                skipped++
+                appendLog("Batch [$title]: skipping already downloaded ${spec.title} (${spec.videoId})")
+                continue
+            }
+            toQueue.add(spec)
+        }
+        queueTracks(toQueue)
+        val started = toQueue.size
+        if (started == 0 && skipped > 0) {
+            appendLog("Batch [$title]: all $skipped songs already downloaded")
+            onMessage("Already downloaded")
+        } else {
+            appendLog("Batch [$title]: queued $started songs, skipped $skipped already downloaded")
+            val skipNote = if (skipped > 0) " (skipped $skipped already downloaded)" else ""
+            onMessage("Downloading $started songs from $title$skipNote")
+        }
+    }
+
+    private fun queueTrack(spec: DownloadTrackSpec) {
+        queueTracks(listOf(spec))
+    }
+
+    private fun queueTracks(specs: List<DownloadTrackSpec>) {
+        if (specs.isEmpty()) {
+            return
+        }
+        val now = System.currentTimeMillis()
+        val newItems =
+            specs.mapIndexed { index, spec ->
+                DownloadItem(
+                    id = spec.videoId,
+                    videoId = spec.videoId,
+                    title = spec.title.trim(),
+                    artist = spec.artist.trim(),
+                    album = spec.album.trim(),
+                    durationSec = spec.durationSec.coerceAtLeast(0L),
+                    artworkPath = "",
+                    audioPath = "",
+                    status = DownloadStatus.DOWNLOADING,
+                    progress = 0f,
+                    error = null,
+                    createdAt = now - index,
+                )
+            }
+        val newIds = newItems.mapTo(HashSet()) { it.videoId }
         synchronized(this) {
-            itemsFlow.value = listOf(item) + itemsFlow.value.filterNot { it.videoId == spec.videoId }
+            itemsFlow.value = newItems + itemsFlow.value.filterNot { it.videoId in newIds }
             persist()
         }
-        onMessage("Downloading MP3: ${item.title}")
-
-        val job =
-            ioScope.launch {
-                runDownload(item, spec.artworkUrl)
-            }
-        jobs[spec.videoId] = job
+        for ((index, item) in newItems.withIndex()) {
+            val artworkUrl = specs[index].artworkUrl
+            appendLog("Queued download: ${item.title} (${item.videoId})")
+            jobs[item.videoId]?.cancel()
+            val job =
+                ioScope.launch {
+                    downloadSlots.withPermit {
+                        ensureActive()
+                        updateItem(item.videoId, save = false) { it.copy(progress = maxOf(it.progress, 0.01f)) }
+                        appendLog("Start download: ${item.title} (${item.videoId})")
+                        runDownload(item, artworkUrl)
+                    }
+                }
+            jobs[item.videoId] = job
+        }
     }
 
     fun deleteDownload(videoId: String) {
@@ -460,10 +591,33 @@ class DownloadRepository(
             val thumbPath = downloadThumbnail(stem, videoId, artworkUrl)
             if (thumbPath.isNotEmpty()) {
                 updateItem(videoId, save = true) { it.copy(artworkPath = thumbPath) }
+                appendLog("Saved thumbnail for $videoId -> thumbnails/$stem.jpg")
             }
             currentCoroutineContext().ensureActive()
-            val stream = resolveAudioStream(videoId) ?: throw IOException("Could not resolve audio stream")
-            downloadStreamChunks(videoId, stream, partFile)
+            val streams = resolveAudioStreams(videoId)
+            if (streams.isEmpty()) {
+                throw IOException("Could not resolve audio stream")
+            }
+            var streamSuccess = false
+            var lastError: Exception? = null
+            for (stream in streams) {
+                currentCoroutineContext().ensureActive()
+                try {
+                    partFile.delete()
+                    appendLog("Downloading stream (${stream.clientName}, len=${stream.contentLength}) for $videoId")
+                    downloadStreamChunks(videoId, stream, partFile)
+                    streamSuccess = true
+                    break
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (err: Exception) {
+                    lastError = err
+                    appendLog("Stream ${stream.clientName} failed for $videoId: ${err.message}")
+                }
+            }
+            if (!streamSuccess) {
+                throw lastError ?: IOException("All audio streams failed")
+            }
             currentCoroutineContext().ensureActive()
             if (!partFile.isFile || partFile.length() <= 0L) {
                 throw IOException("Downloaded file is empty")
@@ -483,18 +637,22 @@ class DownloadRepository(
                     error = null,
                 )
             }
+            appendLog("Completed download for $videoId -> music/$stem.mp3")
             onMessage("Downloaded MP3: ${item.title}")
         } catch (cancelled: CancellationException) {
             partFile.delete()
+            appendLog("Cancelled download for $videoId")
             throw cancelled
         } catch (error: Exception) {
             partFile.delete()
             Log.w(TAG, "Download failed for $videoId", error)
+            val msg = error.message ?: "Download failed"
+            appendLog("ERROR ($videoId - ${item.title}): $msg")
             updateItem(videoId, save = true) {
                 it.copy(
                     status = DownloadStatus.FAILED,
                     progress = 0f,
-                    error = error.message ?: "Download failed",
+                    error = msg,
                 )
             }
             onMessage("Download failed: ${item.title}")
@@ -545,15 +703,38 @@ class DownloadRepository(
         if (cachedVisitorData.length > 10) {
             return cachedVisitorData
         }
+        val ua =
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         try {
-            val conn = URL("https://music.youtube.com").openConnection() as? HttpURLConnection ?: return ""
+            val swConn = URL("https://www.youtube.com/sw.js_data").openConnection() as? HttpURLConnection
+            if (swConn != null) {
+                try {
+                    swConn.connectTimeout = TIMEOUT_MS
+                    swConn.readTimeout = TIMEOUT_MS
+                    swConn.setRequestProperty("User-Agent", ua)
+                    if (swConn.responseCode in 200..299) {
+                        val raw = swConn.inputStream.bufferedReader().use { it.readText() }
+                        val match = SW_VISITOR_REGEX.find(raw)?.groupValues?.getOrNull(1).orEmpty()
+                        if (match.isNotEmpty()) {
+                            cachedVisitorData = match
+                            appendLog("Resolved visitorData from sw.js_data (${match.take(14)}...)")
+                            return match
+                        }
+                    }
+                } finally {
+                    swConn.disconnect()
+                }
+            }
+        } catch (error: IOException) {
+            appendLog("sw.js_data visitorData fetch failed: ${error.message}")
+        }
+        try {
+            val conn = URL("https://www.youtube.com").openConnection() as? HttpURLConnection ?: return ""
             try {
                 conn.connectTimeout = TIMEOUT_MS
                 conn.readTimeout = TIMEOUT_MS
-                conn.setRequestProperty(
-                    "User-Agent",
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                )
+                conn.setRequestProperty("User-Agent", ua)
                 if (conn.responseCode in 200..299) {
                     val html = conn.inputStream.bufferedReader().use { it.readText() }
                     val found = VISITOR_REGEX.find(html)
@@ -572,16 +753,42 @@ class DownloadRepository(
         return ""
     }
 
-    private fun resolveAudioStream(videoId: String): ResolvedAudioStream? {
+    private fun resolveAudioStreams(videoId: String): List<ResolvedAudioStream> {
         val visitorData = resolveVisitorData()
+        val streams = ArrayList<ResolvedAudioStream>()
         for (client in CLIENTS) {
             try {
-                val sdkField = if (client.sdk != null) """"androidSdkVersion":${client.sdk},""" else ""
-                val visitorField = if (visitorData.isNotEmpty()) """"visitorData":"$visitorData",""" else ""
+                val extraFields =
+                    buildString {
+                        if (client.sdk != null) {
+                            append(""""androidSdkVersion":${client.sdk},""")
+                        }
+                        if (client.osName != null) {
+                            append(""""osName":"${client.osName}",""")
+                        }
+                        if (client.osVersion != null) {
+                            append(""""osVersion":"${client.osVersion}",""")
+                        }
+                        if (client.deviceMake != null) {
+                            append(""""deviceMake":"${client.deviceMake}",""")
+                        }
+                        if (client.deviceModel != null) {
+                            append(""""deviceModel":"${client.deviceModel}",""")
+                        }
+                        if (visitorData.isNotEmpty()) {
+                            append(""""visitorData":"$visitorData",""")
+                        }
+                    }
                 val clientObj =
-                    """{"clientName":"${client.name}","clientVersion":"${client.version}",$sdkField$visitorField"hl":"en","gl":"US"}"""
+                    """{"clientName":"${client.name}","clientVersion":"${client.version}",$extraFields"hl":"en","gl":"US"}"""
+                val playbackCtx =
+                    if (client.html5Pref) {
+                        ""","playbackContext":{"contentPlaybackContext":{"html5Preference":"HTML5_PREF_WANTS"}}"""
+                    } else {
+                        ""
+                    }
                 val body =
-                    """{"videoId":"$videoId","context":{"client":$clientObj},"contentCheckOk":true,"racyCheckOk":true}"""
+                    """{"videoId":"$videoId","context":{"client":$clientObj}$playbackCtx,"contentCheckOk":true,"racyCheckOk":true}"""
                 val conn =
                     URL("https://www.youtube.com/youtubei/v1/player?prettyPrint=false")
                         .openConnection() as? HttpURLConnection ?: continue
@@ -592,20 +799,35 @@ class DownloadRepository(
                     conn.readTimeout = TIMEOUT_MS
                     conn.setRequestProperty("Content-Type", "application/json")
                     conn.setRequestProperty("User-Agent", client.userAgent)
+                    conn.setRequestProperty("Origin", "https://www.youtube.com")
+                    conn.setRequestProperty("X-YouTube-Client-Name", client.clientId)
+                    conn.setRequestProperty("X-YouTube-Client-Version", client.version)
                     if (visitorData.isNotEmpty()) {
                         conn.setRequestProperty("X-Goog-Visitor-Id", visitorData)
                     }
                     conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
                     if (conn.responseCode !in 200..299) {
+                        appendLog("Innertube ${client.name} returned HTTP ${conn.responseCode} for $videoId")
                         continue
                     }
                     val text = conn.inputStream.bufferedReader().use { it.readText() }
                     val root = json.parseToJsonElement(text).jsonObject
+                    val playStatus =
+                        root["playabilityStatus"]
+                            ?.jsonObject
+                            ?.get("status")
+                            ?.jsonPrimitive
+                            ?.content
+                            .orEmpty()
                     val adaptive =
                         root["streamingData"]
                             ?.jsonObject
                             ?.get("adaptiveFormats")
-                            ?.jsonArray ?: continue
+                            ?.jsonArray
+                    if (adaptive == null) {
+                        appendLog("Innertube ${client.name} status=$playStatus (no adaptiveFormats) for $videoId")
+                        continue
+                    }
                     val candidates = ArrayList<AudioCandidate>()
                     for (element in adaptive) {
                         val obj = element.jsonObject
@@ -632,20 +854,24 @@ class DownloadRepository(
                                     .thenByDescending { it.bitrate },
                             ).firstOrNull()
                     if (best != null) {
-                        return ResolvedAudioStream(
-                            url = best.url,
-                            contentLength = best.contentLength,
-                            userAgent = client.userAgent,
+                        appendLog("Resolved stream via ${client.name} (${best.bitrate}bps, len=${best.contentLength}) for $videoId")
+                        streams.add(
+                            ResolvedAudioStream(
+                                url = best.url,
+                                contentLength = best.contentLength,
+                                userAgent = client.userAgent,
+                                clientName = client.name,
+                            ),
                         )
                     }
                 } finally {
                     conn.disconnect()
                 }
             } catch (error: Exception) {
-                Log.w(TAG, "Stream resolution attempt failed for ${client.name}", error)
+                appendLog("Innertube ${client.name} exception for $videoId: ${error.message}")
             }
         }
-        return null
+        return streams
     }
 
     private suspend fun downloadStreamChunks(
@@ -655,7 +881,7 @@ class DownloadRepository(
     ) = withContext(Dispatchers.IO) {
         val urls = alternateUrls(stream.url)
         var urlIndex = 0
-        var totalBytes = stream.contentLength
+        val totalBytes = stream.contentLength
         var downloadedBytes = 0L
         var lastEmit = 0L
 
@@ -667,7 +893,7 @@ class DownloadRepository(
                     conn.readTimeout = TIMEOUT_MS
                     conn.setRequestProperty("User-Agent", stream.userAgent)
                     if (conn.responseCode !in 200..299) {
-                        throw IOException("HTTP ${conn.responseCode}")
+                        throw IOException("Stream HTTP ${conn.responseCode}")
                     }
                     conn.inputStream.use { input ->
                         val buf = ByteArray(16_384)
@@ -690,6 +916,7 @@ class DownloadRepository(
                 currentCoroutineContext().ensureActive()
                 val end = minOf(downloadedBytes + CHUNK_SIZE - 1L, totalBytes - 1L)
                 var chunkWritten = false
+                var lastStatus = 0
                 for (attempt in 0 until minOf(urls.size, 6)) {
                     val target = urls[(urlIndex + attempt) % urls.size]
                     val conn = URL(target).openConnection() as? HttpURLConnection ?: continue
@@ -699,6 +926,7 @@ class DownloadRepository(
                         conn.setRequestProperty("User-Agent", stream.userAgent)
                         conn.setRequestProperty("Range", "bytes=$downloadedBytes-$end")
                         val code = conn.responseCode
+                        lastStatus = code
                         if (code == 206 || code == 200) {
                             val bytes = conn.inputStream.use { it.readBytes() }
                             if (bytes.isNotEmpty()) {
@@ -716,7 +944,7 @@ class DownloadRepository(
                     }
                 }
                 if (!chunkWritten) {
-                    throw IOException("Failed to download audio chunk")
+                    throw IOException("Stream HTTP $lastStatus at byte $downloadedBytes")
                 }
                 val now = System.currentTimeMillis()
                 if (now - lastEmit >= 180L || downloadedBytes >= totalBytes) {
@@ -834,8 +1062,14 @@ class DownloadRepository(
     private data class ClientSpec(
         val name: String,
         val version: String,
+        val clientId: String,
         val userAgent: String,
-        val sdk: Int?,
+        val sdk: Int? = null,
+        val osName: String? = null,
+        val osVersion: String? = null,
+        val deviceMake: String? = null,
+        val deviceModel: String? = null,
+        val html5Pref: Boolean = false,
     )
 
     private data class AudioCandidate(
@@ -849,37 +1083,57 @@ class DownloadRepository(
         val url: String,
         val contentLength: Long,
         val userAgent: String,
+        val clientName: String,
     )
 
     private companion object {
         const val TAG = "MusixDownload"
         const val TIMEOUT_MS = 15_000
         const val CHUNK_SIZE = 524_288L
+        const val MAX_LOG_LINES = 500
+        const val MAX_CONCURRENT_DOWNLOADS = 3
+        const val VISIONOS_UA =
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) " +
+                "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"
         const val VR_UA =
             "com.google.android.apps.youtube.vr.oculus/1.60.19 " +
                 "(Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip"
         val UNSAFE_FILENAME_REGEX = Regex("""[/\\:*?"<>|]""")
         val WHITESPACE_REGEX = Regex("""\s+""")
+        val SW_VISITOR_REGEX = Regex(""""(Cgt[A-Za-z0-9_%-]+)"""")
         val VISITOR_REGEX = Regex(""""VISITOR_DATA":"([^"]+)"""")
         val CLIENTS =
             listOf(
                 ClientSpec(
+                    name = "VISIONOS",
+                    version = "1.02",
+                    clientId = "101",
+                    userAgent = VISIONOS_UA,
+                    osName = "visionOS",
+                    osVersion = "26.5.23O471",
+                    deviceMake = "Apple",
+                    deviceModel = "RealityDevice17,1",
+                    html5Pref = true,
+                ),
+                ClientSpec(
                     name = "ANDROID_VR",
                     version = "1.60.19",
+                    clientId = "28",
                     userAgent = VR_UA,
                     sdk = 32,
                 ),
                 ClientSpec(
-                    name = "ANDROID",
-                    version = "20.10.38",
-                    userAgent = "com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip",
-                    sdk = 34,
-                ),
-                ClientSpec(
                     name = "IOS",
                     version = "20.10.4",
+                    clientId = "5",
                     userAgent = "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
-                    sdk = null,
+                ),
+                ClientSpec(
+                    name = "ANDROID",
+                    version = "20.10.38",
+                    clientId = "3",
+                    userAgent = "com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip",
+                    sdk = 34,
                 ),
             )
     }

@@ -6,10 +6,12 @@ import {
   APP_NAME,
   YTM_PARTITION,
 } from '../shared/constants';
-import type { BridgeCommand, BridgeEvent } from '@musix/bridge/contract';
+import type { BridgeCommand, BridgeEvent, BrowsePage, FlatItem } from '@musix/bridge/contract';
 import type {
   AccountState,
   AppSettings,
+  DetectedLibrary,
+  DownloadTrackRequest,
   LyricsResponse,
   PlayerCommand,
   PlayerState,
@@ -41,6 +43,35 @@ import { createMainWindow, currentTheme, showWindow, toggleWindow, WindowChrome 
 
 const LYRICS_TIMEOUT_MS = 30_000;
 const SUGGEST_TIMEOUT_MS = 5_000;
+const BROWSE_TIMEOUT_MS = 12_000;
+
+function extractPlayableTracks(page: BrowsePage): DownloadTrackRequest[] {
+  const results: DownloadTrackRequest[] = [];
+  const seen = new Set<string>();
+  const allItems: FlatItem[] = [...page.items];
+  for (const section of page.sections) {
+    allItems.push(...section.items);
+  }
+  for (const item of allItems) {
+    if (!item.videoId || seen.has(item.videoId) || item.title.trim() === '') {
+      continue;
+    }
+    seen.add(item.videoId);
+    const parts = item.subtitle
+      .split('•')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    results.push({
+      videoId: item.videoId,
+      title: item.title.trim(),
+      artist: parts[0] ?? '',
+      album: parts[1] ?? '',
+      durationSec: item.durationSec && item.durationSec > 0 ? item.durationSec : 0,
+      artworkUrl: item.artworkUrl,
+    });
+  }
+  return results;
+}
 
 const dataOverride = userDataOverride();
 if (dataOverride) {
@@ -283,6 +314,119 @@ async function start(): Promise<void> {
     );
     return event && event.type === 'suggestResult' ? event.suggestions : null;
   };
+  const browseNode = async (nodeId: string): Promise<BrowsePage | null> => {
+    const event = await requestBridge(
+      { v: 1, type: 'browse', requestId: view.nextRequestId(), nodeId },
+      BROWSE_TIMEOUT_MS,
+    );
+    return event && event.type === 'browseResult' ? event.page : null;
+  };
+  const detectLibraries = async (): Promise<DetectedLibrary[]> => {
+    const libraries: DetectedLibrary[] = [];
+    const seenIds = new Set<string>();
+    const pushLibrary = (
+      id: string,
+      title: string,
+      subtitle: string,
+      artworkUrl: string,
+      tracks: DownloadTrackRequest[],
+    ): void => {
+      if (tracks.length === 0 || seenIds.has(id)) {
+        return;
+      }
+      seenIds.add(id);
+      libraries.push({
+        id,
+        title,
+        subtitle,
+        artworkUrl: artworkUrl || tracks[0]?.artworkUrl || '',
+        tracks,
+      });
+    };
+
+    const [likedPage, recentPage, playlistsPage, albumsPage] = await Promise.all([
+      browseNode('library-liked'),
+      browseNode('recent'),
+      browseNode('playlists'),
+      browseNode('library-albums'),
+    ]);
+
+    if (likedPage) {
+      const tracks = extractPlayableTracks(likedPage);
+      pushLibrary('library-liked', 'Liked Music', `${tracks.length} songs`, '', tracks);
+    }
+    if (recentPage) {
+      const tracks = extractPlayableTracks(recentPage);
+      pushLibrary('recent', 'Recently Played', `${tracks.length} songs`, '', tracks);
+    }
+
+    const collectionItems: { id: string; title: string; artworkUrl: string; kind: string }[] = [];
+    if (playlistsPage) {
+      const items = [...playlistsPage.items, ...playlistsPage.sections.flatMap((s) => s.items)];
+      for (const item of items) {
+        if (item.browseId && item.browseId !== 'VLLM' && item.title.trim() !== '') {
+          collectionItems.push({
+            id: item.browseId,
+            title: item.title.trim(),
+            artworkUrl: item.artworkUrl,
+            kind: 'Playlist',
+          });
+        }
+      }
+    }
+    if (albumsPage) {
+      const items = [...albumsPage.items, ...albumsPage.sections.flatMap((s) => s.items)];
+      for (const item of items) {
+        if (item.browseId && item.title.trim() !== '') {
+          collectionItems.push({
+            id: item.browseId,
+            title: item.title.trim(),
+            artworkUrl: item.artworkUrl,
+            kind: 'Album',
+          });
+        }
+      }
+    }
+
+    const cappedCollections = collectionItems.slice(0, 12);
+    const pages = await Promise.all(cappedCollections.map((col) => browseNode(col.id)));
+    for (let i = 0; i < cappedCollections.length; i += 1) {
+      const col = cappedCollections[i];
+      const page = pages[i];
+      if (!col || !page) {
+        continue;
+      }
+      const tracks = extractPlayableTracks(page);
+      pushLibrary(col.id, col.title, `${col.kind} • ${tracks.length} songs`, col.artworkUrl, tracks);
+    }
+
+    if (libraries.length === 0) {
+      const homePage = await browseNode('home');
+      if (homePage) {
+        for (const section of homePage.sections) {
+          const sectionTracks = extractPlayableTracks({
+            nodeId: section.id,
+            title: section.title,
+            sections: [],
+            items: section.items,
+            continuation: null,
+          });
+          if (sectionTracks.length > 0) {
+            pushLibrary(
+              `home:${section.id}`,
+              section.title || 'Home Picks',
+              `${sectionTracks.length} songs`,
+              sectionTracks[0]?.artworkUrl ?? '',
+              sectionTracks,
+            );
+          }
+        }
+      }
+    }
+
+    downloads.appendLog(`Detected ${libraries.length} library collection(s)`);
+    return libraries;
+  };
 
   const tray = new AppTray(win, {
     command,
@@ -319,6 +463,7 @@ async function start(): Promise<void> {
       chrome: () => chrome.state(),
       lyrics,
       suggest,
+      detectLibraries,
       openShellMenu: (request) => {
         if (request.target.kind === 'shellText') {
           menus.open({ kind: 'shellText' }, request.x, request.y, {
@@ -400,6 +545,7 @@ async function start(): Promise<void> {
             return;
           case 'lyricsResult':
           case 'suggestResult':
+          case 'browseResult':
             settleRequest(event.requestId, event);
             return;
           case 'error':
@@ -413,7 +559,6 @@ async function start(): Promise<void> {
           case 'adStart':
           case 'adEnd':
           case 'ack':
-          case 'browseResult':
           case 'searchResult':
             return;
         }
@@ -429,6 +574,11 @@ async function start(): Promise<void> {
   disposers.push(
     downloads.onChanged((items) => {
       sendToShell(win, 'downloads:changed', items);
+    }),
+  );
+  disposers.push(
+    downloads.onLogsChanged((logs) => {
+      sendToShell(win, 'downloads:logs-changed', logs);
     }),
   );
   disposers.push(startListRefreshSchedule(adblock));

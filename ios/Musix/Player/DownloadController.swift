@@ -35,6 +35,14 @@ struct DownloadTrackRequest: Equatable, Sendable {
     var artworkUrl: String
 }
 
+struct DetectedLibrary: Identifiable, Equatable, Sendable {
+    var id: String
+    var title: String
+    var subtitle: String
+    var artworkUrl: String
+    var tracks: [DownloadTrackRequest]
+}
+
 private struct InnertubeClientSpec: Sendable {
     let name: String
     let version: String
@@ -45,6 +53,7 @@ private struct InnertubeClientSpec: Sendable {
     let deviceMake: String?
     let deviceModel: String?
     let androidSdkVersion: Int?
+    let html5Pref: Bool
 }
 
 private struct ResolvedAudioStream: Sendable {
@@ -52,11 +61,16 @@ private struct ResolvedAudioStream: Sendable {
     let contentLength: Int64?
     let durationSec: Double?
     let userAgent: String
+    let clientName: String
 }
 
 @MainActor
 final class DownloadController: ObservableObject {
     @Published private(set) var items: [DownloadItem] = []
+    @Published private(set) var logs: [String] = []
+    @Published private(set) var libraries: [DetectedLibrary] = []
+    @Published private(set) var detectingLibraries = false
+    @Published private(set) var notice: String?
 
     private let engine: WebEngine
     private let downloadsDir: URL
@@ -64,10 +78,40 @@ final class DownloadController: ObservableObject {
     private let thumbnailsDir: URL
     private let miscDir: URL
     private let indexFile: URL
+    private let logFile: URL
     private var activeTasks: [String: Task<Void, Never>] = [:]
+    private var runningCount = 0
+    private var slotWaiters: [CheckedContinuation<Void, Never>] = []
+    private var cachedVisitorData: String?
+    private var librariesLoadedOnce = false
+    private var librariesAccount: WebEngine.Account?
+    private var noticeTask: Task<Void, Never>?
+    private var indexSavePending = false
+    private var logSavePending = false
+    private var sanitizeCache: [String: String] = [:]
+    private let logFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter
+    }()
 
+    private static let maxConcurrent = 3
+    private static let maxLogLines = 500
     nonisolated private static let chunkBytes: Int64 = 512 * 1024
     nonisolated private static let clients: [InnertubeClientSpec] = [
+        InnertubeClientSpec(
+            name: "VISIONOS",
+            version: "1.02",
+            id: "101",
+            userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+            osName: "visionOS",
+            osVersion: "26.5.23O471",
+            deviceMake: "Apple",
+            deviceModel: "RealityDevice17,1",
+            androidSdkVersion: nil,
+            html5Pref: true
+        ),
         InnertubeClientSpec(
             name: "ANDROID_VR",
             version: "1.60.19",
@@ -77,7 +121,8 @@ final class DownloadController: ObservableObject {
             osVersion: "12L",
             deviceMake: "Oculus",
             deviceModel: "Quest 3",
-            androidSdkVersion: 32
+            androidSdkVersion: 32,
+            html5Pref: false
         ),
         InnertubeClientSpec(
             name: "IOS",
@@ -88,7 +133,8 @@ final class DownloadController: ObservableObject {
             osVersion: "18.3.2.22D82",
             deviceMake: "Apple",
             deviceModel: "iPhone16,2",
-            androidSdkVersion: nil
+            androidSdkVersion: nil,
+            html5Pref: false
         ),
         InnertubeClientSpec(
             name: "ANDROID",
@@ -99,7 +145,8 @@ final class DownloadController: ObservableObject {
             osVersion: "14",
             deviceMake: nil,
             deviceModel: nil,
-            androidSdkVersion: 34
+            androidSdkVersion: 34,
+            html5Pref: false
         ),
     ]
 
@@ -120,7 +167,88 @@ final class DownloadController: ObservableObject {
         self.thumbnailsDir = thumbs
         self.miscDir = misc
         self.indexFile = misc.appendingPathComponent("downloads.json")
+        self.logFile = misc.appendingPathComponent("downloads.log")
+        loadLogs()
         loadIndex()
+    }
+
+    private func loadLogs() {
+        guard let data = try? Data(contentsOf: logFile), let text = String(data: data, encoding: .utf8) else {
+            logs = []
+            return
+        }
+        logs = Array(text.split(separator: "\n").map(String.init).filter { !$0.isEmpty }.suffix(Self.maxLogLines))
+    }
+
+    func appendLog(_ message: String) {
+        logs.append("[\(logFormatter.string(from: Date()))] \(message)")
+        if logs.count > Self.maxLogLines {
+            logs.removeFirst(logs.count - Self.maxLogLines)
+        }
+        PlaybackLog.shared.add("Download: \(message)")
+        guard !logSavePending else {
+            return
+        }
+        logSavePending = true
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            self?.flushLogs()
+        }
+    }
+
+    private func flushLogs() {
+        logSavePending = false
+        let text = logs.isEmpty ? "" : logs.joined(separator: "\n") + "\n"
+        try? text.data(using: .utf8)?.write(to: logFile, options: .atomic)
+    }
+
+    func clearLogs() {
+        logs = []
+        flushLogs()
+    }
+
+    var logsText: String {
+        logs.joined(separator: "\n")
+    }
+
+    func postNotice(_ text: String) {
+        notice = text
+        noticeTask?.cancel()
+        noticeTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+            self?.notice = nil
+        }
+    }
+
+    private func acquireSlot() async {
+        if runningCount < Self.maxConcurrent {
+            runningCount += 1
+            return
+        }
+        await withCheckedContinuation { continuation in
+            slotWaiters.append(continuation)
+        }
+    }
+
+    private func releaseSlot() {
+        if slotWaiters.isEmpty {
+            runningCount = max(0, runningCount - 1)
+        } else {
+            slotWaiters.removeFirst().resume()
+        }
+    }
+
+    func isDownloadedOrActive(_ videoId: String) -> Bool {
+        guard let existing = item(for: videoId) else {
+            return false
+        }
+        if existing.status == .completed, audioURL(for: videoId) != nil {
+            return true
+        }
+        return (existing.status == .downloading || existing.status == .queued) && activeTasks[videoId] != nil
     }
 
     func item(for videoId: String) -> DownloadItem? {
@@ -128,6 +256,19 @@ final class DownloadController: ObservableObject {
     }
 
     private func sanitizeTitle(_ title: String, fallback: String) -> String {
+        let key = "\(fallback)\u{0}\(title)"
+        if let cached = sanitizeCache[key] {
+            return cached
+        }
+        let result = computeSanitizedTitle(title, fallback: fallback)
+        if sanitizeCache.count > 5000 {
+            sanitizeCache.removeAll()
+        }
+        sanitizeCache[key] = result
+        return result
+    }
+
+    private func computeSanitizedTitle(_ title: String, fallback: String) -> String {
         let invalid = CharacterSet(charactersIn: "<>:\"/\\|?*").union(.controlCharacters)
         let cleaned = title.components(separatedBy: invalid).joined(separator: " ")
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
@@ -200,18 +341,24 @@ final class DownloadController: ObservableObject {
         try? lines.data(using: .utf8)?.write(to: descFile, options: .atomic)
     }
 
-    func startDownload(_ request: DownloadTrackRequest) {
+    @discardableResult
+    func startDownload(_ request: DownloadTrackRequest, quiet: Bool = false) -> Bool {
         let videoId = request.videoId.trimmingCharacters(in: .whitespacesAndNewlines)
         let title = request.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard BridgeCodec.isValidVideoId(videoId), !title.isEmpty else {
-            return
+            return false
         }
         if let existing = item(for: videoId) {
             if existing.status == .completed, audioURL(for: videoId) != nil {
-                return
+                appendLog("Skip \(title) (\(videoId)): already downloaded")
+                if !quiet {
+                    postNotice("Already downloaded")
+                }
+                return false
             }
             if (existing.status == .downloading || existing.status == .queued), activeTasks[videoId] != nil {
-                return
+                appendLog("Skip \(title) (\(videoId)): already downloading")
+                return false
             }
         }
         let now = Date().timeIntervalSince1970 * 1000
@@ -222,8 +369,8 @@ final class DownloadController: ObservableObject {
             album: String(request.album.trimmingCharacters(in: .whitespacesAndNewlines).prefix(300)),
             durationSec: request.durationSec.isFinite && request.durationSec >= 0 ? request.durationSec : 0,
             artworkUrl: request.artworkUrl.trimmingCharacters(in: .whitespacesAndNewlines),
-            status: .downloading,
-            progress: 0.02,
+            status: .queued,
+            progress: 0,
             error: nil,
             createdAt: item(for: videoId)?.createdAt ?? now,
             completedAt: nil,
@@ -232,13 +379,158 @@ final class DownloadController: ObservableObject {
         upsert(entry)
         let stem = fileStem(for: entry)
         writeDescriptionFile(for: entry, stem: stem)
+        appendLog("Queued download: \(entry.title) (\(videoId))")
         let task = Task { [weak self] in
             guard let self else {
                 return
             }
+            await self.acquireSlot()
+            defer {
+                self.releaseSlot()
+            }
+            guard !Task.isCancelled else {
+                return
+            }
+            self.updateItem(videoId: videoId) { item in
+                item.status = .downloading
+                item.progress = max(item.progress, 0.02)
+            }
             await self.runDownload(entry: entry, stem: stem)
         }
         activeTasks[videoId] = task
+        return true
+    }
+
+    @discardableResult
+    func downloadBatch(title: String, tracks: [DownloadTrackRequest]) -> (started: Int, skipped: Int, alreadyDownloaded: Bool) {
+        var seen = Set<String>()
+        var started = 0
+        var skipped = 0
+        for track in tracks {
+            guard BridgeCodec.isValidVideoId(track.videoId), !track.title.isEmpty, seen.insert(track.videoId).inserted else {
+                continue
+            }
+            if isDownloadedOrActive(track.videoId) {
+                skipped += 1
+                appendLog("Batch [\(title)]: skipping already downloaded \(track.title) (\(track.videoId))")
+                continue
+            }
+            if startDownload(track, quiet: true) {
+                started += 1
+            }
+        }
+        let allDone = started == 0 && skipped > 0
+        if allDone {
+            appendLog("Batch [\(title)]: all \(skipped) songs already downloaded")
+            postNotice("Already downloaded")
+        } else if started > 0 {
+            appendLog("Batch [\(title)]: queued \(started) songs, skipped \(skipped) already downloaded")
+            let note = skipped > 0 ? " (skipped \(skipped) already downloaded)" : ""
+            postNotice("Downloading \(started) songs from \(title)\(note)")
+        }
+        return (started, skipped, allDone)
+    }
+
+    func detectLibraries(force: Bool = false) async {
+        if detectingLibraries || (librariesLoadedOnce && !force && librariesAccount == engine.account) {
+            return
+        }
+        detectingLibraries = true
+        librariesAccount = engine.account
+        defer {
+            detectingLibraries = false
+        }
+        let queue = engine.commandQueue
+        func browse(_ nodeId: String) async -> BrowsePage? {
+            if case let .page(page) = await queue.send(.browse(nodeId: nodeId)) {
+                return page
+            }
+            return nil
+        }
+        var found: [DetectedLibrary] = []
+        if let page = await browse("library-liked") {
+            let tracks = Self.extractTracks(page.items + page.sections.flatMap(\.items))
+            if !tracks.isEmpty {
+                found.append(DetectedLibrary(id: "library-liked", title: "Liked Music", subtitle: "\(tracks.count) songs", artworkUrl: tracks[0].artworkUrl, tracks: tracks))
+            }
+        }
+        if let page = await browse("recent") {
+            let tracks = Self.extractTracks(page.items + page.sections.flatMap(\.items))
+            if !tracks.isEmpty {
+                found.append(DetectedLibrary(id: "recent", title: "Recently Played", subtitle: "\(tracks.count) songs", artworkUrl: tracks[0].artworkUrl, tracks: tracks))
+            }
+        }
+        for (node, label, limit) in [("playlists", "Playlist", 10), ("library-albums", "Album", 8)] {
+            guard let page = await browse(node) else {
+                continue
+            }
+            var seen = Set<String>()
+            let collections = (page.items + page.sections.flatMap(\.items)).filter { item in
+                guard let browseId = item.browseId, !browseId.isEmpty, browseId != "VLLM", browseId != "LM" else {
+                    return false
+                }
+                return seen.insert(browseId).inserted
+            }
+            for collection in collections.prefix(limit) {
+                guard let browseId = collection.browseId, let sub = await browse(browseId) else {
+                    continue
+                }
+                let tracks = Self.extractTracks(sub.items + sub.sections.flatMap(\.items))
+                guard !tracks.isEmpty else {
+                    continue
+                }
+                found.append(
+                    DetectedLibrary(
+                        id: browseId,
+                        title: collection.title.isEmpty ? sub.title : collection.title,
+                        subtitle: "\(label) \u{2022} \(tracks.count) songs",
+                        artworkUrl: collection.artworkUrl.isEmpty ? tracks[0].artworkUrl : collection.artworkUrl,
+                        tracks: tracks
+                    )
+                )
+            }
+        }
+        if found.isEmpty, let home = await browse("home") {
+            for section in home.sections {
+                let tracks = Self.extractTracks(section.items)
+                if !tracks.isEmpty {
+                    found.append(
+                        DetectedLibrary(
+                            id: "home-\(section.id)",
+                            title: section.title.isEmpty ? "Home Shelf" : section.title,
+                            subtitle: "\(tracks.count) songs",
+                            artworkUrl: tracks[0].artworkUrl,
+                            tracks: tracks
+                        )
+                    )
+                }
+            }
+        }
+        libraries = found
+        librariesLoadedOnce = !found.isEmpty
+        appendLog("Auto-detected \(found.count) libraries")
+    }
+
+    private static func extractTracks(_ items: [FlatItem]) -> [DownloadTrackRequest] {
+        var seen = Set<String>()
+        var result: [DownloadTrackRequest] = []
+        for item in items {
+            guard let videoId = item.videoId, BridgeCodec.isValidVideoId(videoId), !item.title.isEmpty, seen.insert(videoId).inserted else {
+                continue
+            }
+            let parts = item.subtitle.components(separatedBy: " \u{2022} ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            result.append(
+                DownloadTrackRequest(
+                    videoId: videoId,
+                    title: item.title,
+                    artist: parts.first ?? "",
+                    album: parts.count > 1 ? parts[1] : "",
+                    durationSec: max(0, item.durationSec ?? 0),
+                    artworkUrl: item.artworkUrl
+                )
+            )
+        }
+        return result
     }
 
     func deleteDownload(_ videoId: String) {
@@ -292,47 +584,64 @@ final class DownloadController: ObservableObject {
             updateItem(videoId: videoId) { item in
                 item.progress = max(item.progress, 0.08)
             }
-            var visitorData = await engine.visitorData()
+            var visitorData = cachedVisitorData
             if visitorData == nil {
-                visitorData = await Self.fetchWebVisitorData()
+                visitorData = await Self.fetchAnonymousVisitorData()
+                if let token = visitorData {
+                    cachedVisitorData = token
+                    appendLog("Resolved anonymous visitorData (\(token.prefix(14))...)")
+                }
             }
-            let resolved = try await Self.resolveStream(videoId: videoId, visitorData: visitorData)
-            if let dur = resolved.durationSec, dur > 0 {
+            if visitorData == nil {
+                visitorData = await engine.visitorData()
+                appendLog("Falling back to signed-in visitorData")
+            }
+            let resolution = await Self.resolveStreams(videoId: videoId, visitorData: visitorData)
+            for note in resolution.notes {
+                appendLog(note)
+            }
+            guard !resolution.streams.isEmpty else {
+                throw NSError(domain: "MusixDownload", code: 1, userInfo: [NSLocalizedDescriptionKey: resolution.notes.last ?? "Unable to resolve audio stream"])
+            }
+            if let dur = resolution.streams.compactMap(\.durationSec).first, dur > 0 {
                 updateItem(videoId: videoId) { item in
                     if item.durationSec <= 0 {
                         item.durationSec = dur
                     }
                 }
             }
-            let candidates = Self.buildCandidateStreamUrls(resolved.url)
             var downloaded = false
             var lastError: Error?
-            for candidate in candidates {
-                guard !Task.isCancelled else {
-                    try? FileManager.default.removeItem(at: partFile)
-                    return
-                }
-                do {
-                    try await Self.downloadAudioStream(
-                        streamUrl: candidate,
-                        userAgent: resolved.userAgent,
-                        knownLength: resolved.contentLength,
-                        target: partFile
-                    ) { [weak self] ratio in
-                        Task { @MainActor in
-                            self?.updateItem(videoId: videoId) { item in
-                                let scaled = min(0.98, max(item.progress, 0.1 + ratio * 0.88))
-                                if scaled - item.progress >= 0.02 || ratio >= 0.99 {
-                                    item.progress = scaled
+            streamLoop: for resolved in resolution.streams {
+                for candidate in Self.buildCandidateStreamUrls(resolved.url) {
+                    guard !Task.isCancelled else {
+                        try? FileManager.default.removeItem(at: partFile)
+                        return
+                    }
+                    do {
+                        try await Self.downloadAudioStream(
+                            streamUrl: candidate,
+                            userAgent: resolved.userAgent,
+                            knownLength: resolved.contentLength,
+                            target: partFile
+                        ) { [weak self] ratio in
+                            Task { @MainActor in
+                                self?.updateItem(videoId: videoId) { item in
+                                    let scaled = min(0.98, max(item.progress, 0.1 + ratio * 0.88))
+                                    if scaled - item.progress >= 0.02 || ratio >= 0.99 {
+                                        item.progress = scaled
+                                    }
                                 }
                             }
                         }
+                        downloaded = true
+                        appendLog("Stream \(resolved.clientName) succeeded for \(videoId)")
+                        break streamLoop
+                    } catch {
+                        lastError = error
+                        appendLog("Stream \(resolved.clientName) failed for \(videoId): \(error.localizedDescription)")
+                        try? FileManager.default.removeItem(at: partFile)
                     }
-                    downloaded = true
-                    break
-                } catch {
-                    lastError = error
-                    try? FileManager.default.removeItem(at: partFile)
                 }
             }
             if !downloaded {
@@ -359,12 +668,15 @@ final class DownloadController: ObservableObject {
                 item.completedAt = Date().timeIntervalSince1970 * 1000
                 item.fileSizeBytes = size
             }
+            appendLog("Completed download for \(videoId) -> music/\(stem).mp3 (\(size) bytes)")
         } catch {
             try? FileManager.default.removeItem(at: partFile)
             guard !Task.isCancelled else {
+                appendLog("Cancelled download for \(videoId)")
                 return
             }
             let message = error.localizedDescription.isEmpty ? "Download failed" : error.localizedDescription
+            appendLog("ERROR (\(videoId) - \(entry.title)): \(message)")
             updateItem(videoId: videoId) { item in
                 item.status = .failed
                 item.progress = 0
@@ -458,6 +770,18 @@ final class DownloadController: ObservableObject {
     }
 
     private func saveIndex() {
+        guard !indexSavePending else {
+            return
+        }
+        indexSavePending = true
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            self?.flushIndex()
+        }
+    }
+
+    private func flushIndex() {
+        indexSavePending = false
         guard let data = try? JSONEncoder().encode(items) else {
             return
         }
@@ -485,47 +809,54 @@ final class DownloadController: ObservableObject {
         }
     }
 
-    nonisolated private static func fetchWebVisitorData() async -> String? {
-        guard let url = URL(string: "https://music.youtube.com/") else {
-            return nil
-        }
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 10
-        request.setValue(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
-            forHTTPHeaderField: "User-Agent"
-        )
-        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-                  let html = String(data: data, encoding: .utf8) else {
-                return nil
+    nonisolated private static func fetchAnonymousVisitorData() async -> String? {
+        let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
+        let attempts: [(String, String)] = [
+            ("https://www.youtube.com/sw.js_data", "\"(Cgt[A-Za-z0-9_%-]+)\""),
+            ("https://www.youtube.com/", "\"VISITOR_DATA\"\\s*:\\s*\"([^\"]+)\""),
+        ]
+        let session = URLSession(configuration: .ephemeral)
+        for (address, pattern) in attempts {
+            guard let url = URL(string: address) else {
+                continue
             }
-            guard let regex = try? NSRegularExpression(pattern: "\"VISITOR_DATA\"\\s*:\\s*\"([^\"]+)\""),
-                  let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
-                  let range = Range(match.range(at: 1), in: html) else {
-                return nil
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 10
+            request.httpShouldHandleCookies = false
+            request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+            guard let result = try? await session.data(for: request),
+                  let http = result.1 as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+                  let text = String(data: result.0, encoding: .utf8),
+                  let regex = try? NSRegularExpression(pattern: pattern),
+                  let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                  let range = Range(match.range(at: 1), in: text) else {
+                continue
             }
-            let token = String(html[range])
-            return token.isEmpty ? nil : token
-        } catch {
-            return nil
+            let token = String(text[range])
+            if !token.isEmpty {
+                return token
+            }
         }
+        return nil
     }
 
-    nonisolated private static func resolveStream(videoId: String, visitorData: String?) async throws -> ResolvedAudioStream {
-        var lastReason = "Unable to resolve audio stream"
+    nonisolated private static func resolveStreams(videoId: String, visitorData: String?) async -> (streams: [ResolvedAudioStream], notes: [String]) {
+        var streams: [ResolvedAudioStream] = []
+        var notes: [String] = []
         for client in clients {
             do {
                 if let stream = try await requestPlayer(videoId: videoId, client: client, visitorData: visitorData) {
-                    return stream
+                    streams.append(stream)
+                    notes.append("Resolved stream via \(client.name) (len=\(stream.contentLength.map(String.init) ?? "?")) for \(videoId)")
+                } else {
+                    notes.append("Innertube \(client.name) returned no audio formats for \(videoId)")
                 }
             } catch {
-                lastReason = error.localizedDescription
+                notes.append("Innertube \(client.name) failed for \(videoId): \(error.localizedDescription)")
             }
         }
-        throw NSError(domain: "MusixDownload", code: 1, userInfo: [NSLocalizedDescriptionKey: lastReason])
+        return (streams, notes)
     }
 
     nonisolated private static func requestPlayer(
@@ -556,12 +887,15 @@ final class DownloadController: ObservableObject {
         if let visitorData, !visitorData.isEmpty {
             clientObj["visitorData"] = visitorData
         }
-        let bodyObj: [String: Any] = [
+        var bodyObj: [String: Any] = [
             "videoId": videoId,
             "racyCheckOk": true,
             "contentCheckOk": true,
             "context": ["client": clientObj],
         ]
+        if client.html5Pref {
+            bodyObj["playbackContext"] = ["contentPlaybackContext": ["html5Preference": "HTML5_PREF_WANTS"]]
+        }
         let payload = try JSONSerialization.data(withJSONObject: bodyObj)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -571,12 +905,19 @@ final class DownloadController: ObservableObject {
         request.setValue(client.userAgent, forHTTPHeaderField: "User-Agent")
         request.setValue(client.id, forHTTPHeaderField: "X-YouTube-Client-Name")
         request.setValue(client.version, forHTTPHeaderField: "X-YouTube-Client-Version")
+        request.setValue("https://www.youtube.com", forHTTPHeaderField: "Origin")
+        request.httpShouldHandleCookies = false
         if let visitorData, !visitorData.isEmpty {
             request.setValue(visitorData, forHTTPHeaderField: "X-Goog-Visitor-Id")
         }
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        guard let http = response as? HTTPURLResponse else {
+            return nil
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw NSError(domain: "MusixDownload", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "Player HTTP \(http.statusCode)"])
+        }
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
         }
         if let statusObj = root["playabilityStatus"] as? [String: Any],
@@ -632,7 +973,8 @@ final class DownloadController: ObservableObject {
             url: best.url,
             contentLength: best.contentLength,
             durationSec: durationSec,
-            userAgent: client.userAgent
+            userAgent: client.userAgent,
+            clientName: client.name
         )
     }
 

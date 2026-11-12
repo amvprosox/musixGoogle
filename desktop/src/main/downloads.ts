@@ -1,14 +1,32 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 import type { Session, WebContents } from 'electron';
 import { isBoundedString, isFiniteNumber, isRecord, isString } from '../shared/guards';
-import type { DownloadItem, DownloadStatus, DownloadTrackRequest } from '../shared/types';
+import type {
+  DownloadBatchRequest,
+  DownloadBatchResult,
+  DownloadItem,
+  DownloadStatus,
+  DownloadTrackRequest,
+} from '../shared/types';
 import { isVideoId } from '../shared/validators';
 import { logError, logWarn } from './log';
 
 const STORE_FILE = 'downloads.json';
+const LOG_FILE = 'downloads.log';
+const MAX_LOG_LINES = 500;
+const MAX_CONCURRENT_DOWNLOADS = 3;
 const CHUNK_SIZE = 524_288;
 const PROGRESS_THROTTLE_MS = 180;
 
@@ -24,31 +42,62 @@ const YTDLP_URLS: Readonly<Record<string, string>> = {
 interface InnertubeClientSpec {
   readonly name: string;
   readonly version: string;
+  readonly clientId: string;
   readonly ua: string;
+  readonly osName?: string;
+  readonly osVersion?: string;
+  readonly deviceMake?: string;
+  readonly deviceModel?: string;
   readonly sdk?: number;
+  readonly html5Pref?: boolean;
 }
 
 const INNERTUBE_CLIENTS: readonly InnertubeClientSpec[] = [
   {
-    name: 'ANDROID_VR',
-    version: '1.60.19',
-    ua: 'com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
-    sdk: 32,
-  },
-  {
-    name: 'ANDROID',
-    version: '20.10.38',
-    ua: 'com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip',
-    sdk: 34,
+    name: 'VISIONOS',
+    version: '1.02',
+    clientId: '101',
+    ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
+    osName: 'visionOS',
+    osVersion: '26.5.23O471',
+    deviceMake: 'Apple',
+    deviceModel: 'RealityDevice17,1',
+    html5Pref: true,
   },
   {
     name: 'IOS',
     version: '20.10.4',
+    clientId: '5',
     ua: 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)',
+    osName: 'iPhone',
+    osVersion: '18.3.2.22D82',
+    deviceMake: 'Apple',
+    deviceModel: 'iPhone16,2',
+  },
+  {
+    name: 'ANDROID',
+    version: '20.10.38',
+    clientId: '3',
+    ua: 'com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip',
+    osName: 'Android',
+    osVersion: '14',
+    sdk: 34,
+  },
+  {
+    name: 'ANDROID_VR',
+    version: '1.61.48',
+    clientId: '28',
+    ua: 'com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
+    osName: 'Android',
+    osVersion: '12L',
+    deviceMake: 'Oculus',
+    deviceModel: 'Quest 3',
+    sdk: 32,
   },
 ];
 
 interface ResolvedStream {
+  readonly clientName: string;
   readonly url: string;
   readonly contentLength: number;
   readonly userAgent: string;
@@ -203,10 +252,16 @@ export class DownloadManager {
   readonly miscDir: string;
   private readonly toolsDir: string;
   private readonly storePath: string;
+  private readonly logPath: string;
   private items: DownloadItem[] = [];
+  private logs: string[] = [];
   private readonly activeControllers = new Map<string, AbortController>();
   private readonly activeProcesses = new Map<string, ChildProcess>();
   private readonly listeners = new Set<(items: DownloadItem[]) => void>();
+  private readonly logListeners = new Set<(logs: string[]) => void>();
+  private runningDownloads = 0;
+  private logEmitTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly slotWaiters: Array<() => void> = [];
   private cachedVisitorData = '';
 
   constructor(
@@ -220,7 +275,9 @@ export class DownloadManager {
     this.miscDir = path.join(this.downloadsDir, 'misc');
     this.toolsDir = path.join(userDataDir, 'tools');
     this.storePath = path.join(this.miscDir, STORE_FILE);
+    this.logPath = path.join(this.miscDir, LOG_FILE);
     this.ensureDirectories();
+    this.loadLogs();
     this.load();
   }
 
@@ -228,6 +285,78 @@ export class DownloadManager {
     mkdirSync(this.musicDir, { recursive: true });
     mkdirSync(this.thumbnailsDir, { recursive: true });
     mkdirSync(this.miscDir, { recursive: true });
+  }
+
+  private loadLogs(): void {
+    if (!existsSync(this.logPath)) {
+      this.logs = [];
+      return;
+    }
+    try {
+      const content = readFileSync(this.logPath, 'utf8');
+      this.logs = content
+        .split(/\r?\n/)
+        .filter((line) => line.trim().length > 0)
+        .slice(-MAX_LOG_LINES);
+    } catch (error) {
+      logWarn('downloads', 'Failed to load downloads.log', error);
+      this.logs = [];
+    }
+  }
+
+  appendLog(message: string): void {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const entry = `${hh}:${mm}:${ss} ${message}`;
+    this.logs.push(entry);
+    if (this.logs.length > MAX_LOG_LINES) {
+      this.logs = this.logs.slice(-MAX_LOG_LINES);
+    }
+    try {
+      this.ensureDirectories();
+      appendFileSync(this.logPath, `${entry}\n`, 'utf8');
+    } catch (error) {
+      logWarn('downloads', 'Failed to append to downloads.log', error);
+    }
+    this.emitLogs();
+  }
+
+  getLogs(): string[] {
+    return [...this.logs];
+  }
+
+  clearLogs(): boolean {
+    this.logs = [];
+    try {
+      this.ensureDirectories();
+      writeFileSync(this.logPath, '', 'utf8');
+    } catch (error) {
+      logWarn('downloads', 'Failed to clear downloads.log', error);
+    }
+    this.emitLogs();
+    return true;
+  }
+
+  onLogsChanged(listener: (logs: string[]) => void): () => void {
+    this.logListeners.add(listener);
+    return () => {
+      this.logListeners.delete(listener);
+    };
+  }
+
+  private emitLogs(): void {
+    if (this.logEmitTimer) {
+      return;
+    }
+    this.logEmitTimer = setTimeout(() => {
+      this.logEmitTimer = null;
+      const snapshot = this.getLogs();
+      for (const listener of this.logListeners) {
+        listener(snapshot);
+      }
+    }, 200);
   }
 
   private fileStemFor(title: string, videoId: string): string {
@@ -272,6 +401,10 @@ export class DownloadManager {
   }
 
   dispose(): void {
+    if (this.logEmitTimer) {
+      clearTimeout(this.logEmitTimer);
+      this.logEmitTimer = null;
+    }
     for (const controller of this.activeControllers.values()) {
       controller.abort();
     }
@@ -286,17 +419,32 @@ export class DownloadManager {
     this.activeProcesses.clear();
   }
 
+  private isCompletedOnDisk(existing: DownloadItem | undefined): boolean {
+    if (!existing || existing.status !== 'completed') {
+      return false;
+    }
+    return existsSync(this.audioFilePath(existing.title, existing.videoId));
+  }
+
   startDownload(track: DownloadTrackRequest): DownloadItem {
     const existing = this.items.find((item) => item.videoId === track.videoId);
-    if (existing && (existing.status === 'downloading' || existing.status === 'completed')) {
-      const audioFile = this.audioFilePath(existing.title, existing.videoId);
-      if (existing.status === 'downloading' || existsSync(audioFile)) {
+    if (existing) {
+      if (this.isCompletedOnDisk(existing)) {
+        this.appendLog(`Skipped "${track.title}" (${track.videoId}) - already downloaded`);
+        return { ...existing };
+      }
+      if (existing.status === 'downloading') {
+        this.appendLog(`"${track.title}" (${track.videoId}) is already downloading`);
         return { ...existing };
       }
     }
 
-    const now = Date.now();
-    const item: DownloadItem = {
+    const [item] = this.queueTracks([track]);
+    return item ? { ...item } : this.newItem(track, Date.now());
+  }
+
+  private newItem(track: DownloadTrackRequest, createdAt: number): DownloadItem {
+    return {
       id: track.videoId,
       videoId: track.videoId,
       title: track.title.trim(),
@@ -308,18 +456,121 @@ export class DownloadManager {
       status: 'downloading',
       progress: 0,
       error: null,
-      createdAt: now,
+      createdAt,
     };
+  }
 
-    this.items = [item, ...this.items.filter((entry) => entry.videoId !== track.videoId)];
+  private queueTracks(tracks: DownloadTrackRequest[]): DownloadItem[] {
+    if (tracks.length === 0) {
+      return [];
+    }
+    const now = Date.now();
+    const newItems = tracks.map((track, index) => this.newItem(track, now - index));
+    const newIds = new Set(newItems.map((entry) => entry.videoId));
+    this.items = [...newItems, ...this.items.filter((entry) => !newIds.has(entry.videoId))];
     this.persist();
     this.emit();
+    for (const item of newItems) {
+      this.activeControllers.get(item.videoId)?.abort();
+      const controller = new AbortController();
+      this.activeControllers.set(item.videoId, controller);
+      this.appendLog(`Queued download: "${item.title}" (${item.videoId})`);
+      void this.runQueued(item, controller.signal);
+    }
+    return newItems;
+  }
 
-    const controller = new AbortController();
-    this.activeControllers.set(track.videoId, controller);
-    void this.runDownload(item, controller.signal);
+  private acquireSlot(signal: AbortSignal): Promise<boolean> {
+    if (isAborted(signal)) {
+      return Promise.resolve(false);
+    }
+    if (this.runningDownloads < MAX_CONCURRENT_DOWNLOADS) {
+      this.runningDownloads += 1;
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+      const onAbort = (): void => {
+        const idx = this.slotWaiters.indexOf(waiter);
+        if (idx !== -1) {
+          this.slotWaiters.splice(idx, 1);
+        }
+        resolve(false);
+      };
+      const waiter = (): void => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(true);
+      };
+      this.slotWaiters.push(waiter);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+  }
 
-    return { ...item };
+  private releaseSlot(): void {
+    const next = this.slotWaiters.shift();
+    if (next) {
+      next();
+      return;
+    }
+    this.runningDownloads = Math.max(0, this.runningDownloads - 1);
+  }
+
+  private async runQueued(item: DownloadItem, signal: AbortSignal): Promise<void> {
+    const acquired = await this.acquireSlot(signal);
+    if (!acquired) {
+      return;
+    }
+    try {
+      if (isAborted(signal)) {
+        return;
+      }
+      this.updateItem(item.videoId, { progress: 0.01 });
+      this.appendLog(`Start download: "${item.title}" (${item.videoId})`);
+      await this.runDownload(item, signal);
+    } finally {
+      this.releaseSlot();
+    }
+  }
+
+  downloadBatch(request: DownloadBatchRequest): DownloadBatchResult {
+    const label = request.title.trim() || 'Library';
+    let skipped = 0;
+    const seen = new Set<string>();
+    const uniqueTracks = request.tracks.filter((t) => {
+      if (!isVideoId(t.videoId) || seen.has(t.videoId)) {
+        return false;
+      }
+      seen.add(t.videoId);
+      return true;
+    });
+
+    const existingById = new Map(this.items.map((item) => [item.videoId, item]));
+    const toQueue: DownloadTrackRequest[] = [];
+    for (const track of uniqueTracks) {
+      const existing = existingById.get(track.videoId);
+      const active = existing?.status === 'downloading' && this.activeControllers.has(track.videoId);
+      if (this.isCompletedOnDisk(existing) || active) {
+        skipped += 1;
+        this.appendLog(`[${label}] Skipped "${track.title}" (${track.videoId}) - already downloaded`);
+      } else {
+        toQueue.push(track);
+      }
+    }
+    this.queueTracks(toQueue);
+    const started = toQueue.length;
+
+    const total = uniqueTracks.length;
+    const alreadyDownloaded = total > 0 && started === 0;
+    if (alreadyDownloaded) {
+      this.appendLog(`[${label}] All ${total} track(s) already downloaded`);
+    } else {
+      this.appendLog(`[${label}] Queued ${started} track(s), skipped ${skipped} already downloaded`);
+    }
+    return {
+      started,
+      skipped,
+      total,
+      alreadyDownloaded,
+    };
   }
 
   async deleteDownload(videoId: string): Promise<boolean> {
@@ -348,6 +599,9 @@ export class DownloadManager {
     this.items = this.items.filter((item) => item.videoId !== videoId);
     this.persist();
     this.emit();
+    if (target) {
+      this.appendLog(`Deleted download: "${target.title}" (${videoId})`);
+    }
 
     const candidates = [
       path.join(this.musicDir, `${stem}.mp3`),
@@ -518,16 +772,20 @@ export class DownloadManager {
       }
       if (localArtwork) {
         this.updateItem(videoId, { artworkUrl: localArtwork }, true);
+        this.appendLog(`[${videoId}] Saved thumbnail: thumbnails/${this.fileStemFor(title, videoId)}.jpg`);
       }
 
       let downloaded = false;
       try {
         downloaded = await this.downloadViaDirectStream(videoId, finalAudioPath, signal);
       } catch (streamErr) {
+        const reason = streamErr instanceof Error ? streamErr.message : 'stream error';
+        this.appendLog(`[${videoId}] Direct stream failed (${reason}), trying yt-dlp fallback`);
         logWarn('downloads', 'Direct stream download failed, trying yt-dlp fallback', streamErr);
       }
 
       if (!downloaded && !isAborted(signal)) {
+        this.appendLog(`[${videoId}] Starting yt-dlp fallback`);
         downloaded = await this.downloadViaYtdlp(videoId, finalAudioPath, signal);
       }
 
@@ -548,11 +806,13 @@ export class DownloadManager {
         },
         true,
       );
+      this.appendLog(`[${videoId}] Completed MP3: music/${this.fileStemFor(title, videoId)}.mp3`);
     } catch (error) {
       if (signal.aborted) {
         return;
       }
       const message = error instanceof Error ? error.message : 'Download failed';
+      this.appendLog(`[${videoId}] ERROR: ${message}`);
       logError('downloads', `Download failed for ${videoId}`, error);
       this.updateItem(
         videoId,
@@ -599,25 +859,30 @@ export class DownloadManager {
   }
 
   private async resolveVisitorData(signal: AbortSignal): Promise<string> {
-    const wc = this.getYtmContents();
-    if (wc && !wc.isDestroyed()) {
-      try {
-        const result: unknown = await wc.executeJavaScript(
-          "(() => { try { return (window.ytcfg && window.ytcfg.get && window.ytcfg.get('VISITOR_DATA')) || ''; } catch { return ''; } })()",
-        );
-        if (isString(result) && result.length > 10) {
-          this.cachedVisitorData = result;
-          return result;
-        }
-      } catch (error) {
-        logWarn('downloads', 'Failed to read visitor data from WebContents', error);
-      }
-    }
     if (this.cachedVisitorData.length > 10) {
       return this.cachedVisitorData;
     }
     try {
-      const response = await fetch('https://music.youtube.com', {
+      const swResp = await fetch('https://www.youtube.com/sw.js_data', {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
+        },
+        signal,
+      });
+      if (swResp.ok) {
+        const raw = await swResp.text();
+        const match = /"(Cgt[A-Za-z0-9_%-]+)"/.exec(raw);
+        if (match && match[1]) {
+          this.cachedVisitorData = match[1];
+          return match[1];
+        }
+      }
+    } catch (error) {
+      logWarn('downloads', 'Failed to fetch sw.js_data visitor token', error);
+    }
+    try {
+      const response = await fetch('https://www.youtube.com/', {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -633,37 +898,75 @@ export class DownloadManager {
     } catch (error) {
       logWarn('downloads', 'Failed to fetch visitor data', error);
     }
+    const wc = this.getYtmContents();
+    if (wc && !wc.isDestroyed()) {
+      try {
+        const result: unknown = await wc.executeJavaScript(
+          "(() => { try { return (window.ytcfg && window.ytcfg.get && window.ytcfg.get('VISITOR_DATA')) || ''; } catch { return ''; } })()",
+        );
+        if (isString(result) && result.length > 10) {
+          this.cachedVisitorData = result;
+          return result;
+        }
+      } catch (error) {
+        logWarn('downloads', 'Failed to read visitor data from WebContents', error);
+      }
+    }
     return '';
   }
 
-  private async resolveDirectAudioStream(
-    videoId: string,
-    signal: AbortSignal,
-  ): Promise<ResolvedStream | null> {
+  private async resolveDirectAudioStreams(videoId: string, signal: AbortSignal): Promise<ResolvedStream[]> {
     const visitorData = await this.resolveVisitorData(signal);
+    const streams: ResolvedStream[] = [];
     for (const client of INNERTUBE_CLIENTS) {
       if (signal.aborted) {
-        return null;
+        return streams;
       }
       try {
-        const body = {
+        const clientContext: Record<string, unknown> = {
+          clientName: client.name,
+          clientVersion: client.version,
+          userAgent: client.ua,
+          hl: 'en',
+          gl: 'US',
+          timeZone: 'UTC',
+          utcOffsetMinutes: 0,
+        };
+        if (client.osName) {
+          clientContext.osName = client.osName;
+        }
+        if (client.osVersion) {
+          clientContext.osVersion = client.osVersion;
+        }
+        if (client.deviceMake) {
+          clientContext.deviceMake = client.deviceMake;
+        }
+        if (client.deviceModel) {
+          clientContext.deviceModel = client.deviceModel;
+        }
+        if (client.sdk) {
+          clientContext.androidSdkVersion = client.sdk;
+        }
+        if (visitorData) {
+          clientContext.visitorData = visitorData;
+        }
+        const body: Record<string, unknown> = {
           videoId,
-          context: {
-            client: {
-              clientName: client.name,
-              clientVersion: client.version,
-              ...(client.sdk ? { androidSdkVersion: client.sdk } : {}),
-              ...(visitorData ? { visitorData } : {}),
-              hl: 'en',
-              gl: 'US',
-            },
-          },
+          context: { client: clientContext },
           contentCheckOk: true,
           racyCheckOk: true,
         };
+        if (client.html5Pref) {
+          body.playbackContext = {
+            contentPlaybackContext: { html5Preference: 'HTML5_PREF_WANTS' },
+          };
+        }
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
           'User-Agent': client.ua,
+          'X-YouTube-Client-Name': client.clientId,
+          'X-YouTube-Client-Version': client.version,
+          Origin: 'https://www.youtube.com',
         };
         if (visitorData) {
           headers['X-Goog-Visitor-Id'] = visitorData;
@@ -675,10 +978,19 @@ export class DownloadManager {
           signal,
         });
         if (!response.ok) {
+          this.appendLog(`[${videoId}] Client ${client.name} HTTP ${response.status}`);
           continue;
         }
         const data: unknown = await response.json();
-        if (!isRecord(data) || !isRecord(data.streamingData)) {
+        if (!isRecord(data)) {
+          continue;
+        }
+        const playStatus =
+          isRecord(data.playabilityStatus) && isString(data.playabilityStatus.status)
+            ? data.playabilityStatus.status
+            : 'UNKNOWN';
+        if (!isRecord(data.streamingData)) {
+          this.appendLog(`[${videoId}] Client ${client.name} playability=${playStatus} (no streamingData)`);
           continue;
         }
         const adaptive = Array.isArray(data.streamingData.adaptiveFormats)
@@ -709,20 +1021,26 @@ export class DownloadManager {
         });
         const best = candidates[0];
         if (best) {
-          return {
+          this.appendLog(
+            `[${videoId}] Client ${client.name} resolved audio stream (${best.contentLength} bytes)`,
+          );
+          streams.push({
+            clientName: client.name,
             url: best.url,
             contentLength:
               Number.isFinite(best.contentLength) && best.contentLength > 0 ? best.contentLength : 0,
             userAgent: client.ua,
-          };
+          });
         }
-      } catch {
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'error';
+        this.appendLog(`[${videoId}] Client ${client.name} failed: ${msg}`);
         if (isAborted(signal)) {
-          return null;
+          return streams;
         }
       }
     }
-    return null;
+    return streams;
   }
 
   private async downloadViaDirectStream(
@@ -730,91 +1048,30 @@ export class DownloadManager {
     finalAudioPath: string,
     signal: AbortSignal,
   ): Promise<boolean> {
-    const resolved = await this.resolveDirectAudioStream(videoId, signal);
-    if (!resolved) {
+    const streams = await this.resolveDirectAudioStreams(videoId, signal);
+    if (streams.length === 0) {
       return false;
     }
     const rawPath = path.join(this.miscDir, `${videoId}.raw`);
-    const urls = alternateVideoUrls(resolved.url);
-    let urlIndex = 0;
-    let totalBytes = resolved.contentLength;
-    let downloadedBytes = 0;
-    let lastEmit = 0;
-
     try {
-      await fsp.writeFile(rawPath, Buffer.alloc(0));
-
-      if (totalBytes <= 0) {
-        const response = await fetch(urls[0] ?? resolved.url, {
-          headers: { 'User-Agent': resolved.userAgent },
-          signal,
-        });
-        if (!response.ok) {
+      for (const resolved of streams) {
+        if (isAborted(signal)) {
           return false;
         }
-        const buf = Buffer.from(await response.arrayBuffer());
-        if (buf.byteLength === 0) {
-          return false;
-        }
-        await fsp.writeFile(rawPath, buf);
-      } else {
-        while (downloadedBytes < totalBytes) {
-          if (isAborted(signal)) {
-            return false;
-          }
-          const end = Math.min(downloadedBytes + CHUNK_SIZE - 1, totalBytes - 1);
-          let chunkBuf: Buffer | null = null;
-          for (let attempt = 0; attempt < Math.min(urls.length, 6); attempt += 1) {
-            const targetUrl = urls[(urlIndex + attempt) % urls.length] ?? resolved.url;
-            try {
-              const response = await fetch(targetUrl, {
-                headers: {
-                  'User-Agent': resolved.userAgent,
-                  Range: `bytes=${downloadedBytes}-${end}`,
-                },
-                signal,
-              });
-              if (response.status === 206 || response.status === 200) {
-                const data = Buffer.from(await response.arrayBuffer());
-                if (data.byteLength > 0) {
-                  chunkBuf = data;
-                  urlIndex = (urlIndex + attempt) % urls.length;
-                  if (response.status === 200 && downloadedBytes === 0) {
-                    totalBytes = data.byteLength;
-                  }
-                  break;
-                }
-              }
-            } catch {
-              if (isAborted(signal)) {
-                return false;
-              }
+        const ok = await this.downloadSingleStream(videoId, resolved, rawPath, signal);
+        if (ok && existsSync(rawPath)) {
+          const ffmpegBin = findBinaryInPath('ffmpeg');
+          if (ffmpegBin && !signal.aborted) {
+            const converted = await this.transcodeToMp3(videoId, ffmpegBin, rawPath, finalAudioPath, signal);
+            if (converted && existsSync(finalAudioPath)) {
+              return true;
             }
           }
-          if (!chunkBuf) {
-            throw new Error('Audio stream chunk download failed');
-          }
-          await fsp.appendFile(rawPath, chunkBuf);
-          downloadedBytes += chunkBuf.byteLength;
-          const now = Date.now();
-          if (now - lastEmit >= PROGRESS_THROTTLE_MS || downloadedBytes >= totalBytes) {
-            lastEmit = now;
-            const progress = Math.min(0.95, downloadedBytes / totalBytes);
-            this.updateItem(videoId, { progress });
-          }
+          await fsp.rename(rawPath, finalAudioPath);
+          return existsSync(finalAudioPath);
         }
       }
-
-      const ffmpegBin = findBinaryInPath('ffmpeg');
-      if (ffmpegBin && !signal.aborted) {
-        const converted = await this.transcodeToMp3(videoId, ffmpegBin, rawPath, finalAudioPath, signal);
-        if (converted && existsSync(finalAudioPath)) {
-          return true;
-        }
-      }
-
-      await fsp.rename(rawPath, finalAudioPath);
-      return existsSync(finalAudioPath);
+      return false;
     } finally {
       try {
         if (existsSync(rawPath)) {
@@ -824,6 +1081,90 @@ export class DownloadManager {
         logWarn('downloads', 'Failed to remove raw file', error);
       }
     }
+  }
+
+  private async downloadSingleStream(
+    videoId: string,
+    resolved: ResolvedStream,
+    rawPath: string,
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    const urls = alternateVideoUrls(resolved.url);
+    let urlIndex = 0;
+    let totalBytes = resolved.contentLength;
+    let downloadedBytes = 0;
+    let lastEmit = 0;
+
+    await fsp.writeFile(rawPath, Buffer.alloc(0));
+
+    if (totalBytes <= 0) {
+      const response = await fetch(urls[0] ?? resolved.url, {
+        headers: { 'User-Agent': resolved.userAgent },
+        signal,
+      });
+      if (!response.ok) {
+        this.appendLog(`[${videoId}] ${resolved.clientName} stream HTTP ${response.status}`);
+        return false;
+      }
+      const buf = Buffer.from(await response.arrayBuffer());
+      if (buf.byteLength === 0) {
+        return false;
+      }
+      await fsp.writeFile(rawPath, buf);
+      return true;
+    }
+
+    while (downloadedBytes < totalBytes) {
+      if (isAborted(signal)) {
+        return false;
+      }
+      const end = Math.min(downloadedBytes + CHUNK_SIZE - 1, totalBytes - 1);
+      let chunkBuf: Buffer | null = null;
+      let lastStatus = 0;
+      for (let attempt = 0; attempt < Math.min(urls.length, 4); attempt += 1) {
+        const targetUrl = urls[(urlIndex + attempt) % urls.length] ?? resolved.url;
+        try {
+          const response = await fetch(targetUrl, {
+            headers: {
+              'User-Agent': resolved.userAgent,
+              Range: `bytes=${downloadedBytes}-${end}`,
+            },
+            signal,
+          });
+          lastStatus = response.status;
+          if (response.status === 206 || response.status === 200) {
+            const data = Buffer.from(await response.arrayBuffer());
+            if (data.byteLength > 0) {
+              chunkBuf = data;
+              urlIndex = (urlIndex + attempt) % urls.length;
+              if (response.status === 200 && downloadedBytes === 0) {
+                totalBytes = data.byteLength;
+              }
+              break;
+            }
+          }
+        } catch {
+          if (isAborted(signal)) {
+            return false;
+          }
+        }
+      }
+      if (!chunkBuf) {
+        this.appendLog(
+          `[${videoId}] ${resolved.clientName} chunk HTTP ${lastStatus} at byte ${downloadedBytes}/${totalBytes}`,
+        );
+        return false;
+      }
+      await fsp.appendFile(rawPath, chunkBuf);
+      downloadedBytes += chunkBuf.byteLength;
+      const now = Date.now();
+      if (now - lastEmit >= PROGRESS_THROTTLE_MS || downloadedBytes >= totalBytes) {
+        lastEmit = now;
+        const progress = Math.min(0.95, downloadedBytes / totalBytes);
+        this.updateItem(videoId, { progress });
+      }
+    }
+    return true;
   }
 
   private transcodeToMp3(
