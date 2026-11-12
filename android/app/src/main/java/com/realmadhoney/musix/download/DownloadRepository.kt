@@ -715,7 +715,12 @@ class DownloadRepository(
                     swConn.setRequestProperty("User-Agent", ua)
                     if (swConn.responseCode in 200..299) {
                         val raw = swConn.inputStream.bufferedReader().use { it.readText() }
-                        val match = SW_VISITOR_REGEX.find(raw)?.groupValues?.getOrNull(1).orEmpty()
+                        val match =
+                            SW_VISITOR_REGEX
+                                .find(raw)
+                                ?.groupValues
+                                ?.getOrNull(1)
+                                .orEmpty()
                         if (match.isNotEmpty()) {
                             cachedVisitorData = match
                             appendLog("Resolved visitorData from sw.js_data (${match.take(14)}...)")

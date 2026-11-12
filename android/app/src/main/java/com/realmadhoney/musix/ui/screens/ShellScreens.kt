@@ -634,10 +634,10 @@ fun DownloadsScreen(
                     .filter { it.isNotBlank() }
                     .joinToString(" • ")
                     .ifEmpty { "Offline MP3" }
+            val pct = (item.progress * 100).toInt()
             val statusText =
                 when (item.status) {
-                    DownloadStatus.DOWNLOADING ->
-                        if (item.progress <= 0f) "Queued..." else "Downloading MP3 • ${(item.progress * 100).toInt()}%"
+                    DownloadStatus.DOWNLOADING -> if (item.progress <= 0f) "Queued..." else "Downloading MP3 • $pct%"
                     DownloadStatus.FAILED -> item.error ?: "Download failed"
                     DownloadStatus.COMPLETED -> "MP3 • ${formatTime(item.durationSec * 1000L)}"
                 }

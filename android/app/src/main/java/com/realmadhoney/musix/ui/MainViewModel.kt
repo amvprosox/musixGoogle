@@ -361,6 +361,7 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 val libs = ArrayList<DetectedLibrary>()
+
                 suspend fun browseNode(nodeId: String): BrowsePage? {
                     val res = engine.queue.data { BridgeCommand.Browse(it, nodeId) }
                     return (res as? CommandResult.Page)?.page
@@ -487,7 +488,11 @@ class MainViewModel(
             if (!BridgeCodec.isValidVideoId(vid) || item.title.isBlank() || !seen.add(vid)) {
                 continue
             }
-            val parts = item.subtitle.split(" • ").map { it.trim() }.filter { it.isNotEmpty() }
+            val parts =
+                item.subtitle
+                    .split(" • ")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
             result.add(
                 DownloadTrackSpec(
                     videoId = vid,
