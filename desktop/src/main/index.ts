@@ -44,6 +44,11 @@ import { createMainWindow, currentTheme, showWindow, toggleWindow, WindowChrome 
 const LYRICS_TIMEOUT_MS = 30_000;
 const SUGGEST_TIMEOUT_MS = 5_000;
 const BROWSE_TIMEOUT_MS = 12_000;
+const LIBRARY_MAX_TRACKS = 5000;
+const LIBRARY_MAX_CONTINUATIONS = 60;
+const LIBRARY_MAX_PLAYLISTS = 25;
+const LIBRARY_MAX_ALBUMS = 15;
+const LIBRARY_BROWSE_PARALLEL = 4;
 
 function extractPlayableTracks(page: BrowsePage): DownloadTrackRequest[] {
   const results: DownloadTrackRequest[] = [];
@@ -321,6 +326,30 @@ async function start(): Promise<void> {
     );
     return event && event.type === 'browseResult' ? event.page : null;
   };
+  const browseAll = async (nodeId: string): Promise<BrowsePage | null> => {
+    const first = await browseNode(nodeId);
+    if (!first) {
+      return null;
+    }
+    const items = [...first.items];
+    let token = first.continuation;
+    for (
+      let round = 0;
+      token && round < LIBRARY_MAX_CONTINUATIONS && items.length < LIBRARY_MAX_TRACKS;
+      round += 1
+    ) {
+      const event = await requestBridge(
+        { v: 1, type: 'loadContinuation', requestId: view.nextRequestId(), token, kind: 'browse', nodeId },
+        BROWSE_TIMEOUT_MS,
+      );
+      if (!event || event.type !== 'browseResult' || event.page.items.length === 0) {
+        break;
+      }
+      items.push(...event.page.items);
+      token = event.page.continuation !== token ? event.page.continuation : null;
+    }
+    return { ...first, items, continuation: null };
+  };
   const detectLibraries = async (): Promise<DetectedLibrary[]> => {
     const libraries: DetectedLibrary[] = [];
     const seenIds = new Set<string>();
@@ -345,10 +374,10 @@ async function start(): Promise<void> {
     };
 
     const [likedPage, recentPage, playlistsPage, albumsPage] = await Promise.all([
-      browseNode('library-liked'),
+      browseAll('library-liked'),
       browseNode('recent'),
-      browseNode('playlists'),
-      browseNode('library-albums'),
+      browseAll('playlists'),
+      browseAll('library-albums'),
     ]);
 
     if (likedPage) {
@@ -361,35 +390,34 @@ async function start(): Promise<void> {
     }
 
     const collectionItems: { id: string; title: string; artworkUrl: string; kind: string }[] = [];
-    if (playlistsPage) {
-      const items = [...playlistsPage.items, ...playlistsPage.sections.flatMap((s) => s.items)];
-      for (const item of items) {
-        if (item.browseId && item.browseId !== 'VLLM' && item.title.trim() !== '') {
-          collectionItems.push({
-            id: item.browseId,
-            title: item.title.trim(),
-            artworkUrl: item.artworkUrl,
-            kind: 'Playlist',
-          });
-        }
+    const collectionIds = new Set<string>();
+    const addCollections = (page: BrowsePage | null, kind: string, limit: number): void => {
+      if (!page) {
+        return;
       }
-    }
-    if (albumsPage) {
-      const items = [...albumsPage.items, ...albumsPage.sections.flatMap((s) => s.items)];
-      for (const item of items) {
-        if (item.browseId && item.title.trim() !== '') {
-          collectionItems.push({
-            id: item.browseId,
-            title: item.title.trim(),
-            artworkUrl: item.artworkUrl,
-            kind: 'Album',
-          });
+      let added = 0;
+      for (const item of [...page.items, ...page.sections.flatMap((s) => s.items)]) {
+        if (added >= limit) {
+          return;
         }
+        const id = item.browseId;
+        if (!id || id === 'VLLM' || id === 'LM' || item.title.trim() === '' || collectionIds.has(id)) {
+          continue;
+        }
+        collectionIds.add(id);
+        collectionItems.push({ id, title: item.title.trim(), artworkUrl: item.artworkUrl, kind });
+        added += 1;
       }
-    }
+    };
+    addCollections(playlistsPage, 'Playlist', LIBRARY_MAX_PLAYLISTS);
+    addCollections(albumsPage, 'Album', LIBRARY_MAX_ALBUMS);
 
-    const cappedCollections = collectionItems.slice(0, 12);
-    const pages = await Promise.all(cappedCollections.map((col) => browseNode(col.id)));
+    const cappedCollections = collectionItems;
+    const pages: (BrowsePage | null)[] = [];
+    for (let start = 0; start < cappedCollections.length; start += LIBRARY_BROWSE_PARALLEL) {
+      const chunk = cappedCollections.slice(start, start + LIBRARY_BROWSE_PARALLEL);
+      pages.push(...(await Promise.all(chunk.map((col) => browseAll(col.id)))));
+    }
     for (let i = 0; i < cappedCollections.length; i += 1) {
       const col = cappedCollections[i];
       const page = pages[i];

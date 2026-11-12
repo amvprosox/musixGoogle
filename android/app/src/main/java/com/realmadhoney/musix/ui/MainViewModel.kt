@@ -10,6 +10,7 @@ import com.realmadhoney.musix.core.bridge.BridgeCodec
 import com.realmadhoney.musix.core.bridge.BridgeCommand
 import com.realmadhoney.musix.core.bridge.BrowsePage
 import com.realmadhoney.musix.core.bridge.CommandResult
+import com.realmadhoney.musix.core.bridge.ContinuationKind
 import com.realmadhoney.musix.core.bridge.FlatItem
 import com.realmadhoney.musix.core.bridge.Lyrics
 import com.realmadhoney.musix.core.bridge.SearchSuggestions
@@ -366,7 +367,27 @@ class MainViewModel(
                     val res = engine.queue.data { BridgeCommand.Browse(it, nodeId) }
                     return (res as? CommandResult.Page)?.page
                 }
-                val likedPage = browseNode("library-liked")
+
+                suspend fun browseAll(nodeId: String): BrowsePage? {
+                    val first = browseNode(nodeId) ?: return null
+                    val items = first.items.toMutableList()
+                    var token = first.continuation
+                    var rounds = 0
+                    while (token != null && rounds < LIBRARY_MAX_CONTINUATIONS && items.size < LIBRARY_MAX_TRACKS) {
+                        rounds++
+                        val current: String = token
+                        val res = engine.queue.data { BridgeCommand.LoadContinuation(it, current, ContinuationKind.BROWSE, nodeId) }
+                        val next = (res as? CommandResult.Page)?.page ?: break
+                        if (next.items.isEmpty()) {
+                            break
+                        }
+                        items.addAll(next.items)
+                        token = next.continuation?.takeIf { it != current }
+                    }
+                    return first.copy(items = items, continuation = null)
+                }
+
+                val likedPage = browseAll("library-liked")
                 if (likedPage != null) {
                     val tracks = extractTracks(likedPage)
                     if (tracks.isNotEmpty()) {
@@ -396,16 +417,16 @@ class MainViewModel(
                         )
                     }
                 }
-                val playlistsPage = browseNode("playlists")
+                val playlistsPage = browseAll("playlists")
                 if (playlistsPage != null) {
                     val collections =
                         (playlistsPage.items + playlistsPage.sections.flatMap { it.items })
                             .filter { !it.browseId.isNullOrBlank() && it.browseId != "VLLM" && it.browseId != "LM" }
                             .distinctBy { it.browseId }
-                            .take(10)
+                            .take(LIBRARY_MAX_PLAYLISTS)
                     for (col in collections) {
                         val bId = col.browseId ?: continue
-                        val subPage = browseNode(bId) ?: continue
+                        val subPage = browseAll(bId) ?: continue
                         val tracks = extractTracks(subPage)
                         if (tracks.isNotEmpty()) {
                             libs.add(
@@ -425,16 +446,16 @@ class MainViewModel(
                         }
                     }
                 }
-                val albumsPage = browseNode("library-albums")
+                val albumsPage = browseAll("library-albums")
                 if (albumsPage != null) {
                     val albums =
                         (albumsPage.items + albumsPage.sections.flatMap { it.items })
                             .filter { !it.browseId.isNullOrBlank() }
                             .distinctBy { it.browseId }
-                            .take(8)
+                            .take(LIBRARY_MAX_ALBUMS)
                     for (alb in albums) {
                         val bId = alb.browseId ?: continue
-                        val subPage = browseNode(bId) ?: continue
+                        val subPage = browseAll(bId) ?: continue
                         val tracks = extractTracks(subPage)
                         if (tracks.isNotEmpty()) {
                             libs.add(
@@ -686,5 +707,9 @@ class MainViewModel(
         const val PAGE_SIZE = 50
         const val SUGGEST_DEBOUNCE_MS = 150L
         const val LYRICS_SETTLE_MS = 1_200L
+        const val LIBRARY_MAX_TRACKS = 5000
+        const val LIBRARY_MAX_CONTINUATIONS = 60
+        const val LIBRARY_MAX_PLAYLISTS = 25
+        const val LIBRARY_MAX_ALBUMS = 15
     }
 }

@@ -98,6 +98,10 @@ final class DownloadController: ObservableObject {
 
     private static let maxConcurrent = 3
     private static let maxLogLines = 500
+    private static let libraryMaxTracks = 5000
+    private static let libraryMaxContinuations = 60
+    private static let libraryMaxPlaylists = 25
+    private static let libraryMaxAlbums = 15
     nonisolated private static let chunkBytes: Int64 = 512 * 1024
     nonisolated private static let clients: [InnertubeClientSpec] = [
         InnertubeClientSpec(
@@ -447,8 +451,26 @@ final class DownloadController: ObservableObject {
             }
             return nil
         }
+        func browseAll(_ nodeId: String) async -> BrowsePage? {
+            guard var page = await browse(nodeId) else {
+                return nil
+            }
+            var token = page.continuation
+            var rounds = 0
+            while let current = token, rounds < Self.libraryMaxContinuations, page.items.count < Self.libraryMaxTracks {
+                rounds += 1
+                guard case let .page(next) = await queue.send(.loadContinuation(token: current, kind: .browse, nodeId: nodeId)),
+                      !next.items.isEmpty else {
+                    break
+                }
+                page.items.append(contentsOf: next.items)
+                token = next.continuation == current ? nil : next.continuation
+            }
+            page.continuation = nil
+            return page
+        }
         var found: [DetectedLibrary] = []
-        if let page = await browse("library-liked") {
+        if let page = await browseAll("library-liked") {
             let tracks = Self.extractTracks(page.items + page.sections.flatMap(\.items))
             if !tracks.isEmpty {
                 found.append(DetectedLibrary(id: "library-liked", title: "Liked Music", subtitle: "\(tracks.count) songs", artworkUrl: tracks[0].artworkUrl, tracks: tracks))
@@ -460,8 +482,8 @@ final class DownloadController: ObservableObject {
                 found.append(DetectedLibrary(id: "recent", title: "Recently Played", subtitle: "\(tracks.count) songs", artworkUrl: tracks[0].artworkUrl, tracks: tracks))
             }
         }
-        for (node, label, limit) in [("playlists", "Playlist", 10), ("library-albums", "Album", 8)] {
-            guard let page = await browse(node) else {
+        for (node, label, limit) in [("playlists", "Playlist", Self.libraryMaxPlaylists), ("library-albums", "Album", Self.libraryMaxAlbums)] {
+            guard let page = await browseAll(node) else {
                 continue
             }
             var seen = Set<String>()
@@ -472,7 +494,7 @@ final class DownloadController: ObservableObject {
                 return seen.insert(browseId).inserted
             }
             for collection in collections.prefix(limit) {
-                guard let browseId = collection.browseId, let sub = await browse(browseId) else {
+                guard let browseId = collection.browseId, let sub = await browseAll(browseId) else {
                     continue
                 }
                 let tracks = Self.extractTracks(sub.items + sub.sections.flatMap(\.items))
