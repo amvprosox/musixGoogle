@@ -47,10 +47,10 @@ struct SearchView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            MiniPlayer(player: player) { showPlayer = true }
+            MiniPlayer(player: player, downloads: AppModel.shared.downloads) { showPlayer = true }
         }
         .sheet(isPresented: $showPlayer) {
-            NowPlayingView(player: player, lyrics: AppModel.shared.lyrics)
+            NowPlayingView(player: player, downloads: AppModel.shared.downloads, lyrics: AppModel.shared.lyrics)
         }
     }
 }

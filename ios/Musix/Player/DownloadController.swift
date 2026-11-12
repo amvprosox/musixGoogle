@@ -63,8 +63,8 @@ final class DownloadController: ObservableObject {
     private let indexFile: URL
     private var activeTasks: [String: Task<Void, Never>] = [:]
 
-    private static let chunkBytes: Int64 = 512 * 1024
-    private static let clients: [InnertubeClientSpec] = [
+    nonisolated private static let chunkBytes: Int64 = 512 * 1024
+    nonisolated private static let clients: [InnertubeClientSpec] = [
         InnertubeClientSpec(
             name: "ANDROID_VR",
             version: "1.60.19",

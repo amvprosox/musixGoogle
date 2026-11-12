@@ -478,7 +478,8 @@ class DownloadRepository(
                 )
                 if (conn.responseCode in 200..299) {
                     val html = conn.inputStream.bufferedReader().use { it.readText() }
-                    val match = VISITOR_REGEX.find(html)?.groupValues?.getOrNull(1).orEmpty()
+                    val found = VISITOR_REGEX.find(html)
+                    val match = found?.groupValues?.getOrNull(1) ?: ""
                     if (match.isNotEmpty()) {
                         cachedVisitorData = match
                         return match
