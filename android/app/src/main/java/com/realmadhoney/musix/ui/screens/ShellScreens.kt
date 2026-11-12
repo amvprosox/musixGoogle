@@ -1,5 +1,8 @@
 package com.realmadhoney.musix.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.widget.FrameLayout
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
@@ -43,7 +46,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -453,6 +456,14 @@ private fun SectionHeader(text: String) {
     )
 }
 
+private fun copyToClipboard(
+    context: Context,
+    text: String,
+) {
+    val manager = context.getSystemService(ClipboardManager::class.java) ?: return
+    manager.setPrimaryClip(ClipData.newPlainText("Musix download logs", text))
+}
+
 @Composable
 fun DownloadsScreen(
     items: List<DownloadItem>,
@@ -472,7 +483,7 @@ fun DownloadsScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = Musix.colors
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     var query by rememberSaveable { mutableStateOf("") }
     var logsOpen by rememberSaveable { mutableStateOf(false) }
     val needle = query.trim().lowercase()
@@ -538,7 +549,7 @@ fun DownloadsScreen(
                             color = colors.text,
                             modifier = Modifier.weight(1f),
                         )
-                        DownloadPill("Copy", R.drawable.ic_check, { clipboard.setText(AnnotatedString(logs.joinToString("\n"))) })
+                        DownloadPill("Copy", R.drawable.ic_check, { copyToClipboard(context, logs.joinToString("\n")) })
                         DownloadPill("Clear", R.drawable.ic_trash, onClearLogs)
                     }
                     Text(
