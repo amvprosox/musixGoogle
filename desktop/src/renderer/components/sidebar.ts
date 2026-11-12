@@ -53,6 +53,15 @@ export function mountSidebar(root: HTMLElement, ctx: AppContext): void {
       }),
     );
 
+  const downloadsButton = navButton({ id: 'downloads', label: 'Downloads', icon: 'download' }, () => {
+    if (store.getState().downloadsOpen) {
+      router.closeDownloads();
+      return;
+    }
+    router.openDownloads();
+  });
+  buttons.set('downloads', downloadsButton);
+
   const settingsButton = navButton({ id: 'settings', label: 'Settings', icon: 'settings' }, () => {
     if (store.getState().settingsOpen) {
       router.closeSettings();
@@ -78,6 +87,9 @@ export function mountSidebar(root: HTMLElement, ctx: AppContext): void {
     [icon('panel-left-close'), h('span', { className: 'nav-label', text: 'Collapse' })],
   );
 
+  const collectionList = makeList(COLLECTION_NAV);
+  collectionList.append(h('li', {}, [downloadsButton]));
+
   const inner = h('div', { className: 'sidebar-inner' }, [
     h('div', { className: 'brand' }, [
       h('img', {
@@ -89,7 +101,7 @@ export function mountSidebar(root: HTMLElement, ctx: AppContext): void {
     h('nav', { attrs: { 'aria-label': 'Primary' } }, [
       makeList(PRIMARY_NAV),
       h('div', { className: 'nav-group-label', text: 'Collection' }),
-      makeList(COLLECTION_NAV),
+      collectionList,
     ]),
     h('div', { className: 'sidebar-footer' }, [settingsButton, collapseButton]),
   ]);

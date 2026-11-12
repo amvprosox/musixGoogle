@@ -24,6 +24,9 @@ const INVOKE_CHANNELS: readonly ShellInvokeChannel[] = [
   'data:sign-out',
   'lyrics:get',
   'search:suggest',
+  'downloads:list',
+  'downloads:start',
+  'downloads:delete',
 ];
 
 const SEND_CHANNELS: readonly ShellSendChannel[] = [

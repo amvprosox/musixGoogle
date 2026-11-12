@@ -24,6 +24,7 @@ import {
   writeAutostart,
 } from './autostart';
 import { isTestRun, userDataOverride, ytmBaseUrl } from './config';
+import { DownloadManager } from './downloads';
 import { registerIpc, sendToShell } from './ipc';
 import { logError, logInfo, logWarn } from './log';
 import { MprisManager } from './mpris';
@@ -35,7 +36,7 @@ import { toPlayerState, toQueueItems } from '../shared/bridge-adapter';
 import { AppStore } from './store';
 import { AppTray } from './tray';
 import { startListRefreshSchedule } from './updater-lists';
-import { ASSET_SCHEME, configureYtmSession, YtmView } from './view';
+import { ASSET_SCHEME, configureAssetProtocol, configureYtmSession, YtmView } from './view';
 import { createMainWindow, currentTheme, showWindow, toggleWindow, WindowChrome } from './window';
 
 const LYRICS_TIMEOUT_MS = 30_000;
@@ -57,7 +58,14 @@ if (process.platform === 'win32') {
 protocol.registerSchemesAsPrivileged([
   {
     scheme: ASSET_SCHEME,
-    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, bypassCSP: true },
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      bypassCSP: true,
+      stream: true,
+    },
   },
 ]);
 
@@ -133,7 +141,12 @@ async function start(): Promise<void> {
   nativeTheme.themeSource = initialSettings.theme;
 
   const ytmSession = session.fromPartition(YTM_PARTITION);
-  configureYtmSession(ytmSession);
+  let ytmViewRef: YtmView | null = null;
+  const downloads = new DownloadManager(app.getPath('userData'), ytmSession, () =>
+    ytmViewRef ? ytmViewRef.webContents : null,
+  );
+  configureAssetProtocol(session.defaultSession, downloads.downloadsDir);
+  configureYtmSession(ytmSession, downloads.downloadsDir);
 
   const adblock = new AdblockManager(ytmSession, app.getPath('userData'), initialSettings.adblockEnabled);
   const adblockReady = adblock.init().catch((error: unknown) => {
@@ -179,6 +192,7 @@ async function start(): Promise<void> {
     () => lastState,
     devMode,
   );
+  ytmViewRef = view;
   hardenContents(view.webContents, devMode);
   view.webContents.on('did-create-window', (child) => {
     hardenContents(child.webContents, devMode);
@@ -292,6 +306,7 @@ async function start(): Promise<void> {
       overlays,
       store,
       adblock,
+      downloads,
       base,
       version: app.getVersion(),
       systemDark: () => nativeTheme.shouldUseDarkColors,
@@ -411,6 +426,11 @@ async function start(): Promise<void> {
       sendToShell(win, 'adblock:status', status);
     }),
   );
+  disposers.push(
+    downloads.onChanged((items) => {
+      sendToShell(win, 'downloads:changed', items);
+    }),
+  );
   disposers.push(startListRefreshSchedule(adblock));
 
   disposers.push(
@@ -458,6 +478,7 @@ async function start(): Promise<void> {
     tray.dispose();
     view.dispose();
     adblock.dispose();
+    downloads.dispose();
   });
 
   await Promise.race([adblockReady, delay(ADBLOCK_FIRST_FETCH_TIMEOUT_MS)]);

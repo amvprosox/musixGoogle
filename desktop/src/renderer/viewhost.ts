@@ -6,6 +6,7 @@ export function baseViewVisible(state: ShellState): boolean {
   return (
     state.initialized &&
     !state.settingsOpen &&
+    !state.downloadsOpen &&
     state.viewStatus.kind === 'ready' &&
     state.online &&
     !state.nowPlayingOpen &&

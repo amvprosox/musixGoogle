@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EMPTY_PLAYER_STATE } from '../../src/shared/state-diff';
 import {
   isAccountState,
+  isDownloadTrackRequest,
   isHistoryDirection,
   isKeyPayload,
   isOverlayRenderPayload,
@@ -12,6 +13,7 @@ import {
   isRect,
   isToastLayerRequest,
   isTooltipRequest,
+  isVideoId,
   isViewLayout,
 } from '../../src/shared/validators';
 
@@ -100,5 +102,27 @@ describe('IPC payload validators', () => {
       true,
     );
     expect(isOverlayRenderPayload({ kind: 'toasts', toasts: [toast], theme: 'light' })).toBe(false);
+    expect(isVideoId('dQw4w9WgXcQ')).toBe(true);
+    expect(isVideoId('../etc/passwd')).toBe(false);
+    expect(
+      isDownloadTrackRequest({
+        videoId: 'dQw4w9WgXcQ',
+        title: 'Track Title',
+        artist: 'Artist',
+        album: 'Album',
+        durationSec: 213,
+        artworkUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+      }),
+    ).toBe(true);
+    expect(
+      isDownloadTrackRequest({
+        videoId: 'bad!',
+        title: 'Track Title',
+        artist: 'Artist',
+        album: 'Album',
+        durationSec: 213,
+        artworkUrl: '',
+      }),
+    ).toBe(false);
   });
 });

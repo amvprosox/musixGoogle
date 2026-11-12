@@ -8,6 +8,13 @@
     <string name="tab_explore">Explore</string>
     <string name="tab_playlists">Playlists</string>
     <string name="tab_recent">Recent</string>
+    <string name="tab_downloads">Downloads</string>
+
+    <string name="action_download">Download MP3</string>
+    <string name="action_downloaded">Downloaded MP3</string>
+    <string name="action_delete_download">Delete download</string>
+    <string name="downloads_empty">No downloads yet</string>
+    <string name="downloads_empty_body">Tap the download button on any playing song to save its MP3, thumbnail, and description for offline playback.</string>
 
     <string name="action_search">Search</string>
     <string name="action_settings">Settings</string>

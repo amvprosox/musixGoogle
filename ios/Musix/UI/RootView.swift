@@ -6,6 +6,7 @@ enum ShellTab: CaseIterable {
     case explore
     case search
     case library
+    case downloads
     case settings
 
     var title: String {
@@ -14,6 +15,7 @@ enum ShellTab: CaseIterable {
         case .explore: return "Explore"
         case .search: return "Search"
         case .library: return "Library"
+        case .downloads: return "Downloads"
         case .settings: return "Settings"
         }
     }
@@ -24,6 +26,7 @@ enum ShellTab: CaseIterable {
         case .explore: return "compass"
         case .search: return "search"
         case .library: return "library"
+        case .downloads: return "download"
         case .settings: return "settings"
         }
     }
@@ -33,7 +36,7 @@ enum ShellTab: CaseIterable {
         case .home: return .home
         case .explore: return .explore
         case .library: return .library
-        case .search, .settings: return nil
+        case .search, .downloads, .settings: return nil
         }
     }
 }
@@ -41,6 +44,7 @@ enum ShellTab: CaseIterable {
 struct RootView: View {
     @ObservedObject var engine: WebEngine
     @ObservedObject var player: PlayerController
+    @ObservedObject var downloads: DownloadController
     let library: LibraryService
     @ObservedObject var settings: AppSettings
     let lyrics: LyricsController
@@ -56,12 +60,17 @@ struct RootView: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
-            EngineStatusBanner(engine: engine)
+            if tab != .downloads {
+                EngineStatusBanner(engine: engine)
+            }
             ZStack {
                 EngineHost(engine: engine, role: .background)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.black)
-                if showSuggestions {
+                if tab == .downloads {
+                    DownloadsView(downloads: downloads, player: player)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if showSuggestions {
                     SearchSuggestionsList(
                         suggestions: suggester.suggestions,
                         onSearch: { text in
@@ -77,7 +86,7 @@ struct RootView: View {
                 }
             }
             Rectangle().fill(Palette.border).frame(height: 1)
-            MiniPlayer(player: player) { showPlayer = true }
+            MiniPlayer(player: player, downloads: downloads) { showPlayer = true }
             Rectangle().fill(Palette.border).frame(height: 1)
             tabBar
         }
@@ -85,7 +94,7 @@ struct RootView: View {
         .preferredColorScheme(.dark)
         .tint(Palette.accent)
         .sheet(isPresented: $showPlayer) {
-            NowPlayingView(player: player, lyrics: lyrics)
+            NowPlayingView(player: player, downloads: downloads, lyrics: lyrics)
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(engine: engine, settings: settings, library: library, onSignIn: signIn)
@@ -224,6 +233,9 @@ struct RootView: View {
         case .search:
             tab = .search
             searchFocused = true
+        case .downloads:
+            searchFocused = false
+            tab = .downloads
         case .home, .explore, .library:
             searchFocused = false
             tab = item

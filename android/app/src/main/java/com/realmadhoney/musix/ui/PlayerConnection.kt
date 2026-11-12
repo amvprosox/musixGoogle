@@ -219,6 +219,13 @@ class PlayerConnection(
         if (current.playWhenReady) current.pause() else current.play()
     }
 
+    fun pause() {
+        val current = browser ?: return
+        if (current.playWhenReady) {
+            current.pause()
+        }
+    }
+
     fun next() {
         browser?.seekToNext() ?: notConnected()
     }

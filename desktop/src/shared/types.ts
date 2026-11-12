@@ -32,8 +32,34 @@ export interface QueueItem {
   isCurrent: boolean;
 }
 
+export type DownloadStatus = 'downloading' | 'completed' | 'failed';
+
+export interface DownloadItem {
+  id: string;
+  videoId: string;
+  title: string;
+  artist: string;
+  album: string;
+  durationSec: number;
+  artworkUrl: string;
+  audioUrl: string;
+  status: DownloadStatus;
+  progress: number;
+  error: string | null;
+  createdAt: number;
+}
+
+export interface DownloadTrackRequest {
+  videoId: string;
+  title: string;
+  artist: string;
+  album: string;
+  durationSec: number;
+  artworkUrl: string;
+}
+
 export type NavRoute = 'home' | 'explore' | 'library' | 'liked' | 'playlists';
-export type ShellRoute = NavRoute | 'search' | 'settings' | 'other';
+export type ShellRoute = NavRoute | 'downloads' | 'search' | 'settings' | 'other';
 
 export type PlayerCommand =
   | { type: 'play' }
@@ -152,6 +178,7 @@ export interface InitialData {
   systemDark: boolean;
   ytmBase: string;
   chrome: WindowChromeState;
+  downloads: DownloadItem[];
 }
 
 export type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right';

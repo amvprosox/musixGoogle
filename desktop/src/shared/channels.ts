@@ -2,6 +2,8 @@ import type {
   AccountState,
   DesktopViewCommand,
   DesktopViewEvent,
+  DownloadItem,
+  DownloadTrackRequest,
   AdblockStatus,
   AppCommand,
   AppSettings,
@@ -38,6 +40,9 @@ export interface ShellInvokeChannels {
   'data:sign-out': { request: null; response: boolean };
   'lyrics:get': { request: null; response: LyricsResponse };
   'search:suggest': { request: string; response: SuggestResponse };
+  'downloads:list': { request: null; response: DownloadItem[] };
+  'downloads:start': { request: DownloadTrackRequest; response: DownloadItem };
+  'downloads:delete': { request: string; response: boolean };
 }
 
 export interface ShellSendChannels {
@@ -69,6 +74,7 @@ export interface ShellEventChannels {
   'view:progress': 'start' | 'done';
   notice: ShellNotice;
   'dialog:show': ShellDialog;
+  'downloads:changed': DownloadItem[];
 }
 
 export interface YtmSendChannels {
@@ -115,6 +121,7 @@ export const SHELL_EVENT_CHANNELS: readonly ShellEventChannel[] = [
   'view:progress',
   'notice',
   'dialog:show',
+  'downloads:changed',
 ];
 
 export interface ShellApi {

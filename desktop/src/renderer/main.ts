@@ -2,6 +2,7 @@ import { errorMessage } from '../shared/guards';
 import { PlayerActions } from './actions';
 import { getShellApi } from './api';
 import { mountBottomNav } from './components/bottomnav';
+import { mountDownloads } from './components/downloads';
 import { mountModal } from './components/modal';
 import { mountNowPlaying } from './components/nowplaying';
 import { mountViewState } from './components/offline';
@@ -91,6 +92,9 @@ function bootstrap(): void {
     if (state.settingsOpen) {
       router.closeSettings();
     }
+    if (state.downloadsOpen) {
+      router.closeDownloads();
+    }
     if (searchInput) {
       searchInput.focus();
       searchInput.select();
@@ -117,6 +121,7 @@ function bootstrap(): void {
   mountWindowControls(topbarEl, ctx);
   mountViewState(required('view-state', HTMLDivElement), ctx);
   mountSettings(required('settings-page', HTMLElement), ctx);
+  mountDownloads(required('downloads-page', HTMLElement), ctx);
   mountQueue(required('queue-panel', HTMLElement), ctx);
   mountPlayerBar(playerbar, ctx);
   mountBottomNav(bottomNav, ctx);
@@ -192,6 +197,10 @@ function bootstrap(): void {
         router.closeSettings();
         return true;
       }
+      if (store.getState().downloadsOpen) {
+        router.closeDownloads();
+        return true;
+      }
       return false;
     },
     quit: () => {
@@ -200,7 +209,17 @@ function bootstrap(): void {
   });
 
   api.on('player:state', (player) => {
+    if (actions.isOfflineActive()) {
+      if (player.isPlaying && player.hasTrack) {
+        actions.stopOffline();
+      } else {
+        return;
+      }
+    }
     store.dispatch({ type: 'player', player });
+  });
+  api.on('downloads:changed', (downloads) => {
+    store.dispatch({ type: 'downloads', downloads });
   });
   api.on('player:queue', (queue) => {
     store.dispatch({ type: 'queue', queue });

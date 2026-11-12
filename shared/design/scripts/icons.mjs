@@ -47,6 +47,8 @@ const ICONS = {
   compass: 'Compass',
   lyrics: 'TextQuote',
   fill_query: 'ArrowUpLeft',
+  download: 'Download',
+  check: 'Check',
 };
 
 const FILLED = new Set(['heart', 'play', 'pause']);

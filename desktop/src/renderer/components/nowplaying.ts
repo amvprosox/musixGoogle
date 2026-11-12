@@ -2,6 +2,7 @@ import { volumeIconName } from '../../shared/player-math';
 import type { AppContext } from '../context';
 import { h, hydrate, icon, iconButton, setAttr, setButtonIcon, setImage, setLabel, setText } from '../dom';
 import { displayedPlaying } from '../state';
+import { downloadTrackButton } from './downloads';
 import { lyricsToggle } from './lyrics';
 import { createProgressSlider, createVolumeSlider, syncProgress, trackLabel } from './playerbar';
 
@@ -134,6 +135,7 @@ export function mountNowPlaying(root: HTMLElement, ctx: AppContext): void {
       artPlaceholder,
       h('div', { className: 'np-meta' }, [
         h('div', { className: 'np-text' }, [title, artist]),
+        downloadTrackButton(ctx, 'top', 'np-download'),
         dislike,
         like,
       ]),

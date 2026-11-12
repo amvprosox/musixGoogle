@@ -16,6 +16,7 @@ import com.realmadhoney.musix.core.browse.PageSource
 import com.realmadhoney.musix.core.cache.JsonFileStore
 import com.realmadhoney.musix.core.cache.TtlCache
 import com.realmadhoney.musix.data.SettingsRepository
+import com.realmadhoney.musix.download.DownloadRepository
 import com.realmadhoney.musix.engine.AdBlocker
 import com.realmadhoney.musix.engine.EngineConfig
 import com.realmadhoney.musix.engine.InjectedScripts
@@ -39,6 +40,8 @@ class AppGraph(
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val settings = SettingsRepository(context, ioScope)
+
+    val downloads = DownloadRepository(context, ioScope) { message -> postMessage(message) }
 
     val connectivity = Connectivity(context)
 

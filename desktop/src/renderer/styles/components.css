@@ -1117,7 +1117,7 @@
 
 .bottom-nav-inner {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   height: var(--bottomnav-h);
   border-top: 1px solid var(--border);
   background: var(--surface);
@@ -1698,4 +1698,140 @@
   .lyrics-lines[data-synced='true'] .lyric-line {
     transition: none;
   }
+}
+
+.download-track-btn[data-status='completed'] {
+  color: var(--accent);
+}
+
+.download-track-btn[data-status='downloading'] svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.downloads-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-12);
+}
+
+.download-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-16);
+  padding: var(--sp-12) var(--sp-16);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  transition: background-color var(--dur-hover) var(--ease);
+}
+
+.download-card:hover {
+  background: var(--surface-hover);
+}
+
+.download-card[data-current='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.download-thumb-wrap {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+}
+
+.download-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-control);
+  object-fit: cover;
+  background: var(--surface-2);
+}
+
+.download-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.download-title {
+  font-size: var(--fs-16);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.download-desc {
+  font-size: var(--fs-14);
+  color: var(--text-muted);
+}
+
+.download-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-12);
+  font-size: var(--fs-14);
+  color: var(--text-muted);
+}
+
+.download-status-error {
+  color: var(--danger);
+  font-size: var(--fs-14);
+}
+
+.download-progress-bar {
+  flex: 1 1 auto;
+  max-width: 220px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.download-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  transition: width 150ms linear;
+}
+
+.download-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-8);
+  flex: 0 0 auto;
+}
+
+.downloads-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--sp-12);
+  padding: var(--sp-48) var(--sp-24);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.downloads-empty h2 {
+  color: var(--text);
+  font-size: var(--fs-20);
+}
+
+.downloads-empty p {
+  max-width: 440px;
+  font-size: var(--fs-14);
 }

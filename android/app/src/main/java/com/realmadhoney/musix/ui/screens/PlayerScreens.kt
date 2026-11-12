@@ -75,6 +75,8 @@ interface PlayerActions {
     fun retry()
 
     fun saveToPlaylist()
+
+    fun downloadTrack()
 }
 
 @Composable
@@ -83,6 +85,7 @@ fun MiniPlayer(
     actions: PlayerActions,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    isDownloaded: Boolean = false,
 ) {
     val colors = Musix.colors
     val openLabel = stringResource(R.string.action_open_player)
@@ -127,6 +130,13 @@ fun MiniPlayer(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            IconAction(
+                if (isDownloaded) R.drawable.ic_check else R.drawable.ic_download,
+                stringResource(if (isDownloaded) R.string.action_downloaded else R.string.action_download),
+                actions::downloadTrack,
+                enabled = state.hasTrack && state.canSeek,
+                active = isDownloaded,
+            )
             Box(
                 modifier =
                     Modifier
@@ -173,6 +183,7 @@ fun NowPlayingScreen(
     onRetryLyrics: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    isDownloaded: Boolean = false,
 ) {
     val colors = Musix.colors
     Column(modifier = modifier.fillMaxSize().background(colors.bg)) {
@@ -246,6 +257,13 @@ fun NowPlayingScreen(
                         )
                     }
                 }
+                IconAction(
+                    if (isDownloaded) R.drawable.ic_check else R.drawable.ic_download,
+                    stringResource(if (isDownloaded) R.string.action_downloaded else R.string.action_download),
+                    actions::downloadTrack,
+                    active = isDownloaded,
+                    enabled = state.canSeek,
+                )
                 IconAction(
                     R.drawable.ic_queue,
                     stringResource(R.string.action_save_to_playlist),

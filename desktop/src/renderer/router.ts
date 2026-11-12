@@ -19,10 +19,31 @@ export class Router {
     if (state.settingsOpen) {
       this.store.dispatch({ type: 'settings-open', open: false });
     }
+    if (state.downloadsOpen) {
+      this.store.dispatch({ type: 'downloads-open', open: false });
+    }
     if (state.sidebarDrawerOpen) {
       this.overlays.close('sidebar');
     }
     this.api.send('view:command', { type: 'navigate', route });
+  }
+
+  openDownloads(): void {
+    const state = this.store.getState();
+    if (state.sidebarDrawerOpen) {
+      this.overlays.close('sidebar');
+    }
+    if (state.nowPlayingOpen) {
+      this.overlays.close('nowplaying');
+    }
+    if (state.searchOverlayOpen) {
+      this.overlays.close('search');
+    }
+    this.store.dispatch({ type: 'downloads-open', open: true });
+  }
+
+  closeDownloads(): void {
+    this.store.dispatch({ type: 'downloads-open', open: false });
   }
 
   openSettings(): void {
@@ -52,6 +73,9 @@ export class Router {
     if (state.settingsOpen) {
       this.store.dispatch({ type: 'settings-open', open: false });
     }
+    if (state.downloadsOpen) {
+      this.store.dispatch({ type: 'downloads-open', open: false });
+    }
     if (state.lyricsOpen) {
       this.store.dispatch({ type: 'lyrics-open', open: false });
     }
@@ -65,6 +89,10 @@ export class Router {
   back(): void {
     if (this.store.getState().settingsOpen) {
       this.closeSettings();
+      return;
+    }
+    if (this.store.getState().downloadsOpen) {
+      this.closeDownloads();
       return;
     }
     this.api.send('view:history', 'back');

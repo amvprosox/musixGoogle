@@ -9,6 +9,27 @@ struct PlaylistError: Error, Equatable {
     let message: String
 }
 
+private final class OfflineAudioDelegate: NSObject, AVAudioPlayerDelegate {
+    var onFinish: (() -> Void)?
+
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        let callback = onFinish
+        Task { @MainActor in
+            callback?()
+        }
+    }
+}
+
+private struct OfflineTrackEntry: Equatable {
+    let videoId: String
+    let title: String
+    let artist: String
+    let album: String
+    let durationSec: Double
+    let artworkUrl: String
+    let audioUrl: URL
+}
+
 @MainActor
 final class PlayerController: ObservableObject {
     @Published private(set) var state: BridgeState = .empty
@@ -33,9 +54,19 @@ final class PlayerController: ObservableObject {
     private var lastIncoming: BridgeState?
     private var bufferingSince: Date?
 
+    private var offlineActive = false
+    private var offlinePlayer: AVAudioPlayer?
+    private let offlineDelegate = OfflineAudioDelegate()
+    private var offlineTicker: Task<Void, Never>?
+    private var offlineTracks: [OfflineTrackEntry] = []
+    private var offlineIndex = 0
+
     init(engine: WebEngine, settings: AppSettings) {
         self.engine = engine
         self.settings = settings
+        offlineDelegate.onFinish = { [weak self] in
+            self?.handleOfflineTrackEnded()
+        }
         configureAudioSession()
         observeAudioSession()
         configureRemoteCommands()
@@ -77,10 +108,210 @@ final class PlayerController: ObservableObject {
     }
 
     var availability: RemoteAvailability {
-        PlaybackModel.availability(state: state, timeline: timeline, signedIn: engine.account == .signedIn)
+        PlaybackModel.availability(state: state, timeline: timeline, signedIn: !offlineActive && engine.account == .signedIn)
+    }
+
+    func playOffline(item: DownloadItem, downloads: DownloadController) {
+        guard let targetAudio = downloads.audioURL(for: item.videoId) else {
+            message = "Downloaded audio file could not be found."
+            return
+        }
+        var list: [OfflineTrackEntry] = []
+        for entry in downloads.items where entry.status == .completed {
+            if let url = downloads.audioURL(for: entry.videoId) {
+                list.append(
+                    OfflineTrackEntry(
+                        videoId: entry.videoId,
+                        title: entry.title,
+                        artist: entry.artist,
+                        album: entry.album,
+                        durationSec: entry.durationSec,
+                        artworkUrl: downloads.artworkAddress(for: entry),
+                        audioUrl: url
+                    )
+                )
+            }
+        }
+        if !list.contains(where: { $0.videoId == item.videoId }) {
+            list.insert(
+                OfflineTrackEntry(
+                    videoId: item.videoId,
+                    title: item.title,
+                    artist: item.artist,
+                    album: item.album,
+                    durationSec: item.durationSec,
+                    artworkUrl: downloads.artworkAddress(for: item),
+                    audioUrl: targetAudio
+                ),
+                at: 0
+            )
+        }
+        let index = list.firstIndex(where: { $0.videoId == item.videoId }) ?? 0
+        Task {
+            _ = await engine.commandQueue.send(.pause)
+        }
+        offlineTracks = list
+        offlineIndex = index
+        offlineActive = true
+        startOfflineTrack(at: index)
+    }
+
+    func stopOfflineIfPlaying(videoId: String) {
+        guard offlineActive, state.videoId == videoId else {
+            return
+        }
+        stopOfflinePlayback()
+        update(state: engine.state, queue: engine.queueEntries)
+    }
+
+    private func startOfflineTrack(at index: Int) {
+        guard offlineTracks.indices.contains(index) else {
+            return
+        }
+        let track = offlineTracks[index]
+        offlineIndex = index
+        offlineTicker?.cancel()
+        offlinePlayer?.stop()
+        offlinePlayer = nil
+        do {
+            let data = try Data(contentsOf: track.audioUrl)
+            let isMp4 = data.count >= 8 && data[4] == 0x66 && data[5] == 0x74 && data[6] == 0x79 && data[7] == 0x70
+            let hint = isMp4 ? AVFileType.m4a.rawValue : AVFileType.mp3.rawValue
+            let player: AVAudioPlayer
+            if let primary = try? AVAudioPlayer(data: data, fileTypeHint: hint) {
+                player = primary
+            } else {
+                player = try AVAudioPlayer(data: data)
+            }
+            player.delegate = offlineDelegate
+            player.prepareToPlay()
+            activateSession()
+            policy = InterruptionPolicy()
+            _ = player.play()
+            offlinePlayer = player
+            syncOfflineState()
+            startOfflineTicker()
+        } catch {
+            message = "Could not play downloaded track."
+        }
+    }
+
+    private func startOfflineTicker() {
+        offlineTicker?.cancel()
+        offlineTicker = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled, let self, self.offlineActive else {
+                    return
+                }
+                self.syncOfflineState()
+            }
+        }
+    }
+
+    private func syncOfflineState() {
+        guard offlineActive, offlineTracks.indices.contains(offlineIndex), let player = offlinePlayer else {
+            return
+        }
+        let track = offlineTracks[offlineIndex]
+        let dur = player.duration > 0 ? player.duration : track.durationSec
+        let pos = max(0, player.currentTime)
+        let playing = player.isPlaying
+        let newState = BridgeState(
+            videoId: track.videoId,
+            playlistId: "downloads",
+            title: track.title,
+            artist: track.artist,
+            album: track.album,
+            artworkUrl: track.artworkUrl,
+            durationSec: dur,
+            positionSec: pos,
+            bufferedSec: dur,
+            isPlaying: playing,
+            isBuffering: false,
+            volume: 1,
+            isMuted: false,
+            likeStatus: .indifferent,
+            shuffle: state.shuffle,
+            repeatMode: state.repeatMode,
+            isAd: false,
+            isSignedIn: engine.account == .signedIn
+        )
+        let queue = offlineTracks.enumerated().map { idx, entry in
+            QueueEntry(
+                index: idx,
+                videoId: entry.videoId,
+                title: entry.title,
+                artist: entry.artist,
+                artworkUrl: entry.artworkUrl,
+                durationSec: idx == offlineIndex ? dur : entry.durationSec,
+                isCurrent: idx == offlineIndex
+            )
+        }
+        stateAt = Date()
+        actualPlaying = playing
+        state = newState
+        let newTimeline = PlaybackModel.timeline(state: newState, queue: queue)
+        if newTimeline != timeline {
+            timeline = newTimeline
+        }
+        loadArtworkIfNeeded()
+        publishNowPlaying()
+        refreshRemoteAvailability()
+    }
+
+    private func handleOfflineTrackEnded() {
+        guard offlineActive, !offlineTracks.isEmpty else {
+            return
+        }
+        if state.repeatMode == .one {
+            startOfflineTrack(at: offlineIndex)
+            return
+        }
+        if state.shuffle, offlineTracks.count > 1 {
+            let candidates = offlineTracks.indices.filter { $0 != offlineIndex }
+            if let nextIdx = candidates.randomElement() {
+                startOfflineTrack(at: nextIdx)
+                return
+            }
+        }
+        let nextIdx = offlineIndex + 1
+        if offlineTracks.indices.contains(nextIdx) {
+            startOfflineTrack(at: nextIdx)
+        } else if state.repeatMode == .all {
+            startOfflineTrack(at: 0)
+        } else {
+            offlineTicker?.cancel()
+            offlinePlayer?.currentTime = 0
+            syncOfflineState()
+        }
+    }
+
+    private func stopOfflinePlayback() {
+        guard offlineActive else {
+            return
+        }
+        offlineActive = false
+        offlineTicker?.cancel()
+        offlineTicker = nil
+        offlinePlayer?.stop()
+        offlinePlayer = nil
+        offlineTracks = []
+        offlineIndex = 0
     }
 
     func play() {
+        if offlineActive {
+            guard let player = offlinePlayer else {
+                return
+            }
+            activateSession()
+            policy = InterruptionPolicy()
+            _ = player.play()
+            syncOfflineState()
+            startOfflineTicker()
+            return
+        }
         PlaybackLog.shared.add("Play requested")
         activateSession()
         policy = InterruptionPolicy()
@@ -89,6 +320,13 @@ final class PlayerController: ObservableObject {
     }
 
     func pause() {
+        if offlineActive {
+            policy.userPaused()
+            offlineTicker?.cancel()
+            offlinePlayer?.pause()
+            syncOfflineState()
+            return
+        }
         PlaybackLog.shared.add("Pause requested")
         policy.userPaused()
         endKeepAlive()
@@ -127,10 +365,37 @@ final class PlayerController: ObservableObject {
     }
 
     func next() {
+        if offlineActive {
+            guard !offlineTracks.isEmpty else {
+                return
+            }
+            if state.shuffle, offlineTracks.count > 1 {
+                let candidates = offlineTracks.indices.filter { $0 != offlineIndex }
+                if let nextIdx = candidates.randomElement() {
+                    startOfflineTrack(at: nextIdx)
+                    return
+                }
+            }
+            let nextIdx = (offlineIndex + 1) % offlineTracks.count
+            startOfflineTrack(at: nextIdx)
+            return
+        }
         perform(.next)
     }
 
     func previous() {
+        if offlineActive {
+            guard !offlineTracks.isEmpty else {
+                return
+            }
+            if positionSec > 3 {
+                seek(to: 0)
+                return
+            }
+            let prevIdx = (offlineIndex - 1 + offlineTracks.count) % offlineTracks.count
+            startOfflineTrack(at: prevIdx)
+            return
+        }
         switch PlaybackModel.previousAction(positionSec: positionSec) {
         case let .seekWithinTrack(seconds):
             perform(.seekTo(seconds: seconds))
@@ -140,18 +405,44 @@ final class PlayerController: ObservableObject {
     }
 
     func seek(to seconds: Double) {
+        if offlineActive {
+            guard let player = offlinePlayer else {
+                return
+            }
+            let clamped = max(0, min(seconds, player.duration > 0 ? player.duration : seconds))
+            player.currentTime = clamped
+            syncOfflineState()
+            return
+        }
         perform(.seekTo(seconds: max(0, seconds)))
     }
 
     func toggleLike() {
+        guard !offlineActive else {
+            return
+        }
         perform(.toggleLike)
     }
 
     func toggleShuffle() {
+        if offlineActive {
+            var nextState = state
+            nextState.shuffle = !state.shuffle
+            state = nextState
+            refreshRemoteAvailability()
+            return
+        }
         perform(.setShuffle(!state.shuffle))
     }
 
     func cycleRepeat() {
+        if offlineActive {
+            var nextState = state
+            nextState.repeatMode = state.repeatMode.next
+            state = nextState
+            refreshRemoteAvailability()
+            return
+        }
         perform(.setRepeat(state.repeatMode.next))
     }
 
@@ -160,6 +451,7 @@ final class PlayerController: ObservableObject {
             message = "This item cannot be played."
             return
         }
+        stopOfflinePlayback()
         activateSession()
         switch ref {
         case let .track(videoId, playlistId):
@@ -179,6 +471,7 @@ final class PlayerController: ObservableObject {
         guard let snapshot = settings.resume else {
             return false
         }
+        stopOfflinePlayback()
         activateSession()
         let result = await engine.restore(snapshot, play: true)
         report(result)
@@ -249,6 +542,13 @@ final class PlayerController: ObservableObject {
     }
 
     private func update(state incoming: BridgeState, queue: [QueueEntry]) {
+        if offlineActive {
+            if incoming.isPlaying, !incoming.videoId.isEmpty {
+                stopOfflinePlayback()
+            } else {
+                return
+            }
+        }
         let wasPlaying = state.isPlaying
         var newState = incoming
         if let pending = pendingPlay {
@@ -423,6 +723,11 @@ final class PlayerController: ObservableObject {
         case .began:
             sessionActive = false
             let action = policy.began(wasPlaying: actualPlaying)
+            if offlineActive, action == .pause {
+                offlineTicker?.cancel()
+                offlinePlayer?.pause()
+                syncOfflineState()
+            }
             PlaybackLog.shared.add("Audio session interrupted, \(action == .pause ? "leaving playback to iOS" : "nothing playing")")
         case .ended:
             let optionsRaw = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
@@ -430,8 +735,12 @@ final class PlayerController: ObservableObject {
             let action = policy.ended(shouldResume: shouldResume)
             PlaybackLog.shared.add("Interruption ended, \(action == .resume ? "resuming" : "staying paused")")
             if action == .resume {
-                activateSession()
-                perform(.play)
+                if offlineActive {
+                    play()
+                } else {
+                    activateSession()
+                    perform(.play)
+                }
             }
         @unknown default:
             break
@@ -446,12 +755,19 @@ final class PlayerController: ObservableObject {
         }
         if policy.routeLost(wasPlaying: actualPlaying) == .pause {
             PlaybackLog.shared.add("Headphones or speaker disconnected, pausing")
-            endKeepAlive()
-            perform(.pause)
+            if offlineActive {
+                pause()
+            } else {
+                endKeepAlive()
+                perform(.pause)
+            }
         }
     }
 
     private func enteredBackground() {
+        if offlineActive {
+            return
+        }
         guard actualPlaying || pendingPlay?.value == true else {
             PlaybackLog.shared.add("App went to the background while paused")
             return
@@ -564,7 +880,11 @@ final class PlayerController: ObservableObject {
                 guard let self, enabled != self.state.shuffle else {
                     return
                 }
-                self.perform(.setShuffle(enabled))
+                if self.offlineActive {
+                    self.toggleShuffle()
+                } else {
+                    self.perform(.setShuffle(enabled))
+                }
             }
             return .success
         }
@@ -579,7 +899,19 @@ final class PlayerController: ObservableObject {
             case .all: mode = .all
             @unknown default: mode = .none
             }
-            Task { @MainActor in self?.perform(.setRepeat(mode)) }
+            Task { @MainActor in
+                guard let self else {
+                    return
+                }
+                if self.offlineActive {
+                    var nextState = self.state
+                    nextState.repeatMode = mode
+                    self.state = nextState
+                    self.refreshRemoteAvailability()
+                } else {
+                    self.perform(.setRepeat(mode))
+                }
+            }
             return .success
         }
         center.dislikeCommand.isEnabled = false

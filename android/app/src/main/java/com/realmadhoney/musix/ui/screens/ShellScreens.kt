@@ -56,11 +56,16 @@ import com.realmadhoney.musix.R
 import com.realmadhoney.musix.core.bridge.FlatItem
 import com.realmadhoney.musix.core.bridge.ItemType
 import com.realmadhoney.musix.core.bridge.SearchSuggestions
+import com.realmadhoney.musix.download.DownloadItem
+import com.realmadhoney.musix.download.DownloadStatus
 import com.realmadhoney.musix.engine.WebEngine
 import com.realmadhoney.musix.engine.WebRoute
+import com.realmadhoney.musix.ui.components.Artwork
 import com.realmadhoney.musix.ui.components.EntryRow
 import com.realmadhoney.musix.ui.components.IconAction
 import com.realmadhoney.musix.ui.components.MusixIcon
+import com.realmadhoney.musix.ui.components.StateMessage
+import com.realmadhoney.musix.ui.components.formatTime
 import com.realmadhoney.musix.ui.theme.DesignTokens
 import com.realmadhoney.musix.ui.theme.Musix
 
@@ -73,6 +78,7 @@ enum class ShellTab(
     Explore(R.string.tab_explore, R.drawable.ic_compass, WebRoute.Explore),
     Search(R.string.action_search, R.drawable.ic_search, null),
     Library(R.string.tab_library, R.drawable.ic_library, WebRoute.Library),
+    Downloads(R.string.tab_downloads, R.drawable.ic_download, null),
     Settings(R.string.action_settings, R.drawable.ic_settings, null),
 }
 
@@ -349,3 +355,105 @@ private fun highlighted(
             withStyle(SpanStyle(color = strong)) { append(text) }
         }
     }
+
+@Composable
+fun DownloadsScreen(
+    items: List<DownloadItem>,
+    currentVideoId: String,
+    isPlaying: Boolean,
+    onPlay: (DownloadItem) -> Unit,
+    onRetry: (DownloadItem) -> Unit,
+    onDelete: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = Musix.colors
+    if (items.isEmpty()) {
+        Box(modifier = modifier.fillMaxSize().background(colors.bg), contentAlignment = Alignment.Center) {
+            StateMessage(
+                icon = R.drawable.ic_download,
+                title = stringResource(R.string.downloads_empty),
+                body = stringResource(R.string.downloads_empty_body),
+            )
+        }
+        return
+    }
+    LazyColumn(modifier = modifier.fillMaxSize().background(colors.bg)) {
+        items(items, key = { it.videoId }) { item ->
+            val active = item.videoId == currentVideoId
+            val playingThis = active && isPlaying
+            val description =
+                listOf(item.artist, item.album)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" • ")
+                    .ifEmpty { "Offline MP3" }
+            val statusText =
+                when (item.status) {
+                    DownloadStatus.DOWNLOADING -> "Downloading MP3 • ${(item.progress * 100).toInt()}%"
+                    DownloadStatus.FAILED -> item.error ?: "Download failed"
+                    DownloadStatus.COMPLETED -> "MP3 • ${formatTime(item.durationSec * 1000L)}"
+                }
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            enabled = item.status == DownloadStatus.COMPLETED,
+                            role = Role.Button,
+                            onClick = { onPlay(item) },
+                        ).padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space12),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Artwork(item.artworkUri(), 56.dp)
+                Spacer(Modifier.width(DesignTokens.Space12))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (active) colors.accent else colors.text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (item.status == DownloadStatus.FAILED) colors.danger else colors.textMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                when (item.status) {
+                    DownloadStatus.COMPLETED -> {
+                        IconAction(
+                            icon = if (playingThis) R.drawable.ic_pause_filled else R.drawable.ic_play_filled,
+                            label = stringResource(if (playingThis) R.string.action_pause else R.string.action_play),
+                            onClick = { onPlay(item) },
+                            active = active,
+                        )
+                    }
+
+                    DownloadStatus.FAILED -> {
+                        IconAction(
+                            icon = R.drawable.ic_refresh,
+                            label = stringResource(R.string.action_retry),
+                            onClick = { onRetry(item) },
+                        )
+                    }
+
+                    DownloadStatus.DOWNLOADING -> {}
+                }
+                IconAction(
+                    icon = R.drawable.ic_trash,
+                    label = stringResource(R.string.action_delete_download),
+                    onClick = { onDelete(item.videoId) },
+                )
+            }
+        }
+    }
+}

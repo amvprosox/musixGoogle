@@ -3,12 +3,18 @@ import SwiftUI
 
 struct MiniPlayer: View {
     @ObservedObject var player: PlayerController
+    @ObservedObject var downloads: DownloadController
     let onOpen: () -> Void
 
     var body: some View {
         let current = player.timeline.current
         let duration = current?.durationSec ?? 0
         let fraction = duration > 0 ? min(1, max(0, player.positionSec / duration)) : 0
+        let videoId = current?.videoId ?? ""
+        let canDownload = current != nil && !(current?.isAd ?? false) && BridgeCodec.isValidVideoId(videoId)
+        let entry = canDownload ? downloads.item(for: videoId) : nil
+        let isDone = entry?.status == .completed
+        let isBusy = entry?.status == .downloading || entry?.status == .queued
         VStack(spacing: 0) {
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
@@ -17,7 +23,7 @@ struct MiniPlayer: View {
                 }
             }
             .frame(height: 2)
-            HStack(spacing: DesignTokens.space12) {
+            HStack(spacing: DesignTokens.space8) {
                 Button(action: onOpen) {
                     HStack(spacing: DesignTokens.space12) {
                         ArtworkView(address: current?.artworkUrl ?? "", size: 48, corner: DesignTokens.radiusCard)
@@ -38,6 +44,25 @@ struct MiniPlayer: View {
                 .buttonStyle(.plain)
                 .disabled(current == nil)
                 .accessibilityLabel(current.map { "Open player, \($0.title)" } ?? "Nothing playing")
+                IconButton(
+                    icon: isDone ? "check" : "download",
+                    label: isDone ? "Downloaded" : (isBusy ? "Downloading MP3" : "Download MP3"),
+                    active: isDone || isBusy,
+                    enabled: canDownload && !isBusy
+                ) {
+                    if let current, !isDone, !isBusy {
+                        downloads.startDownload(
+                            DownloadTrackRequest(
+                                videoId: current.videoId,
+                                title: current.title,
+                                artist: current.artist,
+                                album: current.album,
+                                durationSec: current.durationSec ?? player.state.durationSec,
+                                artworkUrl: current.artworkUrl
+                            )
+                        )
+                    }
+                }
                 Button {
                     player.togglePlay()
                 } label: {
@@ -72,6 +97,7 @@ struct MiniPlayer: View {
 
 struct NowPlayingView: View {
     @ObservedObject var player: PlayerController
+    @ObservedObject var downloads: DownloadController
     @ObservedObject var lyrics: LyricsController
     @Environment(\.dismiss) private var dismiss
     @State private var dragging: Double?
@@ -114,6 +140,10 @@ struct NowPlayingView: View {
     private func content(_ current: TrackSpec) -> some View {
         let available = player.availability
         let duration = current.durationSec ?? 0
+        let canDownload = !current.isAd && BridgeCodec.isValidVideoId(current.videoId)
+        let entry = canDownload ? downloads.item(for: current.videoId) : nil
+        let isDone = entry?.status == .completed
+        let isBusy = entry?.status == .downloading || entry?.status == .queued
         return VStack(spacing: DesignTokens.space16) {
             if showLyrics {
                 LyricsPanel(lyrics: lyrics, player: player)
@@ -140,6 +170,25 @@ struct NowPlayingView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                IconButton(
+                    icon: isDone ? "check" : "download",
+                    label: isDone ? "Downloaded" : (isBusy ? "Downloading MP3" : "Download MP3"),
+                    active: isDone || isBusy,
+                    enabled: canDownload && !isBusy
+                ) {
+                    if !isDone, !isBusy {
+                        downloads.startDownload(
+                            DownloadTrackRequest(
+                                videoId: current.videoId,
+                                title: current.title,
+                                artist: current.artist,
+                                album: current.album,
+                                durationSec: current.durationSec ?? player.state.durationSec,
+                                artworkUrl: current.artworkUrl
+                            )
+                        )
+                    }
+                }
                 IconButton(icon: "queue", label: "Save to playlist", enabled: available.like) {
                     showSave = true
                 }
@@ -220,6 +269,156 @@ struct NowPlayingView: View {
         case .none: return "Repeat is off"
         case .all: return "Repeat all"
         case .one: return "Repeat one"
+        }
+    }
+}
+
+struct DownloadsView: View {
+    @ObservedObject var downloads: DownloadController
+    @ObservedObject var player: PlayerController
+
+    var body: some View {
+        Group {
+            if downloads.items.isEmpty {
+                StateMessage(
+                    icon: "download",
+                    title: "No downloads yet",
+                    detail: "Tap the download icon on any playing song to save its MP3, thumbnail, and description for offline playback."
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: DesignTokens.space8) {
+                        HStack(spacing: DesignTokens.space12) {
+                            Text("Downloads")
+                                .font(.heading(DesignTokens.text24, weight: .bold))
+                                .foregroundStyle(Palette.text)
+                            let completedCount = downloads.items.filter { $0.status == .completed }.count
+                            Text("\(completedCount) \(completedCount == 1 ? "track" : "tracks")")
+                                .font(.body(DesignTokens.text14, weight: .medium))
+                                .foregroundStyle(Palette.textMuted)
+                                .padding(.horizontal, DesignTokens.space12)
+                                .padding(.vertical, DesignTokens.space4)
+                                .background(Palette.surface2, in: Capsule())
+                        }
+                        .padding(.bottom, DesignTokens.space8)
+                        ForEach(downloads.items) { item in
+                            row(item)
+                        }
+                    }
+                    .padding(DesignTokens.space16)
+                }
+            }
+        }
+        .background(Palette.bg)
+    }
+
+    private func row(_ item: DownloadItem) -> some View {
+        let isCurrent = player.state.videoId == item.videoId
+        let isPlaying = isCurrent && player.state.isPlaying
+        let desc = [item.artist, item.album].filter { !$0.isEmpty }.joined(separator: " \u{2022} ")
+        return HStack(spacing: DesignTokens.space12) {
+            ArtworkView(address: downloads.artworkAddress(for: item), size: 56, corner: DesignTokens.radiusControl)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.body(DesignTokens.text16, weight: .semibold))
+                    .foregroundStyle(isCurrent ? Palette.accent : Palette.text)
+                    .lineLimit(1)
+                if !desc.isEmpty {
+                    Text(desc)
+                        .font(.body(DesignTokens.text14))
+                        .foregroundStyle(Palette.textMuted)
+                        .lineLimit(1)
+                }
+                Text(metaText(item))
+                    .font(.body(DesignTokens.text14))
+                    .foregroundStyle(item.status == .failed ? Palette.danger : Palette.textMuted)
+                    .lineLimit(1)
+                if item.status == .downloading || item.status == .queued {
+                    GeometryReader { proxy in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Palette.border)
+                            Capsule().fill(Palette.accent)
+                                .frame(width: proxy.size.width * min(1, max(0.03, item.progress)))
+                        }
+                    }
+                    .frame(height: 4)
+                    .padding(.top, 4)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if item.status == .completed {
+                IconButton(
+                    icon: isPlaying ? "pause_filled" : "play_filled",
+                    label: isPlaying ? "Pause \(item.title)" : "Play \(item.title)",
+                    active: isCurrent
+                ) {
+                    if isCurrent {
+                        player.togglePlay()
+                    } else {
+                        player.playOffline(item: item, downloads: downloads)
+                    }
+                }
+            } else if item.status == .failed {
+                IconButton(icon: "refresh", label: "Retry \(item.title)") {
+                    downloads.startDownload(
+                        DownloadTrackRequest(
+                            videoId: item.videoId,
+                            title: item.title,
+                            artist: item.artist,
+                            album: item.album,
+                            durationSec: item.durationSec,
+                            artworkUrl: item.artworkUrl
+                        )
+                    )
+                }
+            } else {
+                ProgressView()
+                    .tint(Palette.accent)
+                    .frame(width: 48, height: 48)
+            }
+            IconButton(icon: "trash", label: "Remove \(item.title)") {
+                player.stopOfflineIfPlaying(videoId: item.videoId)
+                downloads.deleteDownload(item.videoId)
+            }
+        }
+        .padding(DesignTokens.space12)
+        .background(isCurrent ? Palette.accentSoft : Palette.surface, in: RoundedRectangle(cornerRadius: DesignTokens.radiusCard))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.radiusCard)
+                .stroke(isCurrent ? Palette.accent : Palette.border, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if item.status == .completed {
+                if isCurrent {
+                    player.togglePlay()
+                } else {
+                    player.playOffline(item: item, downloads: downloads)
+                }
+            }
+        }
+    }
+
+    private func metaText(_ item: DownloadItem) -> String {
+        switch item.status {
+        case .completed:
+            var parts = ["MP3"]
+            if item.durationSec > 0 {
+                parts.append(formatTime(item.durationSec))
+            }
+            if let bytes = item.fileSizeBytes, bytes > 0 {
+                let mb = Double(bytes) / (1024 * 1024)
+                parts.append(String(format: "%.1f MB", mb))
+            }
+            return parts.joined(separator: " \u{2022} ")
+        case .downloading:
+            let pct = Int(min(100, max(0, (item.progress * 100).rounded())))
+            return "Downloading MP3... \(pct)%"
+        case .queued:
+            return "Queued..."
+        case .failed:
+            return item.error ?? "Download failed"
         }
     }
 }

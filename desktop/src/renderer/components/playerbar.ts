@@ -3,6 +3,7 @@ import { progressRatio, volumeIconName } from '../../shared/player-math';
 import type { PlayerState } from '../../shared/types';
 import type { AppContext } from '../context';
 import { h, hydrate, icon, iconButton, setAttr, setButtonIcon, setImage, setLabel, setText } from '../dom';
+import { downloadTrackButton } from './downloads';
 import { lyricsToggle } from './lyrics';
 import { displayedPlaying, type ShellState } from '../state';
 import { Slider } from './slider';
@@ -138,12 +139,14 @@ export function mountPlayerBar(root: HTMLElement, ctx: AppContext): void {
     { className: 'track playerbar-skeleton', attrs: { id: 'player-skeleton', 'aria-hidden': 'true' } },
     [skeletonArt, skeletonText],
   );
+  const downloadBtn = downloadTrackButton(ctx, 'top', 'player-download');
   const trackInfo = h('div', { className: 'track', attrs: { id: 'player-track' } }, [
     art,
     artPlaceholder,
     h('div', { className: 'track-text' }, [title, artist]),
     adBadge,
     like,
+    downloadBtn,
   ]);
 
   const shuffle = iconButton({
@@ -331,10 +334,12 @@ export function mountPlayerBar(root: HTMLElement, ctx: AppContext): void {
       actions.next();
     },
   });
+  const compactDownload = downloadTrackButton(ctx, 'top', 'compact-download');
   const compact = h('div', { className: 'compact-player' }, [
     h('div', { className: 'compact-inner' }, [
       h('div', { className: 'compact-progress', attrs: { 'aria-hidden': 'true' } }, [compactFill]),
       compactOpen,
+      compactDownload,
       compactPlay,
       compactNext,
     ]),

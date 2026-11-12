@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://*.googleusercontent.com https://*.ggpht.com https://*.ytimg.com; font-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: musix-asset: https://*.googleusercontent.com https://*.ggpht.com https://*.ytimg.com; font-src 'self'; connect-src 'none'; media-src 'self' musix-asset:; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Musix</title>
@@ -31,6 +31,7 @@
               <div id="view-state" class="view-state" data-scroll></div>
             </div>
             <section id="settings-page" class="settings-page" data-scroll hidden></section>
+            <section id="downloads-page" class="settings-page downloads-page" data-scroll hidden></section>
             <section id="lyrics-panel" class="lyrics-panel" data-scroll hidden></section>
           </main>
           <aside id="queue-panel" class="queue-panel"></aside>

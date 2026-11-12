@@ -11,6 +11,7 @@ import type {
   AccountState,
   AdblockStatus,
   AppSettings,
+  DownloadItem,
   PlayerState,
   QueueItem,
   ResolvedTheme,
@@ -39,6 +40,8 @@ export interface ShellState {
   route: ShellRoute;
   searchQuery: string;
   settingsOpen: boolean;
+  downloadsOpen: boolean;
+  downloads: DownloadItem[];
   account: AccountState;
   settings: AppSettings;
   adblock: AdblockStatus;
@@ -74,6 +77,7 @@ export type Action =
       systemDark: boolean;
       ytmBase: string;
       chrome: WindowChromeState;
+      downloads?: DownloadItem[];
     }
   | { type: 'chrome'; chrome: WindowChromeState }
   | { type: 'navigating'; value: boolean }
@@ -83,6 +87,8 @@ export type Action =
   | { type: 'view-status'; status: ViewStatus }
   | { type: 'nav'; nav: ViewNavState }
   | { type: 'settings-open'; open: boolean }
+  | { type: 'downloads-open'; open: boolean }
+  | { type: 'downloads'; downloads: DownloadItem[] }
   | { type: 'account'; account: AccountState }
   | { type: 'settings'; settings: AppSettings }
   | { type: 'adblock'; adblock: AdblockStatus }
@@ -115,6 +121,8 @@ export function initialState(
     route: 'home',
     searchQuery: '',
     settingsOpen: false,
+    downloadsOpen: false,
+    downloads: [],
     account: { signedIn: false, avatarUrl: '' },
     settings: { ...DEFAULT_SETTINGS },
     adblock: {
@@ -199,6 +207,7 @@ export function reducer(state: ShellState, action: Action): ShellState {
         version: action.version,
         systemDark: action.systemDark,
         theme,
+        downloads: action.downloads ?? state.downloads,
         queueOpen:
           layout.queueMode === 'docked'
             ? queueOpenByDefault(state.breakpoint, action.settings.queueOpenOnWideScreens)
@@ -236,17 +245,31 @@ export function reducer(state: ShellState, action: Action): ShellState {
         ...state,
         lyricsOpen: action.open,
         settingsOpen: action.open ? false : state.settingsOpen,
+        downloadsOpen: action.open ? false : state.downloadsOpen,
         nowPlayingOpen: action.open ? false : state.nowPlayingOpen,
       };
     case 'settings-open':
       return {
         ...state,
         lyricsOpen: action.open ? false : state.lyricsOpen,
+        downloadsOpen: action.open ? false : state.downloadsOpen,
         settingsOpen: action.open,
         sidebarDrawerOpen: false,
         searchOverlayOpen: false,
         queueOpen: state.layout.queueMode === 'docked' ? state.queueOpen : false,
       };
+    case 'downloads-open':
+      return {
+        ...state,
+        lyricsOpen: action.open ? false : state.lyricsOpen,
+        settingsOpen: action.open ? false : state.settingsOpen,
+        downloadsOpen: action.open,
+        sidebarDrawerOpen: false,
+        searchOverlayOpen: false,
+        queueOpen: state.layout.queueMode === 'docked' ? state.queueOpen : false,
+      };
+    case 'downloads':
+      return { ...state, downloads: action.downloads };
     case 'account':
       return { ...state, account: action.account };
     case 'settings': {
@@ -375,5 +398,11 @@ export function displayedPlaying(state: ShellState): boolean {
 }
 
 export function activeRoute(state: ShellState): ShellRoute {
-  return state.settingsOpen ? 'settings' : state.route;
+  if (state.settingsOpen) {
+    return 'settings';
+  }
+  if (state.downloadsOpen) {
+    return 'downloads';
+  }
+  return state.route;
 }

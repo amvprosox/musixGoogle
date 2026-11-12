@@ -31,8 +31,99 @@ import { logError, logInfo, logWarn } from './log';
 export const ASSET_SCHEME = 'musix-asset';
 
 const FONT_FILE_PATTERN = /^[a-z0-9-]+\.woff2$/;
+const DOWNLOAD_FILE_PATTERN = /^[A-Za-z0-9_-]{6,20}\.(mp3|jpg)$/;
 
-export function configureYtmSession(ses: Session): void {
+function detectAudioMimeType(data: Buffer): string {
+  if (data.byteLength >= 8 && data.subarray(4, 8).toString('ascii') === 'ftyp') {
+    return 'audio/mp4';
+  }
+  if (data.byteLength >= 4 && data[0] === 0x1a && data[1] === 0x45 && data[2] === 0xdf && data[3] === 0xa3) {
+    return 'audio/webm';
+  }
+  if (data.byteLength >= 4 && data.subarray(0, 4).toString('ascii') === 'OggS') {
+    return 'audio/ogg';
+  }
+  return 'audio/mpeg';
+}
+
+export function configureAssetProtocol(ses: Session, downloadsDir?: string): void {
+  if (ses.protocol.isProtocolHandled(ASSET_SCHEME)) {
+    return;
+  }
+  ses.protocol.handle(ASSET_SCHEME, async (request) => {
+    try {
+      const url = new URL(request.url);
+      const name = path.basename(url.pathname);
+      if (url.hostname === 'fonts' && FONT_FILE_PATTERN.test(name)) {
+        const data = await fs.readFile(path.join(paths.fontsDir, name));
+        return new Response(new Uint8Array(data), {
+          status: 200,
+          headers: {
+            'content-type': 'font/woff2',
+            'access-control-allow-origin': '*',
+            'cache-control': 'max-age=31536000',
+          },
+        });
+      }
+      if (url.hostname === 'downloads' && downloadsDir && DOWNLOAD_FILE_PATTERN.test(name)) {
+        const filePath = path.join(downloadsDir, name);
+        const data = await fs.readFile(filePath);
+        if (name.endsWith('.jpg')) {
+          return new Response(new Uint8Array(data), {
+            status: 200,
+            headers: {
+              'content-type': 'image/jpeg',
+              'access-control-allow-origin': '*',
+              'cache-control': 'no-cache',
+            },
+          });
+        }
+        const mimeType = detectAudioMimeType(data);
+        const total = data.byteLength;
+        const rangeHeader = request.headers.get('range');
+        if (rangeHeader && rangeHeader.startsWith('bytes=')) {
+          const parts = rangeHeader.slice(6).split('-');
+          const startStr = parts[0] ?? '0';
+          const endStr = parts[1] ?? '';
+          const start = Math.max(0, Number.parseInt(startStr, 10) || 0);
+          const requestedEnd = endStr ? Number.parseInt(endStr, 10) : total - 1;
+          const end = Math.min(
+            total - 1,
+            Number.isFinite(requestedEnd) && requestedEnd >= start ? requestedEnd : total - 1,
+          );
+          if (start < total && start <= end) {
+            const slice = data.subarray(start, end + 1);
+            return new Response(new Uint8Array(slice), {
+              status: 206,
+              headers: {
+                'content-type': mimeType,
+                'accept-ranges': 'bytes',
+                'content-range': `bytes ${start}-${end}/${total}`,
+                'content-length': String(slice.byteLength),
+                'access-control-allow-origin': '*',
+              },
+            });
+          }
+        }
+        return new Response(new Uint8Array(data), {
+          status: 200,
+          headers: {
+            'content-type': mimeType,
+            'accept-ranges': 'bytes',
+            'content-length': String(total),
+            'access-control-allow-origin': '*',
+          },
+        });
+      }
+      return new Response(null, { status: 404 });
+    } catch (error) {
+      logWarn('view', 'Asset request failed', error);
+      return new Response(null, { status: 404 });
+    }
+  });
+}
+
+export function configureYtmSession(ses: Session, downloadsDir?: string): void {
   ses.setUserAgent(chromeUserAgent());
   ses.webRequest.onBeforeSendHeaders({ urls: ['https://*/*'] }, (details, callback) => {
     if (!isGoogleAccountsUrl(details.url)) {
@@ -49,29 +140,7 @@ export function configureYtmSession(ses: Session): void {
   ses.setPermissionCheckHandler(
     (_wc, permission) => permission === 'media' || permission === 'notifications',
   );
-  if (!ses.protocol.isProtocolHandled(ASSET_SCHEME)) {
-    ses.protocol.handle(ASSET_SCHEME, async (request) => {
-      try {
-        const url = new URL(request.url);
-        const name = path.basename(url.pathname);
-        if (url.hostname !== 'fonts' || !FONT_FILE_PATTERN.test(name)) {
-          return new Response(null, { status: 404 });
-        }
-        const data = await fs.readFile(path.join(paths.fontsDir, name));
-        return new Response(new Uint8Array(data), {
-          status: 200,
-          headers: {
-            'content-type': 'font/woff2',
-            'access-control-allow-origin': '*',
-            'cache-control': 'max-age=31536000',
-          },
-        });
-      } catch (error) {
-        logWarn('view', 'Font request failed', error);
-        return new Response(null, { status: 404 });
-      }
-    });
-  }
+  configureAssetProtocol(ses, downloadsDir);
 }
 
 function applyIdentity(contents: WebContents, url: string): void {

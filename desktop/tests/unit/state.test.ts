@@ -91,6 +91,11 @@ describe('shell state', () => {
     expect(activeRoute(state)).toBe('settings');
   });
 
+  it('reports downloads as the active route when open', () => {
+    const state = reducer(init(), { type: 'downloads-open', open: true });
+    expect(activeRoute(state)).toBe('downloads');
+  });
+
   it('notifies selectors only on change', () => {
     const store = createStore(init());
     const seen: string[] = [];

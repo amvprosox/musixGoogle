@@ -161,6 +161,12 @@ actor ArtworkLoader {
     }
 
     func data(for address: String) async -> Data? {
+        if let url = URL(string: address), url.isFileURL {
+            guard let data = try? Data(contentsOf: url), !data.isEmpty, data.count <= Self.maxBytes, UIImage(data: data) != nil else {
+                return nil
+            }
+            return data
+        }
         guard Self.isAllowed(address), let url = URL(string: address) else {
             return nil
         }

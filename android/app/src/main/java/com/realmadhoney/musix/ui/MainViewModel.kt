@@ -13,7 +13,10 @@ import com.realmadhoney.musix.core.bridge.FlatItem
 import com.realmadhoney.musix.core.bridge.Lyrics
 import com.realmadhoney.musix.core.bridge.SearchSuggestions
 import com.realmadhoney.musix.core.browse.MediaIds
+import com.realmadhoney.musix.core.browse.MediaRef
 import com.realmadhoney.musix.core.browse.RootTab
+import com.realmadhoney.musix.download.DownloadItem
+import com.realmadhoney.musix.download.DownloadTrackSpec
 import com.realmadhoney.musix.engine.AccountState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -324,6 +327,90 @@ class MainViewModel(
 
     private val targetsFlow = MutableStateFlow<SaveTargets?>(null)
     val saveTargets: StateFlow<SaveTargets?> = targetsFlow.asStateFlow()
+
+    val downloads: StateFlow<List<DownloadItem>> = graph.downloads.items
+    val offlineNowPlaying: StateFlow<NowPlaying?> = graph.downloads.offlineNowPlaying
+
+    fun currentTrackVideoId(state: NowPlaying): String {
+        val parsed = (MediaIds.parse(state.mediaId) as? MediaRef.Track)?.videoId
+        if (!parsed.isNullOrEmpty() && BridgeCodec.isValidVideoId(parsed)) {
+            return parsed
+        }
+        if (BridgeCodec.isValidVideoId(state.mediaId)) {
+            return state.mediaId
+        }
+        val bridgeVid =
+            graph.engine.value
+                ?.bridgeState
+                ?.value
+                ?.videoId
+                .orEmpty()
+        return if (BridgeCodec.isValidVideoId(bridgeVid)) bridgeVid else ""
+    }
+
+    fun downloadCurrentTrack() {
+        val state = offlineNowPlaying.value ?: connection.nowPlaying.value
+        val bridge =
+            graph.engine.value
+                ?.bridgeState
+                ?.value
+        val videoId = currentTrackVideoId(state)
+        if (!BridgeCodec.isValidVideoId(videoId)) {
+            graph.postMessage("Play a song first.")
+            return
+        }
+        val title = state.title.ifEmpty { bridge?.title.orEmpty() }
+        val artist = state.artist.ifEmpty { bridge?.artist.orEmpty() }
+        val album = state.album.ifEmpty { bridge?.album.orEmpty() }
+        val durationSec =
+            if (state.durationMs > 0L) {
+                state.durationMs / 1000L
+            } else {
+                bridge?.durationSec?.toLong() ?: 0L
+            }
+        val artworkUrl =
+            bridge
+                ?.artworkUrl
+                ?.takeIf { it.isNotEmpty() }
+                ?: state.artworkUri?.let { graph.artwork.remoteUrlFor(it) }.orEmpty()
+        graph.downloads.startDownload(
+            DownloadTrackSpec(
+                videoId = videoId,
+                title = title.ifEmpty { videoId },
+                artist = artist,
+                album = album,
+                durationSec = durationSec,
+                artworkUrl = artworkUrl,
+            ),
+        )
+    }
+
+    fun playDownloaded(item: DownloadItem) {
+        graph.downloads.playOffline(item) { connection.pause() }
+    }
+
+    fun deleteDownload(videoId: String) {
+        graph.downloads.deleteDownload(videoId)
+    }
+
+    fun retryDownload(item: DownloadItem) {
+        graph.downloads.startDownload(
+            DownloadTrackSpec(
+                videoId = item.videoId,
+                title = item.title,
+                artist = item.artist,
+                album = item.album,
+                durationSec = item.durationSec,
+                artworkUrl = "",
+            ),
+        )
+    }
+
+    fun stopOffline() {
+        graph.downloads.stopOffline()
+    }
+
+    fun activePositionMs(): Long = graph.downloads.offlinePositionMs() ?: connection.positionMs()
 
     fun openSaveToPlaylist() {
         val engine = graph.engine.value

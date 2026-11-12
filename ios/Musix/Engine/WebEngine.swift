@@ -245,6 +245,20 @@ final class WebEngine: NSObject, ObservableObject {
         }
     }
 
+    func visitorData() async -> String? {
+        guard let webView, webView.url?.host == Self.allowedHost else {
+            return nil
+        }
+        let body = "try { return (window.ytcfg && typeof window.ytcfg.get === 'function' ? window.ytcfg.get('VISITOR_DATA') : '') || ''; } catch { return ''; }"
+        do {
+            let result = try await webView.callAsyncJavaScript(body, arguments: [:], in: nil, contentWorld: .page)
+            let text = (result as? String) ?? ""
+            return text.isEmpty ? nil : text
+        } catch {
+            return nil
+        }
+    }
+
     func receive(_ raw: String) {
         switch BridgeCodec.decodeEvent(raw) {
         case let .rejected(reason):

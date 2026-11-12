@@ -43,9 +43,11 @@ import com.realmadhoney.musix.BuildConfig
 import com.realmadhoney.musix.R
 import com.realmadhoney.musix.core.browse.MediaIds
 import com.realmadhoney.musix.core.browse.MediaRef
+import com.realmadhoney.musix.download.DownloadStatus
 import com.realmadhoney.musix.engine.AccountState
 import com.realmadhoney.musix.engine.WebEngine
 import com.realmadhoney.musix.platform.PlatformInfo
+import com.realmadhoney.musix.ui.screens.DownloadsScreen
 import com.realmadhoney.musix.ui.screens.EngineBanner
 import com.realmadhoney.musix.ui.screens.FolderScreen
 import com.realmadhoney.musix.ui.screens.MiniPlayer
@@ -134,7 +136,19 @@ class MainActivity : ComponentActivity() {
 fun MusixApp(viewModel: MainViewModel) {
     val routes by viewModel.routes.collectAsState()
     val route = routes.lastOrNull() ?: Route.Home
-    val nowPlaying by viewModel.connection.nowPlaying.collectAsState()
+    val onlineNowPlaying by viewModel.connection.nowPlaying.collectAsState()
+    val offlineNowPlaying by viewModel.offlineNowPlaying.collectAsState()
+    val downloads by viewModel.downloads.collectAsState()
+    LaunchedEffect(onlineNowPlaying.isPlaying, onlineNowPlaying.mediaId) {
+        if (onlineNowPlaying.isPlaying && onlineNowPlaying.hasTrack && offlineNowPlaying != null) {
+            viewModel.stopOffline()
+        }
+    }
+    val nowPlaying = offlineNowPlaying ?: onlineNowPlaying
+    val currentVideoId = viewModel.currentTrackVideoId(nowPlaying)
+    val isCurrentDownloaded =
+        currentVideoId.isNotEmpty() &&
+            downloads.any { it.videoId == currentVideoId && it.status == DownloadStatus.COMPLETED }
     val connected by viewModel.connection.connected.collectAsState()
     val account by viewModel.account.collectAsState()
     val engine by viewModel.graph.engine.collectAsState()
@@ -163,8 +177,12 @@ fun MusixApp(viewModel: MainViewModel) {
     val webBack = engine?.canNavigateBack?.collectAsState()?.value ?: false
     BackHandler(enabled = routes.size > 1) { viewModel.back() }
     BackHandler(enabled = routes.size <= 1 && shellTab == ShellTab.Search && suggesting) { suggesting = false }
-    BackHandler(enabled = routes.size <= 1 && shellTab == ShellTab.Search && !suggesting) { shellTab = ShellTab.Home }
-    BackHandler(enabled = routes.size <= 1 && shellTab != ShellTab.Search && webBack) { engine?.goBack() }
+    BackHandler(enabled = routes.size <= 1 && (shellTab == ShellTab.Search || shellTab == ShellTab.Downloads) && !suggesting) {
+        shellTab = ShellTab.Home
+    }
+    BackHandler(enabled = routes.size <= 1 && shellTab != ShellTab.Search && shellTab != ShellTab.Downloads && webBack) {
+        engine?.goBack()
+    }
     val selectShell: (ShellTab) -> Unit = { next ->
         when (next) {
             ShellTab.Settings -> {
@@ -173,6 +191,11 @@ fun MusixApp(viewModel: MainViewModel) {
 
             ShellTab.Search -> {
                 shellTab = ShellTab.Search
+            }
+
+            ShellTab.Downloads -> {
+                suggesting = false
+                shellTab = ShellTab.Downloads
             }
 
             else -> {
@@ -186,23 +209,49 @@ fun MusixApp(viewModel: MainViewModel) {
     val actions =
         remember(viewModel) {
             object : PlayerActions {
-                override fun togglePlay() = viewModel.connection.togglePlay()
+                override fun togglePlay() {
+                    if (!viewModel.graph.downloads.toggleOfflinePlay()) {
+                        viewModel.connection.togglePlay()
+                    }
+                }
 
-                override fun next() = viewModel.connection.next()
+                override fun next() {
+                    if (!viewModel.graph.downloads.nextOffline { viewModel.connection.pause() }) {
+                        viewModel.connection.next()
+                    }
+                }
 
-                override fun previous() = viewModel.connection.previous()
+                override fun previous() {
+                    if (!viewModel.graph.downloads.previousOffline { viewModel.connection.pause() }) {
+                        viewModel.connection.previous()
+                    }
+                }
 
-                override fun seekTo(positionMs: Long) = viewModel.connection.seekTo(positionMs)
+                override fun seekTo(positionMs: Long) {
+                    if (!viewModel.graph.downloads.seekOfflineTo(positionMs)) {
+                        viewModel.connection.seekTo(positionMs)
+                    }
+                }
 
                 override fun toggleLike() = viewModel.connection.toggleLike()
 
-                override fun toggleShuffle() = viewModel.connection.toggleShuffle()
+                override fun toggleShuffle() {
+                    if (!viewModel.graph.downloads.toggleOfflineShuffle()) {
+                        viewModel.connection.toggleShuffle()
+                    }
+                }
 
-                override fun cycleRepeat() = viewModel.connection.cycleRepeat()
+                override fun cycleRepeat() {
+                    if (!viewModel.graph.downloads.cycleOfflineRepeat()) {
+                        viewModel.connection.cycleRepeat()
+                    }
+                }
 
                 override fun retry() = viewModel.connection.retry()
 
                 override fun saveToPlaylist() = viewModel.openSaveToPlaylist()
+
+                override fun downloadTrack() = viewModel.downloadCurrentTrack()
             }
         }
     val open: (BrowseEntry) -> Unit = { entry ->
@@ -256,6 +305,22 @@ fun MusixApp(viewModel: MainViewModel) {
                             Box(Modifier.weight(1f).fillMaxWidth()) {
                                 if (current != null) {
                                     WebContent(current)
+                                }
+                                if (shellTab == ShellTab.Downloads) {
+                                    DownloadsScreen(
+                                        items = downloads,
+                                        currentVideoId = currentVideoId,
+                                        isPlaying = nowPlaying.isPlaying,
+                                        onPlay = { item ->
+                                            if (currentVideoId == item.videoId && offlineNowPlaying != null) {
+                                                actions.togglePlay()
+                                            } else {
+                                                viewModel.playDownloaded(item)
+                                            }
+                                        },
+                                        onRetry = viewModel::retryDownload,
+                                        onDelete = viewModel::deleteDownload,
+                                    )
                                 }
                                 val visible =
                                     shellTab == ShellTab.Search &&
@@ -335,10 +400,11 @@ fun MusixApp(viewModel: MainViewModel) {
                             actions = actions,
                             lyrics = lyrics,
                             showLyrics = showLyrics,
-                            positionMs = viewModel.connection::positionMs,
+                            positionMs = viewModel::activePositionMs,
                             onToggleLyrics = { showLyrics = !showLyrics },
                             onRetryLyrics = viewModel::retryLyrics,
                             onClose = { viewModel.back() },
+                            isDownloaded = isCurrentDownloaded,
                         )
                     }
 
@@ -371,7 +437,12 @@ fun MusixApp(viewModel: MainViewModel) {
                 }
             }
             if (route != Route.NowPlaying && route != Route.SignIn) {
-                MiniPlayer(nowPlaying, actions, onOpen = { viewModel.navigate(Route.NowPlaying) })
+                MiniPlayer(
+                    state = nowPlaying,
+                    actions = actions,
+                    onOpen = { viewModel.navigate(Route.NowPlaying) },
+                    isDownloaded = isCurrentDownloaded,
+                )
             }
             if (route == Route.Home) {
                 ShellTabBar(shellTab, selectShell)

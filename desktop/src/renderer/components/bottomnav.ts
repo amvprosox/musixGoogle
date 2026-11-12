@@ -15,6 +15,7 @@ const ENTRIES: readonly BottomEntry[] = [
   { id: 'explore', label: 'Explore', icon: 'compass' },
   { id: 'search', label: 'Search', icon: 'search' },
   { id: 'library', label: 'Library', icon: 'library' },
+  { id: 'downloads', label: 'Downloads', icon: 'download' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
@@ -34,6 +35,10 @@ export function mountBottomNav(root: HTMLElement, ctx: AppContext): void {
             click: () => {
               if (entry.id === 'settings') {
                 router.openSettings();
+                return;
+              }
+              if (entry.id === 'downloads') {
+                router.openDownloads();
                 return;
               }
               if (entry.id === 'search') {

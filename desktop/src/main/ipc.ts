@@ -5,6 +5,7 @@ import { isBoolean } from '../shared/guards';
 import { isSettingsPatch } from '../shared/settings';
 import {
   isDesktopViewEvent,
+  isDownloadTrackRequest,
   isHistoryDirection,
   isKeyPayload,
   isMenuAction,
@@ -13,6 +14,7 @@ import {
   isShellMenuRequest,
   isToastLayerRequest,
   isTooltipRequest,
+  isVideoId,
   isViewLayout,
   isWindowControl,
 } from '../shared/validators';
@@ -33,6 +35,7 @@ import type {
 } from '../shared/types';
 import type { AdblockManager } from './adblock';
 import { paths } from './config';
+import type { DownloadManager } from './downloads';
 import { logWarn } from './log';
 import type { OverlayLayers } from './overlay';
 import type { AppStore } from './store';
@@ -44,6 +47,7 @@ export interface IpcContext {
   overlays: OverlayLayers;
   store: AppStore;
   adblock: AdblockManager;
+  downloads: DownloadManager;
   base: string;
   version: string;
   systemDark: () => boolean;
@@ -337,8 +341,36 @@ export function registerIpc(ctx: IpcContext): () => void {
           systemDark: ctx.systemDark(),
           ytmBase: ctx.base,
           chrome: ctx.chrome(),
+          downloads: ctx.downloads.list(),
         };
         return Promise.resolve(data);
+      },
+    ],
+    [
+      'downloads:list',
+      (event) => {
+        if (!fromShell(event)) {
+          return Promise.reject(new Error('Unauthorized sender'));
+        }
+        return Promise.resolve(ctx.downloads.list());
+      },
+    ],
+    [
+      'downloads:start',
+      (event, payload) => {
+        if (!fromShell(event) || !isDownloadTrackRequest(payload)) {
+          return Promise.reject(new Error('Invalid download request'));
+        }
+        return Promise.resolve(ctx.downloads.startDownload(payload));
+      },
+    ],
+    [
+      'downloads:delete',
+      (event, payload) => {
+        if (!fromShell(event) || !isVideoId(payload)) {
+          return Promise.reject(new Error('Invalid download delete request'));
+        }
+        return ctx.downloads.deleteDownload(payload);
       },
     ],
     [

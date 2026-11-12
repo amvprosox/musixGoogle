@@ -5,12 +5,14 @@ import {
   Ban,
   Bell,
   ChevronDown,
+  Check,
   CircleAlert,
   CircleCheck,
   CircleX,
   Compass,
   Copy,
   createIcons,
+  Download,
   HardDrive,
   Heart,
   House,
@@ -64,11 +66,13 @@ export const ICONS = {
   Ban,
   Bell,
   ChevronDown,
+  Check,
   CircleAlert,
   CircleCheck,
   CircleX,
   Compass,
   Copy,
+  Download,
   HardDrive,
   Heart,
   House,
@@ -122,11 +126,13 @@ export type IconName =
   | 'ban'
   | 'bell'
   | 'chevron-down'
+  | 'check'
   | 'circle-alert'
   | 'circle-check'
   | 'circle-x'
   | 'compass'
   | 'copy'
+  | 'download'
   | 'minus'
   | 'square'
   | 'hard-drive'

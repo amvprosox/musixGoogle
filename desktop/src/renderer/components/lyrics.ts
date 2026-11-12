@@ -281,7 +281,7 @@ export function mountLyrics(root: HTMLElement, ctx: AppContext): void {
   );
 
   store.select(
-    (state) => state.lyricsOpen && !state.settingsOpen,
+    (state) => state.lyricsOpen && !state.settingsOpen && !state.downloadsOpen,
     (open) => {
       root.hidden = !open;
       if (open) {

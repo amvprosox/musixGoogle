@@ -10,6 +10,7 @@ import { isNavRoute, MAX_QUERY_LENGTH } from './routes';
 import type {
   AccountState,
   DesktopViewEvent,
+  DownloadTrackRequest,
   ItemMenuInfo,
   MenuAction,
   ShellMenuRequest,
@@ -331,4 +332,24 @@ export function isShellMenuRequest(value: unknown): value is ShellMenuRequest {
     return isNonNegativeInteger(target.index) && target.index < MAX_QUEUE;
   }
   return target.kind === 'player' || target.kind === 'shellText';
+}
+
+export function isVideoId(value: unknown): value is string {
+  return isString(value) && /^[A-Za-z0-9_-]{6,20}$/.test(value);
+}
+
+export function isDownloadTrackRequest(value: unknown): value is DownloadTrackRequest {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    isVideoId(value.videoId) &&
+    isBoundedString(value.title, MAX_TEXT) &&
+    value.title.trim().length > 0 &&
+    isBoundedString(value.artist, MAX_TEXT) &&
+    isBoundedString(value.album, MAX_TEXT) &&
+    isFiniteNumber(value.durationSec) &&
+    value.durationSec >= 0 &&
+    isBoundedString(value.artworkUrl, MAX_URL)
+  );
 }
