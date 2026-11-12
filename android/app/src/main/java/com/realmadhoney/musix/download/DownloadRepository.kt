@@ -146,7 +146,6 @@ class DownloadRepository(
     }
 
     @Synchronized
-    @Synchronized
     fun appendLog(message: String) {
         val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
         val line = "[$stamp] $message"
