@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 import type { Session, WebContents } from 'electron';
@@ -60,6 +60,37 @@ function isDownloadStatus(value: unknown): value is DownloadStatus {
 
 function isAborted(signal: AbortSignal): boolean {
   return signal.aborted;
+}
+
+function sanitizeTitleForFilename(title: string, videoId: string): string {
+  const cleaned = title
+    .replace(/[/\\:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+    .replace(/^[.\s]+|[.\s]+$/g, '')
+    .slice(0, 120)
+    .trim();
+  return cleaned.length > 0 ? cleaned : videoId;
+}
+
+function formatTrackDescription(item: {
+  title: string;
+  artist: string;
+  album: string;
+  durationSec: number;
+  videoId: string;
+}): string {
+  const lines = [`Title: ${item.title}`];
+  if (item.artist) {
+    lines.push(`Artist: ${item.artist}`);
+  }
+  if (item.album) {
+    lines.push(`Album: ${item.album}`);
+  }
+  if (item.durationSec > 0) {
+    lines.push(`Duration: ${item.durationSec}s`);
+  }
+  lines.push(`Video ID: ${item.videoId}`);
+  return `${lines.join('\n')}\n`;
 }
 
 function parseStoredItem(raw: unknown): DownloadItem | null {
@@ -167,6 +198,9 @@ function upgradeArtworkUrl(artworkUrl: string, videoId: string): string {
 
 export class DownloadManager {
   readonly downloadsDir: string;
+  readonly musicDir: string;
+  readonly thumbnailsDir: string;
+  readonly miscDir: string;
   private readonly toolsDir: string;
   private readonly storePath: string;
   private items: DownloadItem[] = [];
@@ -181,10 +215,49 @@ export class DownloadManager {
     private readonly getYtmContents: () => WebContents | null,
   ) {
     this.downloadsDir = path.join(userDataDir, 'downloads');
+    this.musicDir = path.join(this.downloadsDir, 'music');
+    this.thumbnailsDir = path.join(this.downloadsDir, 'thumbnails');
+    this.miscDir = path.join(this.downloadsDir, 'misc');
     this.toolsDir = path.join(userDataDir, 'tools');
-    this.storePath = path.join(this.downloadsDir, STORE_FILE);
-    mkdirSync(this.downloadsDir, { recursive: true });
+    this.storePath = path.join(this.miscDir, STORE_FILE);
+    this.ensureDirectories();
     this.load();
+  }
+
+  private ensureDirectories(): void {
+    mkdirSync(this.musicDir, { recursive: true });
+    mkdirSync(this.thumbnailsDir, { recursive: true });
+    mkdirSync(this.miscDir, { recursive: true });
+  }
+
+  private fileStemFor(title: string, videoId: string): string {
+    const base = sanitizeTitleForFilename(title, videoId);
+    const conflict = this.items.some(
+      (other) =>
+        other.videoId !== videoId &&
+        sanitizeTitleForFilename(other.title, other.videoId).toLowerCase() === base.toLowerCase(),
+    );
+    return conflict ? `${base} (${videoId})` : base;
+  }
+
+  private audioFilePath(title: string, videoId: string): string {
+    return path.join(this.musicDir, `${this.fileStemFor(title, videoId)}.mp3`);
+  }
+
+  private thumbnailFilePath(title: string, videoId: string): string {
+    return path.join(this.thumbnailsDir, `${this.fileStemFor(title, videoId)}.jpg`);
+  }
+
+  private descriptionFilePath(title: string, videoId: string): string {
+    return path.join(this.miscDir, `${this.fileStemFor(title, videoId)}.txt`);
+  }
+
+  private audioAssetUrl(title: string, videoId: string): string {
+    return `musix-asset://downloads/music/${encodeURIComponent(`${this.fileStemFor(title, videoId)}.mp3`)}`;
+  }
+
+  private thumbnailAssetUrl(title: string, videoId: string): string {
+    return `musix-asset://downloads/thumbnails/${encodeURIComponent(`${this.fileStemFor(title, videoId)}.jpg`)}`;
   }
 
   list(): DownloadItem[] {
@@ -216,7 +289,7 @@ export class DownloadManager {
   startDownload(track: DownloadTrackRequest): DownloadItem {
     const existing = this.items.find((item) => item.videoId === track.videoId);
     if (existing && (existing.status === 'downloading' || existing.status === 'completed')) {
-      const audioFile = path.join(this.downloadsDir, `${track.videoId}.mp3`);
+      const audioFile = this.audioFilePath(existing.title, existing.videoId);
       if (existing.status === 'downloading' || existsSync(audioFile)) {
         return { ...existing };
       }
@@ -268,12 +341,20 @@ export class DownloadManager {
       this.activeProcesses.delete(videoId);
     }
 
+    const target = this.items.find((item) => item.videoId === videoId);
+    const stem = target ? this.fileStemFor(target.title, videoId) : videoId;
+
     const before = this.items.length;
     this.items = this.items.filter((item) => item.videoId !== videoId);
     this.persist();
     this.emit();
 
     const candidates = [
+      path.join(this.musicDir, `${stem}.mp3`),
+      path.join(this.thumbnailsDir, `${stem}.jpg`),
+      path.join(this.miscDir, `${stem}.txt`),
+      path.join(this.miscDir, `${videoId}.part`),
+      path.join(this.miscDir, `${videoId}.raw`),
       path.join(this.downloadsDir, `${videoId}.mp3`),
       path.join(this.downloadsDir, `${videoId}.jpg`),
       path.join(this.downloadsDir, `${videoId}.part`),
@@ -292,6 +373,16 @@ export class DownloadManager {
   }
 
   private load(): void {
+    this.ensureDirectories();
+    const legacyStore = path.join(this.downloadsDir, STORE_FILE);
+    if (!existsSync(this.storePath) && existsSync(legacyStore)) {
+      try {
+        renameSync(legacyStore, this.storePath);
+      } catch (error) {
+        logWarn('downloads', 'Failed to migrate legacy downloads.json', error);
+      }
+    }
+    this.cleanStaleTempFiles();
     if (!existsSync(this.storePath)) {
       this.items = [];
       return;
@@ -310,6 +401,7 @@ export class DownloadManager {
         }
       }
       this.items = parsed;
+      this.migrateItemFiles();
       this.persist();
     } catch (error) {
       logError('downloads', 'Failed to read downloads.json', error);
@@ -317,9 +409,71 @@ export class DownloadManager {
     }
   }
 
+  private cleanStaleTempFiles(): void {
+    for (const dir of [this.downloadsDir, this.miscDir]) {
+      try {
+        for (const name of readdirSync(dir)) {
+          if (name.endsWith('.raw') || name.endsWith('.part') || name.endsWith('.part.mp3')) {
+            rmSync(path.join(dir, name), { force: true });
+          }
+        }
+      } catch (error) {
+        logWarn('downloads', 'Failed to clean temp files', error);
+      }
+    }
+  }
+
+  private migrateItemFiles(): void {
+    for (let i = 0; i < this.items.length; i += 1) {
+      const item = this.items[i];
+      if (!item) {
+        continue;
+      }
+      const newAudio = this.audioFilePath(item.title, item.videoId);
+      const oldAudio = path.join(this.downloadsDir, `${item.videoId}.mp3`);
+      if (!existsSync(newAudio) && existsSync(oldAudio)) {
+        try {
+          renameSync(oldAudio, newAudio);
+        } catch (error) {
+          logWarn('downloads', 'Failed to migrate audio file', error);
+        }
+      }
+      const newThumb = this.thumbnailFilePath(item.title, item.videoId);
+      const oldThumb = path.join(this.downloadsDir, `${item.videoId}.jpg`);
+      if (!existsSync(newThumb) && existsSync(oldThumb)) {
+        try {
+          renameSync(oldThumb, newThumb);
+        } catch (error) {
+          logWarn('downloads', 'Failed to migrate thumbnail file', error);
+        }
+      }
+      const descPath = this.descriptionFilePath(item.title, item.videoId);
+      if (!existsSync(descPath)) {
+        try {
+          writeFileSync(descPath, formatTrackDescription(item), 'utf8');
+        } catch (error) {
+          logWarn('downloads', 'Failed to write description file', error);
+        }
+      }
+      let nextArtwork = item.artworkUrl;
+      if (existsSync(newThumb)) {
+        nextArtwork = this.thumbnailAssetUrl(item.title, item.videoId);
+      }
+      let nextAudio = item.audioUrl;
+      if (item.status === 'completed' && existsSync(newAudio)) {
+        nextAudio = this.audioAssetUrl(item.title, item.videoId);
+      }
+      this.items[i] = {
+        ...item,
+        artworkUrl: nextArtwork,
+        audioUrl: nextAudio,
+      };
+    }
+  }
+
   private persist(): void {
     try {
-      mkdirSync(this.downloadsDir, { recursive: true });
+      this.ensureDirectories();
       const tmp = `${this.storePath}.tmp`;
       writeFileSync(tmp, JSON.stringify(this.items, null, 2), 'utf8');
       renameSync(tmp, this.storePath);
@@ -352,10 +506,13 @@ export class DownloadManager {
   }
 
   private async runDownload(item: DownloadItem, signal: AbortSignal): Promise<void> {
-    const { videoId } = item;
-    const finalAudioPath = path.join(this.downloadsDir, `${videoId}.mp3`);
+    const { videoId, title } = item;
+    this.ensureDirectories();
+    const finalAudioPath = this.audioFilePath(title, videoId);
+    const descPath = this.descriptionFilePath(title, videoId);
     try {
-      const localArtwork = await this.downloadThumbnail(videoId, item.artworkUrl, signal);
+      await fsp.writeFile(descPath, formatTrackDescription(item), 'utf8');
+      const localArtwork = await this.downloadThumbnail(title, videoId, item.artworkUrl, signal);
       if (isAborted(signal)) {
         return;
       }
@@ -384,7 +541,7 @@ export class DownloadManager {
       this.updateItem(
         videoId,
         {
-          audioUrl: `musix-asset://downloads/${videoId}.mp3`,
+          audioUrl: this.audioAssetUrl(title, videoId),
           status: 'completed',
           progress: 1,
           error: null,
@@ -413,12 +570,13 @@ export class DownloadManager {
   }
 
   private async downloadThumbnail(
+    title: string,
     videoId: string,
     artworkUrl: string,
     signal: AbortSignal,
   ): Promise<string | null> {
     const urls = [upgradeArtworkUrl(artworkUrl, videoId), `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`];
-    const dest = path.join(this.downloadsDir, `${videoId}.jpg`);
+    const dest = this.thumbnailFilePath(title, videoId);
     for (const url of urls) {
       try {
         const response = await fetch(url, { signal });
@@ -430,7 +588,7 @@ export class DownloadManager {
           continue;
         }
         await fsp.writeFile(dest, bytes);
-        return `musix-asset://downloads/${videoId}.jpg`;
+        return this.thumbnailAssetUrl(title, videoId);
       } catch {
         if (signal.aborted) {
           return null;
@@ -576,79 +734,88 @@ export class DownloadManager {
     if (!resolved) {
       return false;
     }
-    const rawPath = path.join(this.downloadsDir, `${videoId}.raw`);
+    const rawPath = path.join(this.miscDir, `${videoId}.raw`);
     const urls = alternateVideoUrls(resolved.url);
     let urlIndex = 0;
     let totalBytes = resolved.contentLength;
     let downloadedBytes = 0;
     let lastEmit = 0;
 
-    await fsp.writeFile(rawPath, Buffer.alloc(0));
+    try {
+      await fsp.writeFile(rawPath, Buffer.alloc(0));
 
-    if (totalBytes <= 0) {
-      const response = await fetch(urls[0] ?? resolved.url, {
-        headers: { 'User-Agent': resolved.userAgent },
-        signal,
-      });
-      if (!response.ok) {
-        return false;
-      }
-      const buf = Buffer.from(await response.arrayBuffer());
-      if (buf.byteLength === 0) {
-        return false;
-      }
-      await fsp.writeFile(rawPath, buf);
-    } else {
-      while (downloadedBytes < totalBytes) {
-        if (isAborted(signal)) {
+      if (totalBytes <= 0) {
+        const response = await fetch(urls[0] ?? resolved.url, {
+          headers: { 'User-Agent': resolved.userAgent },
+          signal,
+        });
+        if (!response.ok) {
           return false;
         }
-        const end = Math.min(downloadedBytes + CHUNK_SIZE - 1, totalBytes - 1);
-        let chunkBuf: Buffer | null = null;
-        for (let attempt = 0; attempt < Math.min(urls.length, 6); attempt += 1) {
-          const targetUrl = urls[(urlIndex + attempt) % urls.length] ?? resolved.url;
-          try {
-            const response = await fetch(targetUrl, {
-              headers: {
-                'User-Agent': resolved.userAgent,
-                Range: `bytes=${downloadedBytes}-${end}`,
-              },
-              signal,
-            });
-            if (response.status === 206 || response.status === 200) {
-              const data = Buffer.from(await response.arrayBuffer());
-              if (data.byteLength > 0) {
-                chunkBuf = data;
-                urlIndex = (urlIndex + attempt) % urls.length;
-                if (response.status === 200 && downloadedBytes === 0) {
-                  totalBytes = data.byteLength;
+        const buf = Buffer.from(await response.arrayBuffer());
+        if (buf.byteLength === 0) {
+          return false;
+        }
+        await fsp.writeFile(rawPath, buf);
+      } else {
+        while (downloadedBytes < totalBytes) {
+          if (isAborted(signal)) {
+            return false;
+          }
+          const end = Math.min(downloadedBytes + CHUNK_SIZE - 1, totalBytes - 1);
+          let chunkBuf: Buffer | null = null;
+          for (let attempt = 0; attempt < Math.min(urls.length, 6); attempt += 1) {
+            const targetUrl = urls[(urlIndex + attempt) % urls.length] ?? resolved.url;
+            try {
+              const response = await fetch(targetUrl, {
+                headers: {
+                  'User-Agent': resolved.userAgent,
+                  Range: `bytes=${downloadedBytes}-${end}`,
+                },
+                signal,
+              });
+              if (response.status === 206 || response.status === 200) {
+                const data = Buffer.from(await response.arrayBuffer());
+                if (data.byteLength > 0) {
+                  chunkBuf = data;
+                  urlIndex = (urlIndex + attempt) % urls.length;
+                  if (response.status === 200 && downloadedBytes === 0) {
+                    totalBytes = data.byteLength;
+                  }
+                  break;
                 }
-                break;
+              }
+            } catch {
+              if (isAborted(signal)) {
+                return false;
               }
             }
-          } catch {
-            if (isAborted(signal)) {
-              return false;
-            }
+          }
+          if (!chunkBuf) {
+            throw new Error('Audio stream chunk download failed');
+          }
+          await fsp.appendFile(rawPath, chunkBuf);
+          downloadedBytes += chunkBuf.byteLength;
+          const now = Date.now();
+          if (now - lastEmit >= PROGRESS_THROTTLE_MS || downloadedBytes >= totalBytes) {
+            lastEmit = now;
+            const progress = Math.min(0.95, downloadedBytes / totalBytes);
+            this.updateItem(videoId, { progress });
           }
         }
-        if (!chunkBuf) {
-          throw new Error('Audio stream chunk download failed');
-        }
-        await fsp.appendFile(rawPath, chunkBuf);
-        downloadedBytes += chunkBuf.byteLength;
-        const now = Date.now();
-        if (now - lastEmit >= PROGRESS_THROTTLE_MS || downloadedBytes >= totalBytes) {
-          lastEmit = now;
-          const progress = Math.min(0.95, downloadedBytes / totalBytes);
-          this.updateItem(videoId, { progress });
+      }
+
+      const ffmpegBin = findBinaryInPath('ffmpeg');
+      if (ffmpegBin && !signal.aborted) {
+        const converted = await this.transcodeToMp3(videoId, ffmpegBin, rawPath, finalAudioPath, signal);
+        if (converted && existsSync(finalAudioPath)) {
+          return true;
         }
       }
-    }
 
-    const ffmpegBin = findBinaryInPath('ffmpeg');
-    if (ffmpegBin && !signal.aborted) {
-      const converted = await this.transcodeToMp3(videoId, ffmpegBin, rawPath, finalAudioPath, signal);
+      await fsp.rename(rawPath, finalAudioPath);
+      return existsSync(finalAudioPath);
+    } finally {
       try {
         if (existsSync(rawPath)) {
           await fsp.unlink(rawPath);
@@ -656,13 +823,7 @@ export class DownloadManager {
       } catch (error) {
         logWarn('downloads', 'Failed to remove raw file', error);
       }
-      if (converted && existsSync(finalAudioPath)) {
-        return true;
-      }
     }
-
-    await fsp.rename(rawPath, finalAudioPath);
-    return existsSync(finalAudioPath);
   }
 
   private transcodeToMp3(
@@ -673,7 +834,7 @@ export class DownloadManager {
     signal: AbortSignal,
   ): Promise<boolean> {
     return new Promise((resolve) => {
-      const tmpOut = `${outputPath}.part.mp3`;
+      const tmpOut = path.join(this.miscDir, `${videoId}.part.mp3`);
       const proc = spawn(
         ffmpegBin,
         ['-y', '-i', inputPath, '-vn', '-acodec', 'libmp3lame', '-q:a', '2', tmpOut],
@@ -823,7 +984,7 @@ export class DownloadManager {
   ): Promise<boolean> {
     return new Promise((resolve) => {
       const ffmpegBin = findBinaryInPath('ffmpeg');
-      const outputTemplate = path.join(this.downloadsDir, `${videoId}.%(ext)s`);
+      const outputTemplate = path.join(this.miscDir, `${videoId}.%(ext)s`);
       const args = [
         '--no-playlist',
         '--newline',
@@ -882,12 +1043,8 @@ export class DownloadManager {
           resolve(false);
           return;
         }
-        if (existsSync(finalAudioPath)) {
-          resolve(true);
-          return;
-        }
-        for (const ext of ['m4a', 'webm', 'opus', 'mp4']) {
-          const candidate = path.join(this.downloadsDir, `${videoId}.${ext}`);
+        for (const ext of ['mp3', 'm4a', 'webm', 'opus', 'mp4']) {
+          const candidate = path.join(this.miscDir, `${videoId}.${ext}`);
           if (existsSync(candidate)) {
             try {
               renameSync(candidate, finalAudioPath);

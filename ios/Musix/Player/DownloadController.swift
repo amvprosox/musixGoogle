@@ -60,6 +60,9 @@ final class DownloadController: ObservableObject {
 
     private let engine: WebEngine
     private let downloadsDir: URL
+    private let musicDir: URL
+    private let thumbnailsDir: URL
+    private let miscDir: URL
     private let indexFile: URL
     private var activeTasks: [String: Task<Void, Never>] = [:]
 
@@ -105,9 +108,18 @@ final class DownloadController: ObservableObject {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         let dir = base.appendingPathComponent("Musix", isDirectory: true).appendingPathComponent("downloads", isDirectory: true)
+        let music = dir.appendingPathComponent("music", isDirectory: true)
+        let thumbs = dir.appendingPathComponent("thumbnails", isDirectory: true)
+        let misc = dir.appendingPathComponent("misc", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: music, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: thumbs, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: misc, withIntermediateDirectories: true)
         self.downloadsDir = dir
-        self.indexFile = dir.appendingPathComponent("downloads.json")
+        self.musicDir = music
+        self.thumbnailsDir = thumbs
+        self.miscDir = misc
+        self.indexFile = misc.appendingPathComponent("downloads.json")
         loadIndex()
     }
 
@@ -115,27 +127,77 @@ final class DownloadController: ObservableObject {
         items.first { $0.videoId == videoId }
     }
 
+    private func sanitizeTitle(_ title: String, fallback: String) -> String {
+        let invalid = CharacterSet(charactersIn: "<>:\"/\\|?*").union(.controlCharacters)
+        let cleaned = title.components(separatedBy: invalid).joined(separator: " ")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: " ."))
+        let clipped = String(cleaned.prefix(120)).trimmingCharacters(in: CharacterSet(charactersIn: " ."))
+        return clipped.isEmpty ? fallback : clipped
+    }
+
+    private func fileStem(for entry: DownloadItem) -> String {
+        let base = sanitizeTitle(entry.title, fallback: entry.videoId)
+        let collision = items.contains {
+            $0.videoId != entry.videoId &&
+                sanitizeTitle($0.title, fallback: $0.videoId).caseInsensitiveCompare(base) == .orderedSame
+        }
+        return collision ? "\(base) (\(entry.videoId))" : base
+    }
+
     func audioURL(for videoId: String) -> URL? {
         guard BridgeCodec.isValidVideoId(videoId) else {
             return nil
         }
-        let file = downloadsDir.appendingPathComponent("\(videoId).mp3")
-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: file.path),
-              let size = attrs[.size] as? NSNumber,
-              size.int64Value > 0 else {
-            return nil
+        var candidates: [URL] = []
+        if let existing = item(for: videoId) {
+            let stem = fileStem(for: existing)
+            let base = sanitizeTitle(existing.title, fallback: videoId)
+            candidates.append(musicDir.appendingPathComponent("\(stem).mp3"))
+            candidates.append(musicDir.appendingPathComponent("\(base).mp3"))
         }
-        return file
+        candidates.append(musicDir.appendingPathComponent("\(videoId).mp3"))
+        candidates.append(downloadsDir.appendingPathComponent("\(videoId).mp3"))
+        for file in candidates {
+            if let attrs = try? FileManager.default.attributesOfItem(atPath: file.path),
+               let size = attrs[.size] as? NSNumber,
+               size.int64Value > 0 {
+                return file
+            }
+        }
+        return nil
     }
 
     func artworkAddress(for item: DownloadItem) -> String {
-        let file = downloadsDir.appendingPathComponent("\(item.videoId).jpg")
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: file.path),
-           let size = attrs[.size] as? NSNumber,
-           size.int64Value > 0 {
-            return file.absoluteString
+        let stem = fileStem(for: item)
+        let base = sanitizeTitle(item.title, fallback: item.videoId)
+        let candidates = [
+            thumbnailsDir.appendingPathComponent("\(stem).jpg"),
+            thumbnailsDir.appendingPathComponent("\(base).jpg"),
+            thumbnailsDir.appendingPathComponent("\(item.videoId).jpg"),
+            downloadsDir.appendingPathComponent("\(item.videoId).jpg"),
+        ]
+        for file in candidates {
+            if let attrs = try? FileManager.default.attributesOfItem(atPath: file.path),
+               let size = attrs[.size] as? NSNumber,
+               size.int64Value > 0 {
+                return file.absoluteString
+            }
         }
         return item.artworkUrl
+    }
+
+    private func writeDescriptionFile(for entry: DownloadItem, stem: String) {
+        let lines = [
+            "Title: \(entry.title)",
+            "Artist: \(entry.artist)",
+            "Album: \(entry.album)",
+            "Video ID: \(entry.videoId)",
+            "Duration: \(Int(entry.durationSec.rounded()))s",
+            "Source: https://music.youtube.com/watch?v=\(entry.videoId)",
+        ].joined(separator: "\n") + "\n"
+        let descFile = miscDir.appendingPathComponent("\(stem).txt")
+        try? lines.data(using: .utf8)?.write(to: descFile, options: .atomic)
     }
 
     func startDownload(_ request: DownloadTrackRequest) {
@@ -168,12 +230,13 @@ final class DownloadController: ObservableObject {
             fileSizeBytes: nil
         )
         upsert(entry)
-        let dir = downloadsDir
+        let stem = fileStem(for: entry)
+        writeDescriptionFile(for: entry, stem: stem)
         let task = Task { [weak self] in
             guard let self else {
                 return
             }
-            await self.runDownload(entry: entry, downloadsDir: dir)
+            await self.runDownload(entry: entry, stem: stem)
         }
         activeTasks[videoId] = task
     }
@@ -184,21 +247,39 @@ final class DownloadController: ObservableObject {
         }
         activeTasks[videoId]?.cancel()
         activeTasks.removeValue(forKey: videoId)
+        let existing = item(for: videoId)
+        let stem = existing.map { fileStem(for: $0) }
+        let base = existing.map { sanitizeTitle($0.title, fallback: videoId) }
         items.removeAll { $0.videoId == videoId }
         saveIndex()
-        let mp3 = downloadsDir.appendingPathComponent("\(videoId).mp3")
-        let part = downloadsDir.appendingPathComponent("\(videoId).mp3.part")
-        let jpg = downloadsDir.appendingPathComponent("\(videoId).jpg")
-        try? FileManager.default.removeItem(at: mp3)
-        try? FileManager.default.removeItem(at: part)
-        try? FileManager.default.removeItem(at: jpg)
+        var targets: [URL] = [
+            miscDir.appendingPathComponent("\(videoId).mp3.part"),
+            downloadsDir.appendingPathComponent("\(videoId).mp3.part"),
+            musicDir.appendingPathComponent("\(videoId).mp3"),
+            downloadsDir.appendingPathComponent("\(videoId).mp3"),
+            thumbnailsDir.appendingPathComponent("\(videoId).jpg"),
+            downloadsDir.appendingPathComponent("\(videoId).jpg"),
+        ]
+        if let stem {
+            targets.append(musicDir.appendingPathComponent("\(stem).mp3"))
+            targets.append(thumbnailsDir.appendingPathComponent("\(stem).jpg"))
+            targets.append(miscDir.appendingPathComponent("\(stem).txt"))
+        }
+        if let base {
+            targets.append(musicDir.appendingPathComponent("\(base).mp3"))
+            targets.append(thumbnailsDir.appendingPathComponent("\(base).jpg"))
+            targets.append(miscDir.appendingPathComponent("\(base).txt"))
+        }
+        for target in targets {
+            try? FileManager.default.removeItem(at: target)
+        }
     }
 
-    private func runDownload(entry: DownloadItem, downloadsDir: URL) async {
+    private func runDownload(entry: DownloadItem, stem: String) async {
         let videoId = entry.videoId
-        let partFile = downloadsDir.appendingPathComponent("\(videoId).mp3.part")
-        let finalFile = downloadsDir.appendingPathComponent("\(videoId).mp3")
-        let thumbFile = downloadsDir.appendingPathComponent("\(videoId).jpg")
+        let partFile = miscDir.appendingPathComponent("\(videoId).mp3.part")
+        let finalFile = musicDir.appendingPathComponent("\(stem).mp3")
+        let thumbFile = thumbnailsDir.appendingPathComponent("\(stem).jpg")
         defer {
             activeTasks.removeValue(forKey: videoId)
         }
@@ -268,6 +349,9 @@ final class DownloadController: ObservableObject {
             }
             try? FileManager.default.removeItem(at: finalFile)
             try FileManager.default.moveItem(at: partFile, to: finalFile)
+            if let current = item(for: videoId) {
+                writeDescriptionFile(for: current, stem: stem)
+            }
             updateItem(videoId: videoId) { item in
                 item.status = .completed
                 item.progress = 1
@@ -314,6 +398,11 @@ final class DownloadController: ObservableObject {
     }
 
     private func loadIndex() {
+        let legacyIndex = downloadsDir.appendingPathComponent("downloads.json")
+        if !FileManager.default.fileExists(atPath: indexFile.path),
+           FileManager.default.fileExists(atPath: legacyIndex.path) {
+            try? FileManager.default.moveItem(at: legacyIndex, to: indexFile)
+        }
         guard let data = try? Data(contentsOf: indexFile),
               let decoded = try? JSONDecoder().decode([DownloadItem].self, from: data) else {
             items = []
@@ -321,9 +410,27 @@ final class DownloadController: ObservableObject {
         }
         var loaded: [DownloadItem] = []
         var seen = Set<String>()
-        for var entry in decoded {
+        for entry in decoded {
             guard BridgeCodec.isValidVideoId(entry.videoId), !entry.title.isEmpty, seen.insert(entry.videoId).inserted else {
                 continue
+            }
+            loaded.append(entry)
+        }
+        items = loaded
+        var validated: [DownloadItem] = []
+        for var entry in loaded {
+            let stem = fileStem(for: entry)
+            let legacyMp3 = downloadsDir.appendingPathComponent("\(entry.videoId).mp3")
+            let targetMp3 = musicDir.appendingPathComponent("\(stem).mp3")
+            if !FileManager.default.fileExists(atPath: targetMp3.path),
+               FileManager.default.fileExists(atPath: legacyMp3.path) {
+                try? FileManager.default.moveItem(at: legacyMp3, to: targetMp3)
+            }
+            let legacyJpg = downloadsDir.appendingPathComponent("\(entry.videoId).jpg")
+            let targetJpg = thumbnailsDir.appendingPathComponent("\(stem).jpg")
+            if !FileManager.default.fileExists(atPath: targetJpg.path),
+               FileManager.default.fileExists(atPath: legacyJpg.path) {
+                try? FileManager.default.moveItem(at: legacyJpg, to: targetJpg)
             }
             if entry.status == .completed {
                 if let url = audioURL(for: entry.videoId),
@@ -332,6 +439,7 @@ final class DownloadController: ObservableObject {
                    size.int64Value > 0 {
                     entry.progress = 1
                     entry.fileSizeBytes = size.int64Value
+                    writeDescriptionFile(for: entry, stem: stem)
                 } else {
                     entry.status = .failed
                     entry.progress = 0
@@ -342,10 +450,10 @@ final class DownloadController: ObservableObject {
                 entry.progress = 0
                 entry.error = "Download interrupted"
             }
-            loaded.append(entry)
+            validated.append(entry)
         }
-        loaded.sort { $0.createdAt > $1.createdAt }
-        items = loaded
+        validated.sort { $0.createdAt > $1.createdAt }
+        items = validated
         saveIndex()
     }
 

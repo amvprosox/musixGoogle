@@ -81,7 +81,10 @@ class DownloadRepository(
     private val onMessage: (String) -> Unit,
 ) {
     private val directory = File(context.filesDir, "downloads")
-    private val storeFile = File(directory, "downloads.json")
+    private val musicDir = File(directory, "music")
+    private val thumbnailsDir = File(directory, "thumbnails")
+    private val miscDir = File(directory, "misc")
+    private val storeFile = File(miscDir, "downloads.json")
     private val json = Json { ignoreUnknownKeys = true }
     private val jobs = ConcurrentHashMap<String, Job>()
 
@@ -97,10 +100,66 @@ class DownloadRepository(
     private var cachedVisitorData: String = ""
 
     init {
-        if (!directory.isDirectory) {
-            directory.mkdirs()
-        }
+        ensureDirectories()
         load()
+    }
+
+    private fun ensureDirectories() {
+        musicDir.mkdirs()
+        thumbnailsDir.mkdirs()
+        miscDir.mkdirs()
+    }
+
+    private fun sanitizeTitle(
+        title: String,
+        videoId: String,
+    ): String {
+        val cleaned =
+            title
+                .replace(UNSAFE_FILENAME_REGEX, "-")
+                .replace(WHITESPACE_REGEX, " ")
+                .trim(' ', '.')
+                .take(120)
+                .trim()
+        return cleaned.ifEmpty { videoId }
+    }
+
+    private fun fileStemFor(
+        title: String,
+        videoId: String,
+    ): String {
+        val base = sanitizeTitle(title, videoId)
+        val conflict =
+            itemsFlow.value.any { other ->
+                other.videoId != videoId &&
+                    sanitizeTitle(other.title, other.videoId).equals(base, ignoreCase = true)
+            }
+        return if (conflict) "$base ($videoId)" else base
+    }
+
+    private fun writeDescriptionFile(
+        stem: String,
+        item: DownloadItem,
+    ) {
+        try {
+            val lines =
+                buildList {
+                    add("Title: ${item.title}")
+                    if (item.artist.isNotEmpty()) {
+                        add("Artist: ${item.artist}")
+                    }
+                    if (item.album.isNotEmpty()) {
+                        add("Album: ${item.album}")
+                    }
+                    if (item.durationSec > 0) {
+                        add("Duration: ${item.durationSec}s")
+                    }
+                    add("Video ID: ${item.videoId}")
+                }
+            File(miscDir, "$stem.txt").writeText(lines.joinToString("\n") + "\n", Charsets.UTF_8)
+        } catch (error: IOException) {
+            Log.w(TAG, "Failed to write description file", error)
+        }
     }
 
     fun startDownload(spec: DownloadTrackSpec) {
@@ -151,11 +210,25 @@ class DownloadRepository(
         if (offlineVideoId == videoId) {
             stopOffline()
         }
+        val target = itemsFlow.value.firstOrNull { it.videoId == videoId }
+        val stem = if (target != null) fileStemFor(target.title, videoId) else videoId
         synchronized(this) {
             itemsFlow.value = itemsFlow.value.filterNot { it.videoId == videoId }
             persist()
         }
         ioScope.launch {
+            if (target != null) {
+                if (target.audioPath.isNotEmpty()) {
+                    File(target.audioPath).delete()
+                }
+                if (target.artworkPath.isNotEmpty()) {
+                    File(target.artworkPath).delete()
+                }
+            }
+            File(musicDir, "$stem.mp3").delete()
+            File(thumbnailsDir, "$stem.jpg").delete()
+            File(miscDir, "$stem.txt").delete()
+            File(miscDir, "$videoId.part").delete()
             File(directory, "$videoId.mp3").delete()
             File(directory, "$videoId.jpg").delete()
             File(directory, "$videoId.part").delete()
@@ -378,10 +451,13 @@ class DownloadRepository(
         artworkUrl: String,
     ) {
         val videoId = item.videoId
-        val partFile = File(directory, "$videoId.part")
-        val finalFile = File(directory, "$videoId.mp3")
+        ensureDirectories()
+        val stem = fileStemFor(item.title, videoId)
+        val partFile = File(miscDir, "$videoId.part")
+        val finalFile = File(musicDir, "$stem.mp3")
         try {
-            val thumbPath = downloadThumbnail(videoId, artworkUrl)
+            writeDescriptionFile(stem, item)
+            val thumbPath = downloadThumbnail(stem, videoId, artworkUrl)
             if (thumbPath.isNotEmpty()) {
                 updateItem(videoId, save = true) { it.copy(artworkPath = thumbPath) }
             }
@@ -423,11 +499,13 @@ class DownloadRepository(
             }
             onMessage("Download failed: ${item.title}")
         } finally {
+            partFile.delete()
             jobs.remove(videoId)
         }
     }
 
     private fun downloadThumbnail(
+        stem: String,
         videoId: String,
         artworkUrl: String,
     ): String {
@@ -438,7 +516,7 @@ class DownloadRepository(
                 }
                 add("https://i.ytimg.com/vi/$videoId/hqdefault.jpg")
             }
-        val dest = File(directory, "$videoId.jpg")
+        val dest = File(thumbnailsDir, "$stem.jpg")
         for (url in candidates) {
             try {
                 val conn = URL(url).openConnection() as? HttpURLConnection ?: continue
@@ -707,6 +785,14 @@ class DownloadRepository(
 
     @Synchronized
     private fun load() {
+        ensureDirectories()
+        val legacyStore = File(directory, "downloads.json")
+        if (!storeFile.isFile && legacyStore.isFile) {
+            if (!legacyStore.renameTo(storeFile)) {
+                legacyStore.copyTo(storeFile, overwrite = true)
+                legacyStore.delete()
+            }
+        }
         if (!storeFile.isFile) {
             itemsFlow.value = emptyList()
             return
@@ -732,10 +818,8 @@ class DownloadRepository(
     @Synchronized
     private fun persist() {
         try {
-            if (!directory.isDirectory) {
-                directory.mkdirs()
-            }
-            val tmp = File(directory, "downloads.json.tmp")
+            ensureDirectories()
+            val tmp = File(miscDir, "downloads.json.tmp")
             val encoded = json.encodeToString(ListSerializer(DownloadItem.serializer()), itemsFlow.value)
             tmp.writeText(encoded, Charsets.UTF_8)
             if (!tmp.renameTo(storeFile)) {
@@ -774,6 +858,8 @@ class DownloadRepository(
         const val VR_UA =
             "com.google.android.apps.youtube.vr.oculus/1.60.19 " +
                 "(Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip"
+        val UNSAFE_FILENAME_REGEX = Regex("""[/\\:*?"<>|]""")
+        val WHITESPACE_REGEX = Regex("""\s+""")
         val VISITOR_REGEX = Regex(""""VISITOR_DATA":"([^"]+)"""")
         val CLIENTS =
             listOf(

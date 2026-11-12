@@ -31,7 +31,29 @@ import { logError, logInfo, logWarn } from './log';
 export const ASSET_SCHEME = 'musix-asset';
 
 const FONT_FILE_PATTERN = /^[a-z0-9-]+\.woff2$/;
-const DOWNLOAD_FILE_PATTERN = /^[A-Za-z0-9_-]{6,20}\.(mp3|jpg)$/;
+
+function resolveDownloadAssetPath(downloadsDir: string, pathname: string): string | null {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
+  const trimmed = decoded.replace(/^\/+/, '');
+  if (!trimmed || trimmed.includes('\0')) {
+    return null;
+  }
+  const lower = trimmed.toLowerCase();
+  if (!lower.endsWith('.mp3') && !lower.endsWith('.jpg')) {
+    return null;
+  }
+  const base = path.resolve(downloadsDir);
+  const resolved = path.resolve(base, trimmed);
+  if (!resolved.startsWith(`${base}${path.sep}`)) {
+    return null;
+  }
+  return resolved;
+}
 
 function detectAudioMimeType(data: Buffer): string {
   if (data.byteLength >= 8 && data.subarray(4, 8).toString('ascii') === 'ftyp') {
@@ -65,10 +87,13 @@ export function configureAssetProtocol(ses: Session, downloadsDir?: string): voi
           },
         });
       }
-      if (url.hostname === 'downloads' && downloadsDir && DOWNLOAD_FILE_PATTERN.test(name)) {
-        const filePath = path.join(downloadsDir, name);
+      if (url.hostname === 'downloads' && downloadsDir) {
+        const filePath = resolveDownloadAssetPath(downloadsDir, url.pathname);
+        if (!filePath) {
+          return new Response(null, { status: 404 });
+        }
         const data = await fs.readFile(filePath);
-        if (name.endsWith('.jpg')) {
+        if (filePath.toLowerCase().endsWith('.jpg')) {
           return new Response(new Uint8Array(data), {
             status: 200,
             headers: {
