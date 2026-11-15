@@ -2,6 +2,8 @@
 
 A custom music YouTube app with a built-in ad blocker to play what music you wanted to play without subscribing to YouTube 😛. Similar to Youtube Revanced
 
+**New in 1.0.7: you can now download music and listen offline.** Save any song as an MP3, or download a whole playlist, album, or your Liked Music from the Downloads tab, then play it without internet on every platform.
+
 ## Download
 
 Get the files from the [latest release](https://github.com/amvprosox/musixGoogle/releases/latest):
