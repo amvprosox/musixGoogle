@@ -96,6 +96,8 @@ final class PlayerController: ObservableObject {
 
     var hasTrack: Bool { timeline.current != nil }
 
+    var isOfflinePlaying: Bool { offlineActive }
+
     var isLiked: Bool { state.likeStatus == .like }
 
     var positionSec: Double { PlaybackModel.position(state) }

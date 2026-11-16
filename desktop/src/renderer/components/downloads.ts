@@ -608,6 +608,36 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
     [icon('info'), h('span', { text: 'Logs' })],
   );
 
+  const lyricsBtn = h(
+    'button',
+    {
+      className: 'btn btn-ghost btn-sm',
+      attrs: { type: 'button' },
+      on: {
+        click: () => {
+          lyricsBtn.disabled = true;
+          api
+            .invoke('downloads:get-lyrics', null)
+            .then((res) => {
+              toasts.show({
+                variant: 'info',
+                title: 'Offline lyrics',
+                message:
+                  res.missing === 0
+                    ? 'All downloads already have lyrics.'
+                    : `Saved lyrics for ${res.saved} of ${res.missing} songs.`,
+              });
+            })
+            .catch(() => undefined)
+            .finally(() => {
+              lyricsBtn.disabled = false;
+            });
+        },
+      },
+    },
+    [icon('text-quote'), h('span', { text: 'Get Lyrics' })],
+  );
+
   const closeBtn = iconButton({
     icon: 'x',
     label: 'Close downloads',
@@ -775,7 +805,7 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
   const inner = h('div', { className: 'settings-inner downloads-inner' }, [
     h('div', { className: 'settings-header' }, [
       h('div', {}, [h('h1', { className: 'settings-title', text: 'Downloads' }), subtitle]),
-      h('div', { className: 'downloads-header-actions' }, [logsToggleBtn, closeBtn]),
+      h('div', { className: 'downloads-header-actions' }, [lyricsBtn, logsToggleBtn, closeBtn]),
     ]),
     searchBar,
     logsPanel,

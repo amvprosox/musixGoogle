@@ -142,6 +142,7 @@ fun MusixApp(viewModel: MainViewModel) {
     val downloadLogs by viewModel.downloadLogs.collectAsState()
     val detectedLibraries by viewModel.detectedLibraries.collectAsState()
     val savedLibraries by viewModel.savedLibraries.collectAsState()
+    val fetchingLyrics by viewModel.fetchingLyrics.collectAsState()
     val librariesLoading by viewModel.librariesLoading.collectAsState()
     LaunchedEffect(onlineNowPlaying.isPlaying, onlineNowPlaying.mediaId) {
         if (onlineNowPlaying.isPlaying && onlineNowPlaying.hasTrack && offlineNowPlaying != null) {
@@ -335,6 +336,8 @@ fun MusixApp(viewModel: MainViewModel) {
                                         onDownloadLibrary = viewModel::downloadLibrary,
                                         onDownloadAllLibraries = { viewModel.downloadAllLibraries(detectedLibraries) },
                                         onClearLogs = viewModel::clearDownloadLogs,
+                                        fetchingLyrics = fetchingLyrics,
+                                        onGetLyrics = viewModel::backfillLyrics,
                                     )
                                 }
                                 val visible =

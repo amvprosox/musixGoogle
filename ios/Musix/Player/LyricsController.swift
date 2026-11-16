@@ -15,14 +15,18 @@ final class LyricsController: ObservableObject {
     @Published private(set) var load: LyricsLoad = .idle
 
     private let engine: WebEngine
+    private let player: PlayerController
+    private let downloads: DownloadController
     private var cancellables = Set<AnyCancellable>()
     private var task: Task<Void, Never>?
     private var currentKey = ""
     private var visible = false
 
-    init(engine: WebEngine) {
+    init(engine: WebEngine, player: PlayerController, downloads: DownloadController) {
         self.engine = engine
-        engine.$state
+        self.player = player
+        self.downloads = downloads
+        player.$state
             .receive(on: RunLoop.main)
             .sink { [weak self] state in
                 self?.track(state)
@@ -33,7 +37,7 @@ final class LyricsController: ObservableObject {
     func setVisible(_ visible: Bool) {
         self.visible = visible
         if visible {
-            track(engine.state)
+            track(player.state)
         } else {
             task?.cancel()
             currentKey = ""
@@ -42,7 +46,7 @@ final class LyricsController: ObservableObject {
 
     func retry() {
         currentKey = ""
-        track(engine.state)
+        track(player.state)
     }
 
     private func track(_ state: BridgeState) {
@@ -56,6 +60,14 @@ final class LyricsController: ObservableObject {
         }
         currentKey = key
         task?.cancel()
+        if let stored = downloads.storedLyrics(for: state.videoId) {
+            load = .found(stored)
+            return
+        }
+        if player.isOfflinePlaying {
+            load = .missing
+            return
+        }
         load = .loading
         let command = BridgeCommand.lyrics(
             videoId: state.videoId,

@@ -484,6 +484,8 @@ fun DownloadsScreen(
     onDownloadLibrary: (DetectedLibrary) -> Unit,
     onDownloadAllLibraries: () -> Unit,
     onClearLogs: () -> Unit,
+    fetchingLyrics: Boolean,
+    onGetLyrics: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = Musix.colors
@@ -550,6 +552,14 @@ fun DownloadsScreen(
             ) {
                 DownloadPill(if (logsOpen) "Hide Logs" else "Logs", R.drawable.ic_lyrics, { logsOpen = !logsOpen }, highlighted = logsOpen)
                 DownloadPill("Refresh", R.drawable.ic_refresh, onRefreshLibraries, enabled = !librariesLoading)
+                if (completedIds.isNotEmpty()) {
+                    DownloadPill(
+                        if (fetchingLyrics) "Getting Lyrics..." else "Get Lyrics",
+                        R.drawable.ic_lyrics,
+                        onGetLyrics,
+                        enabled = !fetchingLyrics,
+                    )
+                }
                 if (libraries.isNotEmpty()) {
                     DownloadPill("Download All", R.drawable.ic_download, onDownloadAllLibraries)
                 }

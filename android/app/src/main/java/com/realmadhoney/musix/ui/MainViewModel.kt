@@ -22,18 +22,22 @@ import com.realmadhoney.musix.download.DownloadItem
 import com.realmadhoney.musix.download.DownloadTrackSpec
 import com.realmadhoney.musix.engine.AccountState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed interface Route {
     data object Home : Route
@@ -214,25 +218,36 @@ class MainViewModel(
             }
         }
         viewModelScope.launch {
-            graph.engine
-                .filterNotNull()
-                .flatMapLatest { engine -> lyricsWanted.map { wanted -> engine.takeIf { wanted } } }
-                .flatMapLatest { engine ->
-                    if (engine == null) {
-                        return@flatMapLatest emptyFlow()
+            val onlineKeys =
+                graph.engine.flatMapLatest { engine ->
+                    engine?.bridgeState?.map { state ->
+                        if (state.isAd || state.videoId.isEmpty() || state.title.isBlank() || state.durationSec <= 0.0) {
+                            null
+                        } else {
+                            LyricsKey(state.videoId, state.title, state.artist, state.album, Math.round(state.durationSec).toDouble())
+                        }
+                    } ?: flowOf(null)
+                }
+            combine(lyricsWanted, onlineKeys, graph.downloads.offlineNowPlaying) { wanted, online, offline ->
+                val offlineKey =
+                    offline?.takeIf { it.hasTrack && it.mediaId.isNotEmpty() }?.let {
+                        LyricsKey(it.mediaId, it.title, it.artist, it.album, Math.round(it.durationMs / 1000.0).toDouble())
                     }
-                    engine.bridgeState
-                        .map { state ->
-                            if (state.isAd || state.videoId.isEmpty() || state.title.isBlank() || state.durationSec <= 0.0) {
-                                null
-                            } else {
-                                LyricsKey(state.videoId, state.title, state.artist, state.album, Math.round(state.durationSec).toDouble())
-                            }
-                        }.distinctUntilChanged()
-                        .filterNotNull()
-                        .flatMapLatest { key -> lyricsRetry.map { key } }
-                        .map { key -> engine to key }
-                }.collectLatest { (engine, key) ->
+                if (wanted) offlineKey ?: online else null
+            }.distinctUntilChanged()
+                .filterNotNull()
+                .flatMapLatest { key -> lyricsRetry.map { key } }
+                .collectLatest { key ->
+                    val stored = withContext(Dispatchers.IO) { graph.downloads.storedLyrics(key.videoId) }
+                    if (stored != null) {
+                        lyricsFlow.value = LyricsState.Found(stored)
+                        return@collectLatest
+                    }
+                    if (graph.downloads.offlineNowPlaying.value != null) {
+                        lyricsFlow.value = LyricsState.Missing(key.videoId)
+                        return@collectLatest
+                    }
+                    val engine = graph.engine.value ?: return@collectLatest
                     lyricsFlow.value = LyricsState.Loading(key.videoId)
                     delay(LYRICS_SETTLE_MS)
                     val result =
@@ -347,6 +362,11 @@ class MainViewModel(
     }
 
     val savedLibraries = graph.downloads.savedLibraries
+    val fetchingLyrics = graph.downloads.fetchingLyrics
+
+    fun backfillLyrics() {
+        viewModelScope.launch { graph.downloads.backfillLyrics() }
+    }
 
     fun downloadLibrary(library: DetectedLibrary) {
         graph.downloads.downloadBatch(library.title, library.tracks, library)

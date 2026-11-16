@@ -221,7 +221,7 @@ export function mountLyrics(root: HTMLElement, ctx: AppContext): void {
     token += 1;
     const mine = token;
     api
-      .invoke('lyrics:get', null)
+      .invoke('lyrics:get', actions.isOfflineActive() ? videoId : null)
       .then((response) => {
         if (response.kind === 'found' && response.lyrics.videoId !== videoId) {
           return;

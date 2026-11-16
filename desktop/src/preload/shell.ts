@@ -32,6 +32,7 @@ const INVOKE_CHANNELS: Readonly<Record<ShellInvokeChannel, true>> = {
   'downloads:logs-clear': true,
   'downloads:libraries': true,
   'downloads:saved-libraries': true,
+  'downloads:get-lyrics': true,
 };
 
 const SEND_CHANNELS: Readonly<Record<ShellSendChannel, true>> = {

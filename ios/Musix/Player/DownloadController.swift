@@ -94,6 +94,7 @@ final class DownloadController: ObservableObject {
     @Published private(set) var detectingLibraries = false
     @Published private(set) var notice: String?
     @Published private(set) var savedLibraries: [SavedLibrary] = []
+    @Published private(set) var fetchingLyrics = false
 
     private let engine: WebEngine
     private let downloadsDir: URL
@@ -237,6 +238,74 @@ final class DownloadController: ObservableObject {
         )
         savedLibraries = Array(([entry] + savedLibraries.filter { $0.id != library.id }).prefix(200))
         persistLibraries()
+    }
+
+    private func lyricsURL(for entry: DownloadItem) -> URL {
+        miscDir.appendingPathComponent("\(fileStem(for: entry)).lyrics.json")
+    }
+
+    func storedLyrics(for videoId: String) -> Lyrics? {
+        guard let entry = item(for: videoId),
+              let data = try? Data(contentsOf: lyricsURL(for: entry)),
+              let lyrics = try? JSONDecoder().decode(Lyrics.self, from: data) else {
+            return nil
+        }
+        return Lyrics(videoId: videoId, source: lyrics.source, synced: lyrics.synced, instrumental: lyrics.instrumental, lines: lyrics.lines)
+    }
+
+    func hasStoredLyrics(_ videoId: String) -> Bool {
+        guard let entry = item(for: videoId) else {
+            return false
+        }
+        return FileManager.default.fileExists(atPath: lyricsURL(for: entry).path)
+    }
+
+    @discardableResult
+    func saveLyrics(for entry: DownloadItem) async -> Bool {
+        guard entry.status == .completed, !entry.title.isEmpty else {
+            return false
+        }
+        let result = await engine.commandQueue.send(
+            .lyrics(
+                videoId: entry.videoId,
+                title: entry.title,
+                artist: entry.artist,
+                album: entry.album,
+                durationSec: entry.durationSec
+            )
+        )
+        guard case let .lyrics(found) = result, let lyrics = found, lyrics.instrumental || !lyrics.lines.isEmpty else {
+            appendLog("No lyrics found for \(entry.title) (\(entry.videoId))")
+            return false
+        }
+        guard let data = try? JSONEncoder().encode(lyrics) else {
+            return false
+        }
+        try? data.write(to: lyricsURL(for: entry), options: .atomic)
+        appendLog("Saved \(lyrics.synced ? "synced" : "plain") lyrics for \(entry.title) (\(entry.videoId))")
+        return true
+    }
+
+    func backfillLyrics() async {
+        guard !fetchingLyrics else {
+            return
+        }
+        fetchingLyrics = true
+        defer {
+            fetchingLyrics = false
+        }
+        let missing = items.filter { $0.status == .completed && !hasStoredLyrics($0.videoId) }
+        var saved = 0
+        appendLog("Getting lyrics for \(missing.count) downloads")
+        for entry in missing {
+            if Task.isCancelled {
+                break
+            }
+            if await saveLyrics(for: entry) {
+                saved += 1
+            }
+        }
+        postNotice(missing.isEmpty ? "All downloads already have lyrics" : "Saved lyrics for \(saved) of \(missing.count) songs")
     }
 
     func savedItems(for library: SavedLibrary) -> [DownloadItem] {
@@ -684,11 +753,13 @@ final class DownloadController: ObservableObject {
             targets.append(musicDir.appendingPathComponent("\(stem).mp3"))
             targets.append(thumbnailsDir.appendingPathComponent("\(stem).jpg"))
             targets.append(miscDir.appendingPathComponent("\(stem).txt"))
+            targets.append(miscDir.appendingPathComponent("\(stem).lyrics.json"))
         }
         if let base {
             targets.append(musicDir.appendingPathComponent("\(base).mp3"))
             targets.append(thumbnailsDir.appendingPathComponent("\(base).jpg"))
             targets.append(miscDir.appendingPathComponent("\(base).txt"))
+            targets.append(miscDir.appendingPathComponent("\(base).lyrics.json"))
         }
         for target in targets {
             try? FileManager.default.removeItem(at: target)
@@ -797,6 +868,9 @@ final class DownloadController: ObservableObject {
                 item.fileSizeBytes = size
             }
             appendLog("Completed download for \(videoId) -> music/\(stem).mp3 (\(size) bytes)")
+            if let current = item(for: videoId) {
+                await saveLyrics(for: current)
+            }
         } catch {
             try? FileManager.default.removeItem(at: partFile)
             guard !Task.isCancelled else {

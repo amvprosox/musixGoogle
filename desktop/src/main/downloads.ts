@@ -12,6 +12,8 @@ import {
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 import type { Session, WebContents } from 'electron';
+import type { Lyrics } from '@musix/bridge/contract';
+import { findLyrics } from '@musix/bridge/lyrics';
 import { isBoundedString, isFiniteNumber, isRecord, isString } from '../shared/guards';
 import type {
   DownloadBatchRequest,
@@ -335,6 +337,115 @@ export class DownloadManager {
       renameSync(tmp, this.librariesPath);
     } catch (error) {
       logError('downloads', 'Failed to persist libraries.json', error);
+    }
+  }
+
+  private lyricsPath(item: DownloadItem): string {
+    return path.join(this.miscDir, `${this.fileStemFor(item.title, item.videoId)}.lyrics.json`);
+  }
+
+  storedLyrics(videoId: string): Lyrics | null {
+    const item = this.items.find((entry) => entry.videoId === videoId);
+    if (!item) {
+      return null;
+    }
+    const file = this.lyricsPath(item);
+    if (!existsSync(file)) {
+      return null;
+    }
+    try {
+      const raw: unknown = JSON.parse(readFileSync(file, 'utf8'));
+      if (!isRecord(raw) || !Array.isArray(raw.lines)) {
+        return null;
+      }
+      const lines = raw.lines.flatMap((line: unknown) =>
+        isRecord(line) && isFiniteNumber(line.timeMs) && isString(line.text)
+          ? [{ timeMs: line.timeMs, text: line.text }]
+          : [],
+      );
+      return {
+        videoId,
+        source: isString(raw.source) ? raw.source : 'LRCLIB',
+        synced: raw.synced === true,
+        instrumental: raw.instrumental === true,
+        lines,
+      };
+    } catch (error) {
+      logWarn('downloads', 'Failed to read stored lyrics', error);
+      return null;
+    }
+  }
+
+  async saveLyrics(item: DownloadItem): Promise<boolean> {
+    if (item.status !== 'completed' || item.title.trim() === '') {
+      return false;
+    }
+    let lyrics: Lyrics | null = null;
+    try {
+      lyrics = await findLyrics(
+        {
+          videoId: item.videoId,
+          title: item.title,
+          artist: item.artist,
+          album: item.album,
+          durationSec: item.durationSec,
+        },
+        {
+          fetchJson: async (url) => {
+            const response = await fetch(url, {
+              headers: { 'User-Agent': 'Musix', Accept: 'application/json' },
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (response.status === 404) {
+              return null;
+            }
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}`);
+            }
+            return (await response.json()) as unknown;
+          },
+        },
+      );
+    } catch (error) {
+      logWarn('downloads', 'Lyrics lookup failed', error);
+    }
+    if (!lyrics || (!lyrics.instrumental && lyrics.lines.length === 0)) {
+      this.appendLog(`No lyrics found for "${item.title}" (${item.videoId})`);
+      return false;
+    }
+    try {
+      await fsp.writeFile(this.lyricsPath(item), JSON.stringify(lyrics), 'utf8');
+      this.appendLog(
+        `Saved ${lyrics.synced ? 'synced' : 'plain'} lyrics for "${item.title}" (${item.videoId})`,
+      );
+      return true;
+    } catch (error) {
+      logWarn('downloads', 'Failed to save lyrics', error);
+      return false;
+    }
+  }
+
+  private fetchingLyrics = false;
+
+  async backfillLyrics(): Promise<{ saved: number; missing: number }> {
+    if (this.fetchingLyrics) {
+      return { saved: 0, missing: 0 };
+    }
+    this.fetchingLyrics = true;
+    try {
+      const missing = this.items.filter(
+        (item) => item.status === 'completed' && !existsSync(this.lyricsPath(item)),
+      );
+      this.appendLog(`Getting lyrics for ${missing.length} downloads`);
+      let saved = 0;
+      for (const item of missing) {
+        if (await this.saveLyrics(item)) {
+          saved += 1;
+        }
+      }
+      return { saved, missing: missing.length };
+    } finally {
+      this.fetchingLyrics = false;
     }
   }
 
@@ -712,6 +823,7 @@ export class DownloadManager {
       path.join(this.musicDir, `${stem}.mp3`),
       path.join(this.thumbnailsDir, `${stem}.jpg`),
       path.join(this.miscDir, `${stem}.txt`),
+      path.join(this.miscDir, `${stem}.lyrics.json`),
       path.join(this.miscDir, `${videoId}.part`),
       path.join(this.miscDir, `${videoId}.raw`),
       path.join(this.downloadsDir, `${videoId}.mp3`),
@@ -912,6 +1024,10 @@ export class DownloadManager {
         true,
       );
       this.appendLog(`[${videoId}] Completed MP3: music/${this.fileStemFor(title, videoId)}.mp3`);
+      const completed = this.items.find((entry) => entry.videoId === videoId);
+      if (completed) {
+        await this.saveLyrics(completed);
+      }
     } catch (error) {
       if (signal.aborted) {
         return;

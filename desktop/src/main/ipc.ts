@@ -61,7 +61,7 @@ export interface IpcContext {
   windowControl: (action: WindowControl) => void;
   openShellMenu: (request: ShellMenuRequest) => void;
   chrome: () => WindowChromeState;
-  lyrics: () => Promise<LyricsResponse>;
+  lyrics: (offlineVideoId: string | null) => Promise<LyricsResponse>;
   suggest: (query: string) => Promise<SuggestResponse>;
   detectLibraries: () => Promise<DetectedLibrary[]>;
   setOfflineActive: (active: boolean) => void;
@@ -425,6 +425,15 @@ export function registerIpc(ctx: IpcContext): () => void {
       },
     ],
     [
+      'downloads:get-lyrics',
+      (event) => {
+        if (!fromShell(event)) {
+          return Promise.reject(new Error('Unauthorized sender'));
+        }
+        return ctx.downloads.backfillLyrics();
+      },
+    ],
+    [
       'downloads:saved-libraries',
       (event) => {
         if (!fromShell(event)) {
@@ -482,11 +491,11 @@ export function registerIpc(ctx: IpcContext): () => void {
     ],
     [
       'lyrics:get',
-      (event) => {
-        if (!fromShell(event)) {
+      (event, payload) => {
+        if (!fromShell(event) || (payload !== null && !isVideoId(payload))) {
           return Promise.reject(new Error('Unauthorized sender'));
         }
-        return ctx.lyrics();
+        return ctx.lyrics(payload);
       },
     ],
     [

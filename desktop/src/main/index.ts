@@ -293,9 +293,17 @@ async function start(): Promise<void> {
         settleRequest(request.requestId, null);
       }
     });
-  const lyrics = async (): Promise<LyricsResponse> => {
+  const lyrics = async (offlineVideoId: string | null): Promise<LyricsResponse> => {
+    if (offlineVideoId !== null) {
+      const stored = downloads.storedLyrics(offlineVideoId);
+      return stored ? { kind: 'found', lyrics: stored } : { kind: 'missing', videoId: offlineVideoId };
+    }
     const state = lastState;
     const videoId = state ? state.videoId : '';
+    const storedOnline = videoId !== '' ? downloads.storedLyrics(videoId) : null;
+    if (storedOnline) {
+      return { kind: 'found', lyrics: storedOnline };
+    }
     if (!state || !state.hasTrack || state.isAd || videoId === '' || state.durationSec <= 0) {
       return { kind: 'missing', videoId };
     }

@@ -52,6 +52,16 @@ class AppGraph(
     private val engineFlow = MutableStateFlow<WebEngine?>(null)
     val engine: StateFlow<WebEngine?> = engineFlow.asStateFlow()
 
+    init {
+        downloads.lyricsFetcher = { item ->
+            val result =
+                engineFlow.value?.queue?.slow {
+                    BridgeCommand.FetchLyrics(it, item.videoId, item.title, item.artist, item.album, item.durationSec.toDouble())
+                }
+            (result as? CommandResult.LyricsFound)?.lyrics
+        }
+    }
+
     private val messageFlow = MutableSharedFlow<String>(extraBufferCapacity = 16)
     val messages: SharedFlow<String> = messageFlow.asSharedFlow()
 

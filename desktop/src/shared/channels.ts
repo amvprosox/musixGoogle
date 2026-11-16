@@ -42,7 +42,7 @@ export interface ShellInvokeChannels {
   'adblock:update-now': { request: null; response: AdblockStatus };
   'data:clear-cache': { request: null; response: boolean };
   'data:sign-out': { request: null; response: boolean };
-  'lyrics:get': { request: null; response: LyricsResponse };
+  'lyrics:get': { request: string | null; response: LyricsResponse };
   'search:suggest': { request: string; response: SuggestResponse };
   'downloads:list': { request: null; response: DownloadItem[] };
   'downloads:start': { request: DownloadTrackRequest; response: DownloadItem };
@@ -52,6 +52,7 @@ export interface ShellInvokeChannels {
   'downloads:logs-clear': { request: null; response: boolean };
   'downloads:libraries': { request: null; response: DetectedLibrary[] };
   'downloads:saved-libraries': { request: null; response: SavedLibrary[] };
+  'downloads:get-lyrics': { request: null; response: { saved: number; missing: number } };
 }
 
 export interface ShellSendChannels {

@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.media3.common.Player
 import com.realmadhoney.musix.core.bridge.BridgeCodec
+import com.realmadhoney.musix.core.bridge.Lyrics
 import com.realmadhoney.musix.core.offline.OfflineSession
 import com.realmadhoney.musix.ui.NowPlaying
 import kotlinx.coroutines.CancellationException
@@ -144,6 +145,11 @@ class DownloadRepository(
     private var tickerJob: Job? = null
     private var cachedVisitorData: String = ""
     private var logFileLines = 0
+
+    var lyricsFetcher: (suspend (DownloadItem) -> Lyrics?)? = null
+
+    private val fetchingLyricsFlow = MutableStateFlow(false)
+    val fetchingLyrics: StateFlow<Boolean> = fetchingLyricsFlow.asStateFlow()
 
     init {
         ensureDirectories()
@@ -383,6 +389,73 @@ class DownloadRepository(
         return started
     }
 
+    private fun lyricsFile(item: DownloadItem): File = File(miscDir, "${fileStemFor(item.title, item.videoId)}.lyrics.json")
+
+    fun storedLyrics(videoId: String): Lyrics? {
+        val item = itemsFlow.value.firstOrNull { it.videoId == videoId } ?: return null
+        val file = lyricsFile(item)
+        if (!file.isFile) {
+            return null
+        }
+        return try {
+            json.decodeFromString(Lyrics.serializer(), file.readText(Charsets.UTF_8)).copy(videoId = videoId)
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not read stored lyrics", error)
+            null
+        }
+    }
+
+    suspend fun saveLyrics(item: DownloadItem): Boolean {
+        val fetcher = lyricsFetcher ?: return false
+        if (item.status != DownloadStatus.COMPLETED || item.title.isBlank()) {
+            return false
+        }
+        val lyrics =
+            try {
+                fetcher(item)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.w(TAG, "Lyrics lookup failed", error)
+                null
+            }
+        if (lyrics == null || (!lyrics.instrumental && lyrics.lines.isEmpty())) {
+            appendLog("No lyrics found for ${item.title} (${item.videoId})")
+            return false
+        }
+        return try {
+            withContext(Dispatchers.IO) {
+                lyricsFile(item).writeText(json.encodeToString(Lyrics.serializer(), lyrics), Charsets.UTF_8)
+            }
+            appendLog("Saved ${if (lyrics.synced) "synced" else "plain"} lyrics for ${item.title} (${item.videoId})")
+            true
+        } catch (error: IOException) {
+            Log.w(TAG, "Could not save lyrics", error)
+            false
+        }
+    }
+
+    suspend fun backfillLyrics() {
+        if (fetchingLyricsFlow.value) {
+            return
+        }
+        fetchingLyricsFlow.value = true
+        try {
+            val missing = itemsFlow.value.filter { it.status == DownloadStatus.COMPLETED && !lyricsFile(it).isFile }
+            appendLog("Getting lyrics for ${missing.size} downloads")
+            var saved = 0
+            for (item in missing) {
+                currentCoroutineContext().ensureActive()
+                if (saveLyrics(item)) {
+                    saved++
+                }
+            }
+            onMessage(if (missing.isEmpty()) "All downloads already have lyrics" else "Saved lyrics for $saved of ${missing.size} songs")
+        } finally {
+            fetchingLyricsFlow.value = false
+        }
+    }
+
     fun downloadLibraries(libraries: List<DetectedLibrary>) {
         var started = 0
         val total = HashSet<String>()
@@ -473,6 +546,7 @@ class DownloadRepository(
             File(musicDir, "$stem.mp3").delete()
             File(thumbnailsDir, "$stem.jpg").delete()
             File(miscDir, "$stem.txt").delete()
+            File(miscDir, "$stem.lyrics.json").delete()
             File(miscDir, "$videoId.part").delete()
             File(directory, "$videoId.mp3").delete()
             File(directory, "$videoId.jpg").delete()
@@ -769,6 +843,7 @@ class DownloadRepository(
             }
             appendLog("Completed download for $videoId -> music/$stem.mp3")
             onMessage("Downloaded MP3: ${item.title}")
+            itemsFlow.value.firstOrNull { it.videoId == videoId }?.let { saveLyrics(it) }
         } catch (cancelled: CancellationException) {
             partFile.delete()
             appendLog("Cancelled download for $videoId")

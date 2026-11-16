@@ -406,6 +406,11 @@ struct DownloadsView: View {
                 pill(downloads.detectingLibraries ? "Detecting..." : "Refresh", icon: "refresh", enabled: !downloads.detectingLibraries) {
                     Task { await downloads.detectLibraries(force: true) }
                 }
+                if downloads.items.contains(where: { $0.status == .completed }) {
+                    pill(downloads.fetchingLyrics ? "Getting Lyrics..." : "Get Lyrics", icon: "lyrics", enabled: !downloads.fetchingLyrics) {
+                        Task { await downloads.backfillLyrics() }
+                    }
+                }
                 if !downloads.libraries.isEmpty {
                     pill("Download All", icon: "download") {
                         downloads.downloadAllLibraries(downloads.libraries)
