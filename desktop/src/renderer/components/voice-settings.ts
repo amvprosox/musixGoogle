@@ -181,6 +181,9 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     icon('log-in'),
     h('span', { text: 'Connect OpenRouter' }),
   ]);
+  const connectRow = h('div', { className: 'voice-key-row' }, [connectButton]);
+  const keyRow = h('div', { className: 'voice-key-row' }, [keyInput, saveKey]);
+  const removeRow = h('div', { className: 'voice-key-row' }, [removeKey]);
   connectButton.addEventListener('click', () => {
     connectButton.disabled = true;
     toasts.show({
@@ -297,9 +300,10 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
       'Understands requests the built-in commands do not. Online only.',
       aiSwitch,
     ),
-    h('div', { className: 'voice-key-row' }, [connectButton]),
-    h('div', { className: 'voice-key-row' }, [keyInput, saveKey, removeKey]),
     keyStatus,
+    connectRow,
+    keyRow,
+    removeRow,
     h('h4', { className: 'voice-subtitle', text: 'Voice commands' }),
     h('p', {
       className: 'setting-desc',
@@ -340,17 +344,16 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     testButton.hidden = !config?.hasVoiceprint;
     sensitivity.value = String(config?.sensitivity ?? 0.5);
     setChecked(aiSwitch, config?.aiEnabled ?? true);
-    removeKey.hidden = !config?.hasAiKey || config.builtinAi;
-    setText(
-      connectButton.querySelector('span'),
-      config?.hasAiKey ? 'Reconnect OpenRouter' : 'Connect OpenRouter',
-    );
+    const connected = config?.hasAiKey ?? false;
+    connectRow.hidden = connected;
+    keyRow.hidden = connected;
+    removeRow.hidden = !connected || (config?.builtinAi ?? false);
     setText(
       keyStatus,
       config?.builtinAi
         ? 'Free AI is built in and ready. Only free ":free" models are ever called, so it never costs money.'
         : config?.hasAiKey
-          ? 'Key saved on this computer (encrypted). Only free ":free" models are ever called, so it never costs money.'
+          ? 'Connected to your OpenRouter account. Only free ":free" models are ever called, so it never costs money.'
           : 'Press Connect OpenRouter and Authorize in your browser. Or paste a key from openrouter.ai/keys.',
     );
     const signature = JSON.stringify(config?.commands ?? []);
