@@ -38,7 +38,7 @@ class SettingsRepository(
 
     val adSkip: Flow<Boolean> = safeData.map { it[AD_SKIP] ?: true }.distinctUntilChanged()
 
-    val theme: Flow<String> = safeData.map { it[THEME] ?: "dark" }.distinctUntilChanged()
+    val theme: Flow<String> = safeData.map { it[THEME] ?: "graphite" }.distinctUntilChanged()
 
     suspend fun setTheme(id: String) {
         store.edit { it[THEME] = id }

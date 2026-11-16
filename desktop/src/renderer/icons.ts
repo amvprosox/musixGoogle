@@ -1,5 +1,11 @@
 import {
   ArrowLeft,
+  Mail,
+  Briefcase,
+  Camera,
+  SquarePlay,
+  Code,
+  Globe,
   ArrowRight,
   ArrowUpLeft,
   Ban,
@@ -62,6 +68,12 @@ import {
 
 export const ICONS = {
   ArrowLeft,
+  Mail,
+  Briefcase,
+  Camera,
+  SquarePlay,
+  Code,
+  Globe,
   ArrowRight,
   ArrowUpLeft,
   Ban,
@@ -123,6 +135,12 @@ export const ICONS = {
 
 export type IconName =
   | 'arrow-left'
+  | 'mail'
+  | 'briefcase'
+  | 'camera'
+  | 'square-play'
+  | 'code'
+  | 'globe'
   | 'arrow-right'
   | 'arrow-up-left'
   | 'ban'

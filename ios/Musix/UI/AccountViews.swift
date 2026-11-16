@@ -188,7 +188,7 @@ struct SettingsView: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Voice assistant").font(.body(DesignTokens.text16))
-                            Text("Say \"Prosecs\" to control Musix with your voice")
+                            Text("Say \"Veru\" to control Musix with your voice")
                                 .font(.body(DesignTokens.text14))
                                 .foregroundStyle(Palette.textMuted)
                         }

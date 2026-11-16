@@ -42,6 +42,7 @@ import {
   similarity,
   stripWakeWord,
   type VoiceCommand,
+  WAKE_WORD,
   wakeHeadFrom,
 } from '../shared/voice-intent';
 import { paths } from './config';
@@ -80,6 +81,7 @@ interface StoredVoiceConfig {
   aiKey: string;
   language: string;
   wakeVariants: string[];
+  wakeWord: string;
   quality: 'standard' | 'high';
   micBoost: number;
   noiseReduction: boolean;
@@ -165,6 +167,7 @@ const DEFAULTS: StoredVoiceConfig = {
   aiKey: '',
   language: 'en',
   wakeVariants: [],
+  wakeWord: WAKE_WORD,
   quality: 'standard',
   micBoost: 6,
   noiseReduction: true,
@@ -222,24 +225,25 @@ function dropLeadingWords(text: string, commands: readonly VoiceCommand[]): stri
 }
 
 const WAKE_KEYWORDS = [
-  '▁PRO SE C S @PROSECS',
-  '▁PRO ▁SE C S @PROSECS',
-  '▁PRO ▁SE X @PROSECS',
-  '▁PRO SE X @PROSECS',
-  '▁PRO ▁SE K S @PROSECS',
-  '▁PRO SE K S @PROSECS',
-  '▁PRO ▁SE CK S @PROSECS',
-  '▁PRO S I X @PROSECS',
-  '▁PRO ▁SIX @PROSECS',
-  '▁PRO CH I X @PROSECS',
-  '▁PRO ▁CHI X @PROSECS',
-  '▁PRO CH E K S @PROSECS',
-  '▁PRO ▁C HE K S @PROSECS',
-  '▁PRO ▁C HE CK S @PROSECS',
+  '▁ VER U @VERU',
+  '▁ VE ▁RU @VERU',
+  '▁BE RU @VERU',
+  '▁BE ▁RU @VERU',
+  '▁ VE Y RU @VERU',
+  '▁ VE Y ▁RU @VERU',
+  '▁BI RO @VERU',
+  '▁BI ▁RO @VERU',
+  '▁BE RO @VERU',
+  '▁BE ▁RO @VERU',
+  '▁ VER O @VERU',
+  '▁BE R RU @VERU',
+  '▁BI RU @VERU',
+  '▁VA Y RU @VERU',
+  '▁BA Y RU @VERU',
 ].join('\n');
 
 function wakeKeywordsFile(dir: string): string {
-  const file = path.join(dir, 'kws/keywords-prosecs.txt');
+  const file = path.join(dir, 'kws/keywords-veru.txt');
   try {
     if (!existsSync(file) || readFileSync(file, 'utf8') !== `${WAKE_KEYWORDS}\n`) {
       writeFileSync(file, `${WAKE_KEYWORDS}\n`);
@@ -318,14 +322,16 @@ export class VoiceManager {
           : [],
         aiEnabled: raw.aiEnabled !== false,
         language: isVoiceLanguage(raw.language) ? raw.language : 'en',
+        wakeWord: WAKE_WORD,
         quality: raw.quality === 'high' ? 'high' : 'standard',
         micBoost: typeof raw.micBoost === 'number' ? clamp(raw.micBoost, 1, 12) : 6,
         noiseReduction: raw.noiseReduction !== false,
-        wakeVariants: Array.isArray(raw.wakeVariants)
-          ? raw.wakeVariants
-              .filter((value): value is string => typeof value === 'string' && value.length <= 16)
-              .slice(0, 8)
-          : [],
+        wakeVariants:
+          raw.wakeWord === WAKE_WORD && Array.isArray(raw.wakeVariants)
+            ? raw.wakeVariants
+                .filter((value): value is string => typeof value === 'string' && value.length <= 16)
+                .slice(0, 8)
+            : [],
         aiKey: typeof raw.aiKey === 'string' ? raw.aiKey : '',
       };
     } catch (error) {
@@ -394,7 +400,7 @@ export class VoiceManager {
       return;
     }
     if (this.engines) {
-      this.setStatus({ state: 'listening', progress: 0, message: 'Listening for "Prosecs"' });
+      this.setStatus({ state: 'listening', progress: 0, message: 'Listening for "Veru"' });
     }
   }
 
@@ -816,6 +822,9 @@ export class VoiceManager {
       }
       return;
     }
+    if (!stripped.heard && keyword) {
+      this.learnWakeSpelling(text);
+    }
     const rest = stripped.heard ? stripped.rest : dropLeadingWords(text, this.config.commands);
     this.wake();
     if (rest === '') {
@@ -841,6 +850,16 @@ export class VoiceManager {
     stream.acceptWaveform({ sampleRate: SAMPLE_RATE, samples });
     engines.asr.decode(stream);
     return (engines.asr.getResult(stream).text ?? '').trim();
+  }
+
+  private learnWakeSpelling(text: string): void {
+    const head = wakeHeadFrom(text);
+    if (!head || this.config.wakeVariants.includes(head)) {
+      return;
+    }
+    this.config.wakeVariants = [head, ...this.config.wakeVariants].slice(0, 8);
+    this.saveConfig();
+    logInfo('voice', `Learned a new way you say ${WAKE_WORD}`);
   }
 
   private learnedPath(): string {
@@ -1202,8 +1221,7 @@ export class VoiceManager {
     const learned = [...new Set([...heads, ...this.config.wakeVariants])].slice(0, 8);
     this.config.wakeVariants = learned;
     this.saveConfig();
-    const heardAs =
-      heads.length > 0 ? ` Learned how you say Prosecs: ${[...new Set(heads)].join(', ')}.` : '';
+    const heardAs = heads.length > 0 ? ` Learned how you say Veru: ${[...new Set(heads)].join(', ')}.` : '';
     return {
       ok: true,
       threshold,

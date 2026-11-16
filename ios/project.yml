@@ -70,7 +70,7 @@ targets:
         INSupportedMediaCategories:
           - INMediaCategoryMusic
         NSSiriUsageDescription: Ask Siri to play music in Musix.
-        NSMicrophoneUsageDescription: Musix listens for "prosox" so you can control music with your voice.
+        NSMicrophoneUsageDescription: Musix listens for "Veru" so you can control music with your voice.
         NSUserActivityTypes:
           - INPlayMediaIntent
     entitlements:

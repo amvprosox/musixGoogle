@@ -46,7 +46,7 @@ describe('shell state', () => {
     const state = init();
     expect(state.route).toBe('explore');
     expect(state.queueOpen).toBe(true);
-    expect(state.theme).toBe('dark');
+    expect(state.theme).toBe('graphite');
   });
 
   it('keeps optimistic play state until the bridge confirms it', () => {

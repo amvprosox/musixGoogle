@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             val themeId by viewModel.graph.settings.theme
-                .collectAsState(initial = "dark")
+                .collectAsState(initial = "graphite")
             val palette = MusixPalette.from(themeId)
             val engineForTheme by viewModel.graph.engine.collectAsState()
             LaunchedEffect(palette) {
@@ -174,7 +174,7 @@ fun MusixApp(viewModel: MainViewModel) {
     val detectedLibraries by viewModel.detectedLibraries.collectAsState()
     val savedLibraries by viewModel.savedLibraries.collectAsState()
     val themeSetting by viewModel.graph.settings.theme
-        .collectAsState(initial = "dark")
+        .collectAsState(initial = "graphite")
     val fetchingLyrics by viewModel.fetchingLyrics.collectAsState()
     val librariesLoading by viewModel.librariesLoading.collectAsState()
     val voiceState by viewModel.graph.voice.state

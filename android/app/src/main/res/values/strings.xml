@@ -3,8 +3,8 @@
     <string name="app_name">Musix</string>
     <string name="notification_channel">Playback</string>
     <string name="voice_channel">Voice assistant</string>
-    <string name="voice_listening_title">Listening for \"Prosecs\"</string>
-    <string name="voice_listening_text">Say Prosecs to control Musix. Turn this off in Settings, Voice assistant.</string>
+    <string name="voice_listening_title">Listening for \"Veru\"</string>
+    <string name="voice_listening_text">Say Veru to control Musix. Turn this off in Settings, Voice assistant.</string>
 
     <string name="tab_home">Home</string>
     <string name="tab_library">Library</string>

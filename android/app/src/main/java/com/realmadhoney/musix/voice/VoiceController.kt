@@ -118,7 +118,7 @@ data class VoiceUiState(
                 is VoiceState.Downloading -> "Downloading voice pack ${(state.progress * PERCENT).toInt()}%"
                 VoiceState.Loading -> "Starting the voice engine"
                 VoiceState.NeedsPermission -> "Allow the microphone to start listening."
-                VoiceState.Listening -> "Listening for \"Prosecs\""
+                VoiceState.Listening -> "Listening for \"Veru\""
                 VoiceState.Awake -> "Yes?"
                 VoiceState.Thinking -> "Thinking"
                 is VoiceState.Error -> state.message
@@ -879,10 +879,10 @@ class VoiceController(
         private const val MAX_THRESHOLD = 0.7
         val ENROLL_PHRASES =
             listOf(
-                "Prosecs, play my favorite songs.",
-                "Prosecs, what is playing right now?",
+                "Veru, play my favorite songs.",
+                "Veru, what is playing right now?",
                 "I like listening to music in the morning.",
-                "Prosecs, turn on shuffle and play something new.",
+                "Veru, turn on shuffle and play something new.",
                 "The weather is nice and the coffee is warm.",
             )
     }

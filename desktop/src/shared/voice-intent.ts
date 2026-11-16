@@ -248,29 +248,40 @@ export const DEFAULT_VOICE_COMMANDS: readonly VoiceCommand[] = [
   { action: 'openSearch', phrases: ['open search', 'go to search'] },
 ];
 
-export const WAKE_WORD = 'prosecs';
+export const WAKE_WORD = 'veru';
 const WAKE_VARIANTS = [
-  'prosecs',
-  'pro secs',
-  'pro sex',
-  'prosex',
-  'pro seks',
-  'proseks',
-  'pro sec',
-  'prossex',
-  'pros ex',
-  'pro six',
-  'prosix',
-  'pro six',
-  'prochix',
-  'pro chix',
-  'procheks',
-  'pro cheks',
-  'prochecks',
-  'pro checks',
-  'pro sicks',
+  'veru',
+  'vero',
+  'beru',
+  'be ru',
+  'veyru',
+  'vey ru',
+  'biro',
+  'bi ro',
+  'bero',
+  'be ro',
+  'berru',
+  'biru',
+  'vayru',
+  'bayru',
+  've ru',
+  'veroo',
+  'beroo',
+  'beyru',
+  'bey ru',
 ];
-const WAKE_DENY = ['process', 'processes', 'processing', 'prospect', 'prospects'];
+const WAKE_DENY = [
+  'very',
+  'every',
+  'vary',
+  'berry',
+  'bury',
+  'bureau',
+  'burrow',
+  'borrow',
+  'barrow',
+  'bureaus',
+];
 const MATCH_THRESHOLD = 0.72;
 const STRONG_MATCH = 0.8;
 const TAIL_PENALTY = 0.9;

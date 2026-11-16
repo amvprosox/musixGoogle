@@ -8,7 +8,7 @@ import { isBoolean, isFiniteNumber, isRecord } from './guards';
 import type { AppSettings, PaletteName, ResolvedTheme, ThemePreference, WindowState } from './types';
 
 export const DEFAULT_SETTINGS: Readonly<AppSettings> = {
-  theme: 'system',
+  theme: 'graphite',
   closeToTray: true,
   startOnLogin: false,
   notifyOnTrackChange: true,

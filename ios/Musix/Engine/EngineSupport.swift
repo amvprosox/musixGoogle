@@ -147,7 +147,7 @@ final class AppSettings: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.adSkip = (defaults.object(forKey: Self.adSkipKey) as? Bool) ?? true
-        let storedTheme = ThemePalette(rawValue: defaults.string(forKey: Self.themeKey) ?? "") ?? .dark
+        let storedTheme = ThemePalette(rawValue: defaults.string(forKey: Self.themeKey) ?? "") ?? .graphite
         self.theme = storedTheme
         ThemeStore.palette = storedTheme
     }

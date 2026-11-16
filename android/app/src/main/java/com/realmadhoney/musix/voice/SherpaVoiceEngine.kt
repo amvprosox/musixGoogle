@@ -117,24 +117,25 @@ class SherpaVoiceEngine private constructor(
 
         private val WAKE_KEYWORDS =
             listOf(
-                "▁PRO SE C S @PROSECS",
-                "▁PRO ▁SE C S @PROSECS",
-                "▁PRO ▁SE X @PROSECS",
-                "▁PRO SE X @PROSECS",
-                "▁PRO ▁SE K S @PROSECS",
-                "▁PRO SE K S @PROSECS",
-                "▁PRO ▁SE CK S @PROSECS",
-                "▁PRO S I X @PROSECS",
-                "▁PRO ▁SIX @PROSECS",
-                "▁PRO CH I X @PROSECS",
-                "▁PRO ▁CHI X @PROSECS",
-                "▁PRO CH E K S @PROSECS",
-                "▁PRO ▁C HE K S @PROSECS",
-                "▁PRO ▁C HE CK S @PROSECS",
+                "▁ VER U @VERU",
+                "▁ VE ▁RU @VERU",
+                "▁BE RU @VERU",
+                "▁BE ▁RU @VERU",
+                "▁ VE Y RU @VERU",
+                "▁ VE Y ▁RU @VERU",
+                "▁BI RO @VERU",
+                "▁BI ▁RO @VERU",
+                "▁BE RO @VERU",
+                "▁BE ▁RO @VERU",
+                "▁ VER O @VERU",
+                "▁BE R RU @VERU",
+                "▁BI RU @VERU",
+                "▁VA Y RU @VERU",
+                "▁BA Y RU @VERU",
             )
 
         private fun wakeKeywordsFile(pack: File): String {
-            val file = File(pack, "kws/keywords-prosecs.txt")
+            val file = File(pack, "kws/keywords-veru.txt")
             val text = WAKE_KEYWORDS.joinToString("\n") + "\n"
             try {
                 if (!file.isFile || file.readText() != text) file.writeText(text)

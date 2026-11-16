@@ -12,14 +12,14 @@ import {
 
 describe('stripWakeWord', () => {
   it('removes the wake word and close mishearings', () => {
-    expect(stripWakeWord('Prosecs next song')).toEqual({ heard: true, rest: 'next song' });
-    expect(stripWakeWord('PRO SEX play timeless')).toEqual({ heard: true, rest: 'play timeless' });
-    expect(stripWakeWord('prossex what should we play')).toEqual({
+    expect(stripWakeWord('Veru next song')).toEqual({ heard: true, rest: 'next song' });
+    expect(stripWakeWord('BE RU play timeless')).toEqual({ heard: true, rest: 'play timeless' });
+    expect(stripWakeWord('biro what should we play')).toEqual({
       heard: true,
       rest: 'what should we play',
     });
-    expect(stripWakeWord('pro seks shuffle')).toEqual({ heard: true, rest: 'shuffle' });
-    expect(stripWakeWord('process the files').heard).toBe(false);
+    expect(stripWakeWord('vey ru shuffle')).toEqual({ heard: true, rest: 'shuffle' });
+    expect(stripWakeWord('very nice song').heard).toBe(false);
     expect(stripWakeWord('next song').heard).toBe(false);
   });
 });
@@ -132,21 +132,21 @@ describe('planLocally', () => {
 });
 
 describe('wake word pronunciations', () => {
-  it('accepts every way of saying Prosecs', () => {
+  it('accepts every way of saying Veru', () => {
     for (const said of [
-      'pro secs',
-      'prosecs',
-      'proseks',
-      'pro seks',
-      'prosix',
-      'pro six',
-      'prochix',
-      'pro chix',
-      'procheks',
-      'pro cheks',
+      'veru',
+      'beru',
+      'be ru',
+      'veyru',
+      'vey ru',
+      'biro',
+      'bi ro',
+      'bero',
+      'be ro',
+      'vero',
     ]) {
       expect(stripWakeWord(`${said} next song`)).toEqual({ heard: true, rest: 'next song' });
     }
-    expect(stripWakeWord('process the files').heard).toBe(false);
+    expect(stripWakeWord('very nice song').heard).toBe(false);
   });
 });

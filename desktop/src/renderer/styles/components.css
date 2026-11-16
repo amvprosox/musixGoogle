@@ -2350,3 +2350,28 @@
 .downloads-libraries-list > .downloads-lib-empty {
   grid-column: 1 / -1;
 }
+
+.about-creator {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-12);
+  padding-top: var(--sp-16);
+  border-top: 1px solid var(--border);
+}
+
+.about-creator-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-8);
+}
+
+.about-link {
+  text-decoration: none;
+  color: var(--text);
+}

@@ -64,7 +64,7 @@ data class WakeResult(
 )
 
 object VoiceIntentMatcher {
-    const val WAKE_WORD = "prosecs"
+    const val WAKE_WORD = "veru"
     const val OUT_OF_SCOPE_REPLY = "I can only control Musix music playback."
     private const val MATCH_THRESHOLD = 0.72
     private const val STRONG_MATCH = 0.8
@@ -76,8 +76,28 @@ object VoiceIntentMatcher {
     private const val MAX_PHRASE_CHARS = 80
     private const val MAX_REPLY_CHARS = 160
     private val wakeVariants =
-        listOf("prosecs", "pro secs", "pro sex", "prosex", "pro seks", "proseks", "pro sec", "prossex", "pros ex", "pro six", "prosix", "pro six", "prochix", "pro chix", "procheks", "pro cheks", "prochecks", "pro checks", "pro sicks")
-    private val wakeDeny = setOf("process", "processes", "processing", "prospect", "prospects")
+        listOf(
+            "veru",
+            "vero",
+            "beru",
+            "be ru",
+            "veyru",
+            "vey ru",
+            "biro",
+            "bi ro",
+            "bero",
+            "be ro",
+            "berru",
+            "biru",
+            "vayru",
+            "bayru",
+            "ve ru",
+            "veroo",
+            "beroo",
+            "beyru",
+            "bey ru",
+        )
+    private val wakeDeny = setOf("very", "every", "vary", "berry", "bury", "bureau", "burrow", "borrow", "barrow", "bureaus")
     private val outOfScope =
         listOf(
             "source code",

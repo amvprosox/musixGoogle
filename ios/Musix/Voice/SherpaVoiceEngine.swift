@@ -5,20 +5,21 @@ final class SherpaVoiceEngine {
     static let sampleRate = 16_000
     static let vadWindow = 512
     static let wakeKeywords = [
-        "▁PRO SE C S @PROSECS",
-        "▁PRO ▁SE C S @PROSECS",
-        "▁PRO ▁SE X @PROSECS",
-        "▁PRO SE X @PROSECS",
-        "▁PRO ▁SE K S @PROSECS",
-        "▁PRO SE K S @PROSECS",
-        "▁PRO ▁SE CK S @PROSECS",
-        "▁PRO S I X @PROSECS",
-        "▁PRO ▁SIX @PROSECS",
-        "▁PRO CH I X @PROSECS",
-        "▁PRO ▁CHI X @PROSECS",
-        "▁PRO CH E K S @PROSECS",
-        "▁PRO ▁C HE K S @PROSECS",
-        "▁PRO ▁C HE CK S @PROSECS",
+        "▁ VER U @VERU",
+        "▁ VE ▁RU @VERU",
+        "▁BE RU @VERU",
+        "▁BE ▁RU @VERU",
+        "▁ VE Y RU @VERU",
+        "▁ VE Y ▁RU @VERU",
+        "▁BI RO @VERU",
+        "▁BI ▁RO @VERU",
+        "▁BE RO @VERU",
+        "▁BE ▁RO @VERU",
+        "▁ VER O @VERU",
+        "▁BE R RU @VERU",
+        "▁BI RU @VERU",
+        "▁VA Y RU @VERU",
+        "▁BA Y RU @VERU",
     ]
 
     private var strings: [UnsafeMutablePointer<CChar>] = []
@@ -60,7 +61,7 @@ final class SherpaVoiceEngine {
         kws.num_trailing_blanks = 1
         kws.keywords_score = Float(1 + sensitivity)
         kws.keywords_threshold = Float(0.3 - sensitivity * 0.2)
-        let wakeFile = path("kws/keywords-prosecs.txt")
+        let wakeFile = path("kws/keywords-veru.txt")
         let wakeText = Self.wakeKeywords.joined(separator: "\n") + "\n"
         if (try? String(contentsOfFile: wakeFile, encoding: .utf8)) != wakeText {
             try? wakeText.write(toFile: wakeFile, atomically: true, encoding: .utf8)

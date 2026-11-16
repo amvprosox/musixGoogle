@@ -234,7 +234,7 @@ fun SettingsScreen(
                         MusixIcon(R.drawable.ic_mic, null, tint = colors.textMuted)
                         Spacer(Modifier.width(DesignTokens.Space12))
                         Text(
-                            voiceStatus ?: "Say \"Prosecs\" to control Musix hands free.",
+                            voiceStatus ?: "Say \"Veru\" to control Musix hands free.",
                             style = MaterialTheme.typography.bodyLarge,
                             color = colors.text,
                             modifier = Modifier.weight(1f),

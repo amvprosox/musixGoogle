@@ -5,10 +5,10 @@ import { h, hydrate, icon, setText } from '../dom';
 import type { VoiceController } from '../voice';
 
 const ENROLL_PHRASES = [
-  'Prosecs, play my favorite songs.',
-  'Prosecs, what is playing right now?',
+  'Veru, play my favorite songs.',
+  'Veru, what is playing right now?',
   'I like listening to music in the morning.',
-  'Prosecs, turn on shuffle and play something new.',
+  'Veru, turn on shuffle and play something new.',
   'The weather is nice and the coffee is warm.',
 ];
 
@@ -359,7 +359,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
       'The language you speak to Musix. Mixed English, like Taglish, works too. Other languages download a 94 MB speech model once.',
       languageSelect,
     ),
-    row('Only my voice', 'Ignore "Prosecs" from anyone whose voice does not match yours.', speakerSwitch),
+    row('Only my voice', 'Ignore "Veru" from anyone whose voice does not match yours.', speakerSwitch),
     h('div', { className: 'voice-actions' }, [
       h('div', { className: 'button-row' }, [enrollButton, testButton, forgetButton]),
       enrollPrompt,
@@ -372,7 +372,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     ),
     row(
       'Wake word sensitivity',
-      'Raise it if "Prosecs" is missed, lower it if it wakes by mistake.',
+      'Raise it if "Veru" is missed, lower it if it wakes by mistake.',
       sensitivity,
     ),
     row(
@@ -388,7 +388,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     h('h4', { className: 'voice-subtitle', text: 'Voice commands' }),
     h('p', {
       className: 'setting-desc',
-      text: 'Say "Prosecs" and then one of these phrases. Separate phrases with commas. Use {query} for a song, playlist, or theme name.',
+      text: 'Say "Veru" and then one of these phrases. Separate phrases with commas. Use {query} for a song, playlist, or theme name.',
     }),
     commandsList,
     h('div', { className: 'button-row' }, [saveCommands, resetCommands]),
@@ -481,7 +481,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
         h('h3', { className: 'card-title', attrs: { id: 'settings-voice-title' }, text: 'Voice assistant' }),
       ]),
       h('div', { className: 'card-body' }, [
-        row('Voice assistant', 'Say "Prosecs" to control Musix hands free. Works offline.', enabledSwitch),
+        row('Voice assistant', 'Say "Veru" to control Musix hands free. Works offline.', enabledSwitch),
         statusText,
         heardText,
         h('div', { className: 'button-row' }, [downloadButton]),

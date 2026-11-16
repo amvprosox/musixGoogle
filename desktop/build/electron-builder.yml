@@ -112,7 +112,7 @@ mac:
   minimumSystemVersion: '12.0'
   x64ArchFiles: '**/node_modules/sherpa-onnx-darwin-*/**'
   extendInfo:
-    NSMicrophoneUsageDescription: Musix listens for "prosox" so you can control music with your voice.
+    NSMicrophoneUsageDescription: Musix listens for "Veru" so you can control music with your voice.
 dmg:
   artifactName: Musix-${version}-mac.${ext}
   title: Musix

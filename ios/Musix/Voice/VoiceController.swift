@@ -289,7 +289,7 @@ final class VoiceController: ObservableObject {
         case .needsPack: return "Download the voice pack to start listening."
         case let .downloading(progress): return "Downloading voice pack \(Int(progress * 100))%"
         case .loading: return "Starting the voice engine"
-        case .listening: return "Listening for \"Prosecs\""
+        case .listening: return "Listening for \"Veru\""
         case .awake: return "Yes?"
         case .thinking: return "Thinking"
         case let .error(text): return text
@@ -750,10 +750,10 @@ final class VoiceController: ObservableObject {
             busy = false
         }
         let phrases = [
-            "Prosecs, play my favorite songs.",
-            "Prosecs, what is playing right now?",
+            "Veru, play my favorite songs.",
+            "Veru, what is playing right now?",
             "I like listening to music in the morning.",
-            "Prosecs, turn on shuffle and play something new.",
+            "Veru, turn on shuffle and play something new.",
             "The weather is nice and the coffee is warm.",
         ]
         var embeddings: [[Float]] = []

@@ -9,6 +9,15 @@ import type { IconName } from '../icons';
 import type { VoiceController } from '../voice';
 import { voiceCard } from './voice-settings';
 
+const CREATOR_LINKS: readonly { label: string; url: string; icon: IconName }[] = [
+  { label: 'Website', url: 'https://amvprosox.com/', icon: 'globe' },
+  { label: 'GitHub', url: 'https://github.com/amvprosox', icon: 'code' },
+  { label: 'YouTube', url: 'https://www.youtube.com/@AmvProsox', icon: 'square-play' },
+  { label: 'Instagram', url: 'https://instagram.com/amv.prosox', icon: 'camera' },
+  { label: 'LinkedIn', url: 'https://www.linkedin.com/in/eoin-villarin/', icon: 'briefcase' },
+  { label: 'Email', url: 'mailto:eoindatuganvillarin@gmail.com', icon: 'mail' },
+];
+
 type BooleanKey = Exclude<keyof AppSettings, 'theme'>;
 
 function card(id: string, iconName: IconName, title: string, body: Node[], extraClass = ''): HTMLElement {
@@ -416,6 +425,29 @@ export function mountSettings(root: HTMLElement, ctx: AppContext, voice?: VoiceC
         className: 'setting-desc',
         text: 'Musix is free, open-source software under the MIT license. It is not affiliated with or endorsed by Google or YouTube. Streaming happens only through the official YouTube Music web player. Built with love by amvprosox.',
       }),
+      h('div', { className: 'about-creator' }, [
+        h('div', { className: 'about-creator-text' }, [
+          h('span', { className: 'setting-label', text: 'Made by Eoin Villarin (amvprosox)' }),
+          h('span', {
+            className: 'setting-desc',
+            text: 'Full-stack, AI, and app developer from Botolan, Zambales, Philippines.',
+          }),
+        ]),
+        h(
+          'div',
+          { className: 'about-links' },
+          CREATOR_LINKS.map((link) =>
+            h(
+              'a',
+              {
+                className: 'btn btn-sm about-link',
+                attrs: { href: link.url, target: '_blank', rel: 'noopener noreferrer' },
+              },
+              [icon(link.icon), h('span', { text: link.label })],
+            ),
+          ),
+        ),
+      ]),
     ]),
   ]);
 
