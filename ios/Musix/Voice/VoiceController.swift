@@ -30,7 +30,17 @@ struct MicrophoneOption: Identifiable, Equatable {
 private enum VoiceKeychain {
     private static let service = "com.realmadhoney.musix.openrouter"
 
-    static func read() -> String {
+    static var builtin: String {
+        guard let encoded = Bundle.main.object(forInfoDictionaryKey: "MusixBuiltinAI") as? String,
+              let bytes = Data(base64Encoded: encoded), !bytes.isEmpty else {
+            return ""
+        }
+        let mask = Array("musix-voice".utf8)
+        let mixed = bytes.enumerated().map { $0.element ^ mask[$0.offset % mask.count] }
+        return String(decoding: mixed, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func readOwn() -> String {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -44,6 +54,11 @@ private enum VoiceKeychain {
             return ""
         }
         return text
+    }
+
+    static func read() -> String {
+        let own = readOwn()
+        return own.isEmpty ? builtin : own
     }
 
     static func write(_ value: String) {
@@ -128,6 +143,7 @@ final class VoiceController: ObservableObject {
     @Published private(set) var activeInput = ""
     @Published private(set) var hasVoiceprint = false
     @Published private(set) var hasAiKey = false
+    @Published private(set) var builtinAi = false
     @Published private(set) var freeModelCount = 0
     @Published private(set) var enrollPrompt = ""
     @Published private(set) var busy = false
@@ -238,6 +254,7 @@ final class VoiceController: ObservableObject {
         voiceprint = (defaults.array(forKey: Keys.voiceprint) as? [Double])?.map { Float($0) } ?? []
         hasVoiceprint = !voiceprint.isEmpty
         hasAiKey = !VoiceKeychain.read().isEmpty
+        builtinAi = VoiceKeychain.readOwn().isEmpty && !VoiceKeychain.builtin.isEmpty
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in
@@ -651,6 +668,7 @@ final class VoiceController: ObservableObject {
     func setAiKey(_ key: String?) {
         VoiceKeychain.write((key ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
         hasAiKey = !VoiceKeychain.read().isEmpty
+        builtinAi = VoiceKeychain.readOwn().isEmpty && !VoiceKeychain.builtin.isEmpty
         freeModels = []
         freeModelCount = 0
         lastGoodModel = nil

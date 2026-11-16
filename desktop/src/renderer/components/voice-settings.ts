@@ -340,16 +340,18 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     testButton.hidden = !config?.hasVoiceprint;
     sensitivity.value = String(config?.sensitivity ?? 0.5);
     setChecked(aiSwitch, config?.aiEnabled ?? true);
-    removeKey.hidden = !config?.hasAiKey;
+    removeKey.hidden = !config?.hasAiKey || config.builtinAi;
     setText(
       connectButton.querySelector('span'),
       config?.hasAiKey ? 'Reconnect OpenRouter' : 'Connect OpenRouter',
     );
     setText(
       keyStatus,
-      config?.hasAiKey
-        ? 'Key saved on this computer (encrypted). Only free ":free" models are ever called, so it never costs money.'
-        : 'Press Connect OpenRouter and Authorize in your browser. Or paste a key from openrouter.ai/keys.',
+      config?.builtinAi
+        ? 'Free AI is built in and ready. Only free ":free" models are ever called, so it never costs money.'
+        : config?.hasAiKey
+          ? 'Key saved on this computer (encrypted). Only free ":free" models are ever called, so it never costs money.'
+          : 'Press Connect OpenRouter and Authorize in your browser. Or paste a key from openrouter.ai/keys.',
     );
     const signature = JSON.stringify(config?.commands ?? []);
     if (signature !== renderedCommandsFor) {

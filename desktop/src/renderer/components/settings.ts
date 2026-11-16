@@ -414,7 +414,7 @@ export function mountSettings(root: HTMLElement, ctx: AppContext, voice?: VoiceC
       h('div', { className: 'stat' }, [h('span', { className: 'stat-label', text: 'Version' }), versionText]),
       h('p', {
         className: 'setting-desc',
-        text: 'Musix is free, open-source software under the MIT license. It is not affiliated with or endorsed by Google or YouTube. Streaming happens only through the official YouTube Music web player.',
+        text: 'Musix is free, open-source software under the MIT license. It is not affiliated with or endorsed by Google or YouTube. Streaming happens only through the official YouTube Music web player. Built with love by amvprosox.',
       }),
     ]),
   ]);

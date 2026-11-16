@@ -3,6 +3,18 @@ import { isVoiceAction, safeReply, VOICE_ACTIONS, type VoiceAction } from './voi
 export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 export const FREE_MODELS_URL = `${OPENROUTER_BASE}/models?sort=most-popular`;
 export const AI_MAX_TOKENS = 600;
+const BUILTIN_MASK = 'musix-voice';
+
+export function revealBuiltinKey(encoded: string): string {
+  if (encoded === '') {
+    return '';
+  }
+  const bytes = Buffer.from(encoded, 'base64');
+  const mask = Buffer.from(BUILTIN_MASK, 'utf8');
+  return Buffer.from(bytes.map((byte, index) => byte ^ (mask[index % mask.length] ?? 0)))
+    .toString('utf8')
+    .trim();
+}
 export const AI_BUDGET_MS = 30_000;
 const RATE_LIMIT_COOLDOWN_MS = 2 * 60_000;
 const FAILURE_COOLDOWN_MS = 10 * 60_000;

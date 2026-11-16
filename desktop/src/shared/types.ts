@@ -367,6 +367,7 @@ export interface VoiceConfigView {
   hasVoiceprint: boolean;
   aiEnabled: boolean;
   hasAiKey: boolean;
+  builtinAi: boolean;
   packInstalled: boolean;
   freeModels: number;
 }

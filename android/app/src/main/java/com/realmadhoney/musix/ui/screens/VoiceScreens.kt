@@ -330,13 +330,15 @@ fun VoiceSettingsScreen(
                         },
                         enabled = keyText.isNotBlank(),
                     )
-                    if (state.hasAiKey) {
+                    if (state.hasAiKey && !state.builtinAi) {
                         Spacer(Modifier.height(DesignTokens.Space8))
                         SecondaryButton("Remove key", { voice.setAiKey(null) }, icon = R.drawable.ic_trash, danger = true)
                     }
                     Spacer(Modifier.height(DesignTokens.Space8))
                     Muted(
-                        if (state.hasAiKey) {
+                        if (state.builtinAi) {
+                            "Free AI is built in and ready. Only free \":free\" models are ever called, so it never costs money."
+                        } else if (state.hasAiKey) {
                             "Key saved encrypted on this phone. Only free \":free\" models are ever called, so it never costs money. " +
                                 "Used online only, for requests the built-in commands do not understand."
                         } else {

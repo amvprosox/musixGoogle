@@ -41,6 +41,7 @@ targets:
         CFBundleDisplayName: Musix
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        MusixBuiltinAI: "$(MUSIX_BUILTIN_AI)"
         LSRequiresIPhoneOS: true
         UILaunchScreen: {}
         UIBackgroundModes:

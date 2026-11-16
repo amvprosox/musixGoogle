@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -12,6 +13,14 @@ val keystore =
         if (keystoreFile.isFile) {
             keystoreFile.inputStream().use { load(it) }
         }
+    }
+
+val builtinAi: String =
+    run {
+        val key = (System.getenv("MUSIX_OPENROUTER_KEY") ?: "").toByteArray(Charsets.UTF_8)
+        val mask = "musix-voice".toByteArray(Charsets.UTF_8)
+        val mixed = ByteArray(key.size) { (key[it].toInt() xor mask[it % mask.size].toInt()).toByte() }
+        Base64.getEncoder().encodeToString(mixed)
     }
 
 val fixtureAssets = layout.buildDirectory.dir("generated/fixtureAssets")
@@ -40,6 +49,7 @@ android {
         versionCode = 17
         versionName = "1.0.8"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "BUILTIN_AI", "\"$builtinAi\"")
         ndk {
             abiFilters += setOf("arm64-v8a", "armeabi-v7a")
         }

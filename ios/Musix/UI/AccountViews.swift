@@ -241,7 +241,7 @@ struct SettingsView: View {
                 }
                 Section {
                     Text("Musix \(Self.version)").font(.body(DesignTokens.text16))
-                    Text("Musix is free and open source. It is not affiliated with Google or YouTube.")
+                    Text("Musix is free and open source. It is not affiliated with Google or YouTube. Built with love by amvprosox.")
                         .font(.body(DesignTokens.text14))
                         .foregroundStyle(Palette.textMuted)
                 } header: {

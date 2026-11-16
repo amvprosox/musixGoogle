@@ -103,6 +103,7 @@ data class VoiceUiState(
     val sensitivity: Double = VoiceStore.DEFAULT_SENSITIVITY.toDouble(),
     val aiEnabled: Boolean = true,
     val hasAiKey: Boolean = false,
+    val builtinAi: Boolean = false,
     val freeModelCount: Int = 0,
     val enrollPrompt: String = "",
     val busy: Boolean = false,
@@ -148,6 +149,7 @@ class VoiceController(
                 sensitivity = store.sensitivity,
                 aiEnabled = store.aiEnabled,
                 hasAiKey = store.readAiKey().isNotEmpty(),
+                builtinAi = !store.hasOwnAiKey && store.builtinAi.isNotEmpty(),
                 commands = store.commands,
             ),
         )
@@ -242,7 +244,13 @@ class VoiceController(
         freeModels = emptyList()
         lastGoodModel = null
         modelCooldowns.clear()
-        stateFlow.update { it.copy(hasAiKey = store.readAiKey().isNotEmpty(), freeModelCount = 0) }
+        stateFlow.update {
+            it.copy(
+                hasAiKey = store.readAiKey().isNotEmpty(),
+                builtinAi = !store.hasOwnAiKey && store.builtinAi.isNotEmpty(),
+                freeModelCount = 0,
+            )
+        }
     }
 
     fun setCommands(value: List<VoiceCommand>) {

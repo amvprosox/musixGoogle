@@ -14,8 +14,12 @@ import {
   OPENROUTER_BASE,
   orderFreeModels,
   parseAiIntent,
+  revealBuiltinKey,
   type FreeModel,
 } from '../shared/ai-intent';
+
+declare const __MUSIX_AI__: string | undefined;
+const BUILTIN_AI_KEY = revealBuiltinKey(typeof __MUSIX_AI__ === 'string' ? __MUSIX_AI__ : '');
 import type { VoiceCommandEvent, VoiceConfigPatch, VoiceConfigView, VoiceStatus } from '../shared/types';
 import {
   isOutOfScope,
@@ -249,7 +253,8 @@ export class VoiceManager {
       sensitivity: this.config.sensitivity,
       hasVoiceprint: this.config.voiceprint.length > 0,
       aiEnabled: this.config.aiEnabled,
-      hasAiKey: this.config.aiKey !== '',
+      hasAiKey: this.config.aiKey !== '' || BUILTIN_AI_KEY !== '',
+      builtinAi: BUILTIN_AI_KEY !== '' && this.config.aiKey === '',
       packInstalled: isPackInstalled(this.voiceDir),
       freeModels: this.freeModels.length,
     };
@@ -353,6 +358,10 @@ export class VoiceManager {
   }
 
   private aiKey(): string {
+    return this.ownAiKey() || BUILTIN_AI_KEY;
+  }
+
+  private ownAiKey(): string {
     const stored = this.config.aiKey;
     try {
       if (stored.startsWith('enc:')) {

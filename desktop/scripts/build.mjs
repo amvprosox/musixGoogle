@@ -64,6 +64,12 @@ async function copyFonts() {
   await copyFile(path.join(packageDir('@fontsource/sora'), 'LICENSE'), path.join(target, 'Sora-OFL.txt'));
 }
 
+function builtinAi() {
+  const key = Buffer.from(process.env.MUSIX_OPENROUTER_KEY ?? '', 'utf8');
+  const mask = Buffer.from('musix-voice', 'utf8');
+  return Buffer.from(key.map((byte, index) => byte ^ mask[index % mask.length])).toString('base64');
+}
+
 async function build() {
   await rm(dist, { recursive: true, force: true });
   await mkdir(path.join(dist, 'renderer'), { recursive: true });
@@ -73,6 +79,7 @@ async function build() {
     esbuild.build({
       ...shared,
       entryPoints: { index: 'src/main/index.ts' },
+      define: { __MUSIX_AI__: JSON.stringify(builtinAi()) },
       outdir: 'dist/main',
       outExtension: { '.js': '.mjs' },
       platform: 'node',

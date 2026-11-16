@@ -136,7 +136,7 @@ struct VoiceSettingsView: View {
                         keyText = ""
                     }
                     .disabled(keyText.trimmingCharacters(in: .whitespaces).isEmpty)
-                    if voice.hasAiKey {
+                    if voice.hasAiKey, !voice.builtinAi {
                         Button("Remove key", role: .destructive) {
                             voice.setAiKey(nil)
                         }
@@ -144,7 +144,9 @@ struct VoiceSettingsView: View {
                 } header: {
                     Text("AI").font(.body(DesignTokens.text14, weight: .semibold))
                 } footer: {
-                    Text(voice.hasAiKey
+                    Text(voice.builtinAi
+                        ? "Free AI is built in and ready. Only free \":free\" models are ever called, so it never costs money."
+                        : voice.hasAiKey
                         ? "Key saved in the iPhone Keychain. Only free \":free\" models are ever called, so it never costs money. Used online only, for requests the built-in commands do not understand."
                         : "Tap Connect OpenRouter and Authorize. Musix gets its own key and only ever uses free models.")
                         .font(.body(DesignTokens.text14))

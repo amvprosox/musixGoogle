@@ -6,6 +6,7 @@ import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
 import androidx.core.content.edit
+import com.realmadhoney.musix.BuildConfig
 import com.realmadhoney.musix.core.voice.VoiceAction
 import com.realmadhoney.musix.core.voice.VoiceCommand
 import com.realmadhoney.musix.core.voice.VoiceIntentMatcher
@@ -86,7 +87,21 @@ class VoiceStore(
             prefs.edit { putString(COMMANDS, json.encodeToString(ListSerializer(StoredCommand.serializer()), stored)) }
         }
 
-    fun readAiKey(): String {
+    val builtinAi: String by lazy {
+        val encoded = BuildConfig.BUILTIN_AI
+        if (encoded.isEmpty()) {
+            return@lazy ""
+        }
+        val bytes = Base64.decode(encoded, Base64.NO_WRAP)
+        val mask = BUILTIN_MASK.toByteArray(Charsets.UTF_8)
+        String(ByteArray(bytes.size) { (bytes[it].toInt() xor mask[it % mask.size].toInt()).toByte() }, Charsets.UTF_8).trim()
+    }
+
+    val hasOwnAiKey: Boolean get() = prefs.contains(AI_KEY)
+
+    fun readAiKey(): String = readOwnAiKey().ifEmpty { builtinAi }
+
+    private fun readOwnAiKey(): String {
         val raw = prefs.getString(AI_KEY, null) ?: return ""
         val parts = raw.split(':')
         if (parts.size != 2) return ""
@@ -152,5 +167,6 @@ class VoiceStore(
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val TAG_BITS = 128
         private const val KEY_BITS = 256
+        private const val BUILTIN_MASK = "musix-voice"
     }
 }

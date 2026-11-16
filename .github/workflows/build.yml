@@ -50,9 +50,12 @@ jobs:
 
       - name: Build for iPhone
         working-directory: ios
+        env:
+          MUSIX_OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
         run: |
           set -o pipefail
           mkdir -p build
+          BUILTIN_AI=$(python3 -c 'import os,base64;k=os.environ.get("MUSIX_OPENROUTER_KEY","").encode();m=b"musix-voice";print(base64.b64encode(bytes(b^m[i%len(m)] for i,b in enumerate(k))).decode())')
           xcodebuild \
             -project Musix.xcodeproj \
             -scheme Musix \
@@ -63,6 +66,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
+            MUSIX_BUILTIN_AI="$BUILTIN_AI" \
             build | tee build/xcodebuild.log
 
       - name: Package the IPA
@@ -107,6 +111,8 @@ jobs:
 
       - name: Check, test, and build
         working-directory: android
+        env:
+          MUSIX_OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
         run: ./gradlew --no-daemon ktlintCheck test lintMobileDebug lintAutomotiveDebug assembleMobileRelease assembleAutomotiveRelease -Pmusix.signWithDebugKey=true
 
       - name: Name the APKs
@@ -158,6 +164,7 @@ jobs:
       - name: Build the installer
         run: npm run dist:win -w musix
         env:
+          MUSIX_OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
       - uses: actions/upload-artifact@v4
@@ -195,6 +202,8 @@ jobs:
 
       - name: Build the packages
         run: npm run dist -w musix
+        env:
+          MUSIX_OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -239,6 +248,7 @@ jobs:
       - name: Build the app
         run: npm run dist:mac -w musix
         env:
+          MUSIX_OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
       - uses: actions/upload-artifact@v4
