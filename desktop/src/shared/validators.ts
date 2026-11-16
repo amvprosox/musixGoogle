@@ -427,6 +427,16 @@ export function isVoiceConfigPatch(value: unknown): value is VoiceConfigPatch {
           return false;
         }
         break;
+      case 'quality':
+        if (v !== 'standard' && v !== 'high') {
+          return false;
+        }
+        break;
+      case 'micBoost':
+        if (!isFiniteNumber(v) || v < 1 || v > 8) {
+          return false;
+        }
+        break;
       default:
         return false;
     }

@@ -388,6 +388,8 @@ export interface VoiceConfigView {
   whisper: boolean;
   language: string;
   learnedCount: number;
+  quality: 'standard' | 'high';
+  micBoost: number;
   freeModels: number;
 }
 
@@ -402,6 +404,8 @@ export type VoiceConfigPatch = Partial<
     | 'sensitivity'
     | 'aiEnabled'
     | 'language'
+    | 'quality'
+    | 'micBoost'
   >
 >;
 

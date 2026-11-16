@@ -187,6 +187,7 @@ export class VoiceController {
   private replyAudio: HTMLAudioElement | null = null;
   private spoke = false;
   private speaking = 0;
+  private envelope = 0.05;
   private quietUntil = 0;
 
   constructor(private readonly ctx: AppContext) {
@@ -412,7 +413,25 @@ export class VoiceController {
     this.emit();
   }
 
-  private onAudio(samples: Float32Array): void {
+  private boost(input: Float32Array): Float32Array {
+    let peak = 0;
+    for (const value of input) {
+      peak = Math.max(peak, Math.abs(value));
+    }
+    this.envelope = Math.max(this.envelope * 0.995, peak);
+    const maxGain = this.config?.micBoost ?? 3;
+    const gain = Math.min(maxGain, Math.max(1, 0.6 / Math.max(this.envelope, 0.02)));
+    if (gain <= 1.01) {
+      return input;
+    }
+    const out = new Float32Array(input.length);
+    for (let i = 0; i < input.length; i += 1) {
+      out[i] = Math.max(-1, Math.min(1, (input[i] ?? 0) * gain));
+    }
+    return out;
+  }
+
+  private onAudio(raw: Float32Array): void {
     if (this.speaking > 0 || Date.now() < this.quietUntil) {
       this.pending = [];
       for (const listener of this.levelListeners) {
@@ -420,6 +439,7 @@ export class VoiceController {
       }
       return;
     }
+    const samples = this.boost(raw);
     let energy = 0;
     for (const value of samples) {
       energy += value * value;

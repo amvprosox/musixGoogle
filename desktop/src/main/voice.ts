@@ -79,6 +79,8 @@ interface StoredVoiceConfig {
   aiKey: string;
   language: string;
   wakeVariants: string[];
+  quality: 'standard' | 'high';
+  micBoost: number;
 }
 
 interface SherpaStream {
@@ -154,6 +156,8 @@ const DEFAULTS: StoredVoiceConfig = {
   aiKey: '',
   language: 'en',
   wakeVariants: [],
+  quality: 'standard',
+  micBoost: 3,
 };
 
 function clamp(value: number, low: number, high: number): number {
@@ -304,6 +308,8 @@ export class VoiceManager {
           : [],
         aiEnabled: raw.aiEnabled !== false,
         language: isVoiceLanguage(raw.language) ? raw.language : 'en',
+        quality: raw.quality === 'high' ? 'high' : 'standard',
+        micBoost: typeof raw.micBoost === 'number' ? clamp(raw.micBoost, 1, 8) : 3,
         wakeVariants: Array.isArray(raw.wakeVariants)
           ? raw.wakeVariants
               .filter((value): value is string => typeof value === 'string' && value.length <= 16)
@@ -341,9 +347,14 @@ export class VoiceManager {
       hasAiKey: this.config.aiKey !== '' || BUILTIN_AI_KEY !== '',
       builtinAi: BUILTIN_AI_KEY !== '' && this.config.aiKey === '',
       packInstalled: isPackInstalled(this.voiceDir),
-      whisper: isWhisperInstalled(this.voiceDir, this.config.language === 'en' ? 'en' : 'multi'),
+      whisper: isWhisperInstalled(
+        this.voiceDir,
+        this.config.quality === 'high' ? 'small' : this.config.language === 'en' ? 'en' : 'multi',
+      ),
       language: this.config.language,
       learnedCount: this.learnedPhrases().length,
+      quality: this.config.quality,
+      micBoost: this.config.micBoost,
       freeModels: this.freeModels.length,
     };
   }
@@ -401,8 +412,19 @@ export class VoiceManager {
     if (patch.aiEnabled !== undefined) {
       this.config.aiEnabled = patch.aiEnabled;
     }
-    if (patch.language !== undefined && patch.language !== this.config.language) {
+    if (patch.micBoost !== undefined) {
+      this.config.micBoost = clamp(patch.micBoost, 1, 8);
+    }
+    const recognizerChanged =
+      (patch.language !== undefined && patch.language !== this.config.language) ||
+      (patch.quality !== undefined && patch.quality !== this.config.quality);
+    if (patch.language !== undefined) {
       this.config.language = patch.language;
+    }
+    if (patch.quality !== undefined) {
+      this.config.quality = patch.quality;
+    }
+    if (recognizerChanged) {
       this.rebuildRecognizer();
     }
     this.saveConfig();
@@ -573,12 +595,11 @@ export class VoiceManager {
 
   private recognizerModel(dir: string): Record<string, unknown> {
     const language = this.config.language;
-    const wanted: WhisperVariant = language === 'en' ? 'en' : 'multi';
-    const variant: WhisperVariant | null = isWhisperInstalled(this.voiceDir, wanted)
-      ? wanted
-      : isWhisperInstalled(this.voiceDir, 'en')
-        ? 'en'
-        : null;
+    const wanted: WhisperVariant =
+      this.config.quality === 'high' ? 'small' : language === 'en' ? 'en' : 'multi';
+    const usable: WhisperVariant[] =
+      language === 'en' ? [wanted, 'small', 'en', 'multi'] : [wanted, 'small', 'multi'];
+    const variant = usable.find((candidate) => isWhisperInstalled(this.voiceDir, candidate)) ?? null;
     if (variant !== wanted) {
       this.fetchWhisper(wanted);
     }
@@ -592,7 +613,7 @@ export class VoiceManager {
           task: 'transcribe',
         },
         tokens: path.join(whisper, 'tokens.txt'),
-        numThreads: 2,
+        numThreads: variant === 'small' ? 4 : 2,
         provider: 'cpu',
       };
     }

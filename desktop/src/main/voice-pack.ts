@@ -85,7 +85,7 @@ export async function installPack(
   onProgress(1);
 }
 
-export type WhisperVariant = 'en' | 'multi';
+export type WhisperVariant = 'en' | 'multi' | 'small';
 
 const WHISPER_PACKS: Readonly<
   Record<WhisperVariant, { name: string; tag: string; sha: string; bytes: number }>
@@ -101,6 +101,12 @@ const WHISPER_PACKS: Readonly<
     tag: 'voice-whisper-multi-1',
     sha: '8c72553ac09e849e9feb113a793c55496f1831e4a586433935783641b664a9f5',
     bytes: 93_529_364,
+  },
+  small: {
+    name: 'musix-whisper-small-1',
+    tag: 'voice-whisper-small-1',
+    sha: 'aab3f9d774a56545ff36f75fcc1ffd685f82dac3991b6aa5c32dbd856df3c715',
+    bytes: 231_060_160,
   },
 };
 const WHISPER_FILES = ['manifest.json', 'encoder.int8.onnx', 'decoder.int8.onnx', 'tokens.txt'] as const;

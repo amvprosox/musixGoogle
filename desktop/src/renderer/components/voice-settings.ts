@@ -86,6 +86,29 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
   languageSelect.addEventListener('change', () => {
     voice.update({ language: languageSelect.value }).catch(fail('Language not saved'));
   });
+  const qualitySelect = h(
+    'select',
+    { className: 'voice-select', attrs: { 'aria-label': 'Recognition quality' } },
+    [
+      h('option', { attrs: { value: 'standard' }, text: 'Standard (fast)' }),
+      h('option', { attrs: { value: 'high' }, text: 'High accuracy' }),
+    ],
+  );
+  qualitySelect.addEventListener('change', () => {
+    const quality = qualitySelect.value === 'high' ? 'high' : 'standard';
+    voice.update({ quality }).catch(fail('Quality not saved'));
+  });
+  const boostRange = h('input', {
+    className: 'voice-range',
+    attrs: { type: 'range', min: '1', max: '8', step: '0.5', 'aria-label': 'Mic boost' },
+  });
+  const boostValue = h('span', { className: 'setting-desc' });
+  boostRange.addEventListener('change', () => {
+    voice.update({ micBoost: Number(boostRange.value) }).catch(fail('Mic boost not saved'));
+  });
+  boostRange.addEventListener('input', () => {
+    setText(boostValue, `Up to ${Number(boostRange.value).toFixed(1)}x louder`);
+  });
   const micActive = h('span', { className: 'setting-desc voice-note' });
   let renderedDevicesFor = '';
   const meterBars = Array.from({ length: 24 }, () => h('span', { className: 'voice-meter-bar' }));
@@ -312,10 +335,21 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
       micSelect,
       micActive,
     ),
+    row(
+      'Mic boost',
+      'Makes quiet voices louder before Musix listens. Raise it if Musix misses what you say.',
+      boostRange,
+      boostValue,
+    ),
     h('div', { className: 'voice-meter-row' }, [
       h('span', { className: 'setting-desc', text: 'Live input' }),
       meter,
     ]),
+    row(
+      'Recognition quality',
+      'High accuracy understands names and other languages better, and takes about a second. It downloads a 231 MB speech model once.',
+      qualitySelect,
+    ),
     row(
       'Voice language',
       'The language you speak to Musix. Mixed English, like Taglish, works too. Other languages download a 94 MB speech model once.',
@@ -401,6 +435,13 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
         ? `Musix has learned ${learned} ${learned === 1 ? 'phrase' : 'phrases'} from you, so ${learned === 1 ? 'it works' : 'they work'} instantly without AI.`
         : '',
     );
+    if (document.activeElement !== qualitySelect) {
+      qualitySelect.value = config?.quality ?? 'standard';
+    }
+    if (document.activeElement !== boostRange) {
+      boostRange.value = String(config?.micBoost ?? 3);
+      setText(boostValue, `Up to ${(config?.micBoost ?? 3).toFixed(1)}x louder`);
+    }
     if (document.activeElement !== languageSelect) {
       languageSelect.value = config?.language ?? 'en';
     }
