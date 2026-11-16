@@ -2091,3 +2091,26 @@
 .voice-details > .voice-key-row {
   padding-top: var(--sp-12);
 }
+
+.voice-meter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-16);
+  padding-bottom: var(--sp-16);
+}
+
+.voice-meter {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 28px;
+}
+
+.voice-meter-bar {
+  width: 4px;
+  height: 28px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #ff4fa3, #a855f7 45%, #22d3ee);
+  transform: scaleY(0.06);
+  transition: transform 80ms linear;
+}

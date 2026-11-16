@@ -75,6 +75,9 @@ export class VoiceController {
   devices: MicDevice[] = [];
   activeMic = '';
   private readonly listeners = new Set<Listener>();
+  private readonly levelListeners = new Set<(level: number) => void>();
+  private defaultLabel = '';
+  private restarting = false;
   private stream: MediaStream | null = null;
   private context: AudioContext | null = null;
   private processor: AudioWorkletNode | null = null;
@@ -101,7 +104,7 @@ export class VoiceController {
       void this.execute(command);
     });
     navigator.mediaDevices.addEventListener('devicechange', () => {
-      void this.refreshDevices(true);
+      void this.refreshDevices(true, true);
     });
     api
       .invoke('voice:get', null)
@@ -112,6 +115,13 @@ export class VoiceController {
         void this.syncCapture();
       })
       .catch(() => undefined);
+  }
+
+  onLevel(listener: (level: number) => void): () => void {
+    this.levelListeners.add(listener);
+    return () => {
+      this.levelListeners.delete(listener);
+    };
   }
 
   subscribe(listener: Listener): () => void {
@@ -156,7 +166,7 @@ export class VoiceController {
     this.emit();
   }
 
-  private async refreshDevices(announce: boolean): Promise<void> {
+  private async refreshDevices(announce: boolean, followChanges = false): Promise<void> {
     const before = new Set(this.devices.map((device) => device.id));
     const all = await navigator.mediaDevices.enumerateDevices();
     this.devices = all
@@ -166,11 +176,22 @@ export class VoiceController {
     if (announce && added) {
       this.ctx.toasts.show({ variant: 'info', title: 'Microphone connected', message: added.label });
     }
+    const defaultLabel =
+      all.find((device) => device.kind === 'audioinput' && device.deviceId === 'default')?.label ?? '';
     const wanted = this.config?.mic ?? 'default';
     const currentTrack = this.stream?.getAudioTracks()[0];
     const currentId = currentTrack?.getSettings().deviceId ?? '';
-    if (this.stream && (wanted === 'default' || !this.devices.some((device) => device.id === currentId))) {
-      await this.restartCapture();
+    const defaultMoved =
+      wanted === 'default' && this.defaultLabel !== '' && defaultLabel !== this.defaultLabel;
+    const currentGone = wanted !== 'default' && !this.devices.some((device) => device.id === currentId);
+    this.defaultLabel = defaultLabel;
+    if (followChanges && this.stream && !this.restarting && (defaultMoved || currentGone)) {
+      this.restarting = true;
+      try {
+        await this.restartCapture();
+      } finally {
+        this.restarting = false;
+      }
     }
     this.emit();
   }
@@ -264,6 +285,14 @@ export class VoiceController {
   }
 
   private onAudio(samples: Float32Array): void {
+    let energy = 0;
+    for (const value of samples) {
+      energy += value * value;
+    }
+    const level = Math.min(1, Math.sqrt(energy / Math.max(1, samples.length)) * 4);
+    for (const listener of this.levelListeners) {
+      listener(level);
+    }
     if (this.recording) {
       for (const value of samples) {
         this.recording.push(value);

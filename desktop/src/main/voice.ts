@@ -605,6 +605,9 @@ export class VoiceManager {
     }
     const stripped = stripWakeWord(text);
     if (!stripped.heard && !keyword) {
+      if (text !== '' && this.status.state === 'listening') {
+        this.setStatus({ ...this.status, heard: text });
+      }
       return;
     }
     const rest = stripped.heard ? stripped.rest : dropLeadingWords(text, this.config.commands);

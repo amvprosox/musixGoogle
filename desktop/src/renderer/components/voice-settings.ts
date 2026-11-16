@@ -79,6 +79,18 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     voice.update({ mic: micSelect.value }).catch(fail('Microphone not saved'));
   });
   const micActive = h('span', { className: 'setting-desc voice-note' });
+  let renderedDevicesFor = '';
+  const meterBars = Array.from({ length: 24 }, () => h('span', { className: 'voice-meter-bar' }));
+  const meter = h('div', { className: 'voice-meter', attrs: { 'aria-hidden': 'true' } }, meterBars);
+  const meterHistory = meterBars.map(() => 0);
+  voice.onLevel((level) => {
+    meterHistory.shift();
+    meterHistory.push(level);
+    meterBars.forEach((bar, index) => {
+      const value = meterHistory[index] ?? 0;
+      bar.style.transform = `scaleY(${Math.max(0.06, Math.min(1, value * 2.2)).toFixed(3)})`;
+    });
+  });
 
   const speakerSwitch = switchButton('Only my voice', (next) => {
     voice.update({ speakerCheck: next }).catch(fail('Voice setting not saved'));
@@ -286,6 +298,10 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
 
   const details = h('div', { className: 'voice-details' }, [
     row('Microphone', 'Musix follows the microphone you pick, or the system default.', micSelect, micActive),
+    h('div', { className: 'voice-meter-row' }, [
+      h('span', { className: 'setting-desc', text: 'Live input' }),
+      meter,
+    ]),
     row('Only my voice', 'Ignore "Prosecs" from anyone whose voice does not match yours.', speakerSwitch),
     h('div', { className: 'voice-actions' }, [
       h('div', { className: 'button-row' }, [enrollButton, testButton, forgetButton]),
@@ -331,13 +347,20 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     setText(heardText, status.heard !== '' ? `Last heard: "${status.heard}"` : '');
     details.hidden = !config?.enabled;
     const wanted = config?.mic ?? 'default';
-    micSelect.replaceChildren(
-      h('option', { attrs: { value: 'default' }, text: 'System default' }),
-      ...voice.devices
-        .filter((device) => device.id !== 'default')
-        .map((device) => h('option', { attrs: { value: device.id }, text: device.label })),
-    );
-    micSelect.value = voice.devices.some((device) => device.id === wanted) ? wanted : 'default';
+    const deviceSignature = JSON.stringify(voice.devices);
+    if (deviceSignature !== renderedDevicesFor) {
+      renderedDevicesFor = deviceSignature;
+      micSelect.replaceChildren(
+        h('option', { attrs: { value: 'default' }, text: 'System default' }),
+        ...voice.devices
+          .filter((device) => device.id !== 'default')
+          .map((device) => h('option', { attrs: { value: device.id }, text: device.label })),
+      );
+    }
+    const selected = voice.devices.some((device) => device.id === wanted) ? wanted : 'default';
+    if (micSelect.value !== selected && document.activeElement !== micSelect) {
+      micSelect.value = selected;
+    }
     setText(micActive, voice.activeMic !== '' ? `Listening with: ${voice.activeMic}` : '');
     setChecked(speakerSwitch, config?.speakerCheck ?? true);
     threshold.value = String(config?.speakerThreshold ?? 0.45);
