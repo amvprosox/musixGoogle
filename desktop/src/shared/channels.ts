@@ -61,6 +61,7 @@ export interface ShellInvokeChannels {
   'voice:get': { request: null; response: { config: VoiceConfigView; status: VoiceStatus } };
   'voice:set': { request: VoiceConfigPatch; response: VoiceConfigView };
   'voice:set-ai-key': { request: string | null; response: VoiceConfigView };
+  'voice:connect-ai': { request: null; response: VoiceConfigView };
   'voice:download-pack': { request: null; response: boolean };
   'voice:enroll': { request: Float32Array[]; response: { ok: boolean; threshold: number; message: string } };
   'voice:test': { request: Float32Array; response: number | null };

@@ -211,6 +211,9 @@ final class VoiceController: ObservableObject {
     private var voiceprint: [Float]
     private var freeModels: [FreeModel] = []
     private var modelsFetchedAt = Date.distantPast
+    private var lastGoodModel: String?
+    private var modelCooldowns: [String: Date] = [:]
+    @Published private(set) var connecting = false
     private var yesPlayer: AVAudioPlayer?
     private let speech = AVSpeechSynthesizer()
     private var observers: [NSObjectProtocol] = []
@@ -588,7 +591,7 @@ final class VoiceController: ObservableObject {
         if !freeModels.isEmpty, Date().timeIntervalSince(modelsFetchedAt) < 6 * 3600 {
             return freeModels
         }
-        guard let url = URL(string: "\(AiIntentParser.base)/models") else {
+        guard let url = URL(string: AiIntentParser.freeModelsURL) else {
             return []
         }
         var request = URLRequest(url: url)
@@ -610,35 +613,36 @@ final class VoiceController: ObservableObject {
             return nil
         }
         let offline = player.isOfflinePlaying
-        for model in await loadFreeModels(key: key).prefix(4) where model.id.hasSuffix(":free") {
-            let body: [String: Any] = [
-                "model": model.id,
-                "temperature": 0,
-                "max_tokens": 120,
-                "messages": [
-                    ["role": "system", "content": AiIntentParser.systemPrompt(offline: offline)],
-                    ["role": "user", "content": String(text.prefix(400))],
-                ],
-            ]
+        let deadline = Date().addingTimeInterval(AiIntentParser.budgetSeconds)
+        let models = AiIntentParser.order(await loadFreeModels(key: key), lastGood: lastGoodModel, cooldowns: modelCooldowns, now: Date())
+        for model in models {
+            guard Date() < deadline, let body = AiIntentParser.requestBody(model: model.id, text: text, offline: offline) else {
+                break
+            }
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
-            request.timeoutInterval = 9
+            request.timeoutInterval = min(9, max(1, deadline.timeIntervalSinceNow))
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.setValue("Musix", forHTTPHeaderField: "X-Title")
-            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-            guard let (data, response) = try? await URLSession.shared.data(for: request),
-                  let status = (response as? HTTPURLResponse)?.statusCode else {
-                continue
+            request.httpBody = body
+            var status: Int?
+            if let (data, response) = try? await URLSession.shared.data(for: request),
+               let code = (response as? HTTPURLResponse)?.statusCode {
+                status = code
+                if code == 200, let parsed = AiIntentParser.parse(AiIntentParser.chatContent(data)) {
+                    lastGoodModel = model.id
+                    modelCooldowns[model.id] = nil
+                    return parsed
+                }
+                if AiIntentParser.shouldStop(status: code) {
+                    notice = "OpenRouter refused the key. Connect OpenRouter again."
+                    return nil
+                }
             }
-            if status == 429 || status >= 500 {
-                continue
-            }
-            guard status == 200 else {
-                return nil
-            }
-            if let parsed = AiIntentParser.parse(AiIntentParser.chatContent(data)) {
-                return parsed
+            modelCooldowns[model.id] = Date().addingTimeInterval(AiIntentParser.cooldown(status: status))
+            if lastGoodModel == model.id {
+                lastGoodModel = nil
             }
         }
         return nil
@@ -649,6 +653,27 @@ final class VoiceController: ObservableObject {
         hasAiKey = !VoiceKeychain.read().isEmpty
         freeModels = []
         freeModelCount = 0
+        lastGoodModel = nil
+        modelCooldowns = [:]
+    }
+
+    func connectAi() async {
+        guard !connecting else {
+            return
+        }
+        connecting = true
+        defer {
+            connecting = false
+        }
+        do {
+            let key = try await OpenRouterConnect().connect()
+            setAiKey(key)
+            notice = "OpenRouter connected. Only free models will be used."
+        } catch OpenRouterConnect.Failure.cancelled {
+            notice = ""
+        } catch {
+            notice = "OpenRouter was not connected. Try again."
+        }
     }
 
     func resetCommands() {

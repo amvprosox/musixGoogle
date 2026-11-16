@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  aiRequestBody,
+  attemptAfterStatus,
   chatContent,
   freeModelsFrom,
   intentPrompt,
   isFreeModelId,
+  orderFreeModels,
   parseAiIntent,
 } from '../../src/shared/ai-intent';
 
@@ -25,7 +28,7 @@ const catalog = {
 describe('freeModelsFrom', () => {
   it('keeps only models that are free on every price', () => {
     const models = freeModelsFrom(catalog);
-    expect(models.map((model) => model.id)).toEqual(['big/model:free', 'meta/llama-free:free']);
+    expect(models.map((model) => model.id)).toEqual(['meta/llama-free:free', 'big/model:free']);
     expect(isFreeModelId('paid/model', models)).toBe(false);
     expect(isFreeModelId('big/model:free', models)).toBe(true);
     expect(freeModelsFrom(null)).toEqual([]);
@@ -58,5 +61,43 @@ describe('chatContent and intentPrompt', () => {
   it('mentions offline preference only when offline', () => {
     expect(intentPrompt('play something', true)[0]?.content).toContain('offline');
     expect(intentPrompt('play something', false)[0]?.content).not.toContain('offline');
+  });
+});
+
+describe('free model rotation', () => {
+  const models = [
+    { id: 'a:free', contextLength: 1 },
+    { id: 'b:free', contextLength: 1 },
+    { id: 'c:free', contextLength: 1 },
+  ];
+
+  it('keeps the popularity order, puts the last working model first, and skips cooling models', () => {
+    expect(orderFreeModels(models, null, new Map(), 0).map((m) => m.id)).toEqual([
+      'a:free',
+      'b:free',
+      'c:free',
+    ]);
+    expect(orderFreeModels(models, 'c:free', new Map(), 0).map((m) => m.id)).toEqual([
+      'c:free',
+      'a:free',
+      'b:free',
+    ]);
+    const cooling = new Map([['a:free', 100]]);
+    expect(orderFreeModels(models, null, cooling, 50).map((m) => m.id)).toEqual(['b:free', 'c:free']);
+    expect(orderFreeModels(models, null, cooling, 150).map((m) => m.id)).toEqual([
+      'a:free',
+      'b:free',
+      'c:free',
+    ]);
+    const allCooling = new Map(models.map((m) => [m.id, 100] as const));
+    expect(orderFreeModels(models, null, allCooling, 50)).toHaveLength(3);
+  });
+
+  it('stops only when the key is refused and never builds a paid request', () => {
+    expect(attemptAfterStatus(401)).toBe('stop');
+    expect(attemptAfterStatus(429)).toBe('next');
+    expect(attemptAfterStatus(404)).toBe('next');
+    expect(() => aiRequestBody('openai/gpt-5', [])).toThrow();
+    expect(JSON.parse(aiRequestBody('a:free', []))).toMatchObject({ model: 'a:free', temperature: 0 });
   });
 });

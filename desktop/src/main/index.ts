@@ -1,4 +1,14 @@
-import { app, BrowserWindow, Menu, nativeTheme, net, protocol, session, systemPreferences } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  nativeTheme,
+  net,
+  protocol,
+  session,
+  shell,
+  systemPreferences,
+} from 'electron';
 import {
   ADBLOCK_FIRST_FETCH_TIMEOUT_MS,
   APP_DESKTOP_NAME,
@@ -277,6 +287,7 @@ async function start(): Promise<void> {
       view.sendBridge({ v: 1, type: 'duck', requestId: view.nextRequestId(), level: ducked ? 0.2 : 1 });
     },
     isOnline: () => net.isOnline(),
+    openExternal: (url) => shell.openExternal(url),
   });
   const applyMicAccess = (enabled: boolean): void => {
     micAllowed = enabled;
@@ -608,6 +619,19 @@ async function start(): Promise<void> {
       voice,
       voicePlaySearch,
       voiceEnabledChanged: applyMicAccess,
+      focusShell: () => {
+        if (win.isDestroyed()) {
+          return;
+        }
+        if (win.isMinimized()) {
+          win.restore();
+        }
+        win.show();
+        win.focus();
+        if (process.platform === 'darwin') {
+          app.focus({ steal: true });
+        }
+      },
       openShellMenu: (request) => {
         if (request.target.kind === 'shellText') {
           menus.open({ kind: 'shellText' }, request.x, request.y, {

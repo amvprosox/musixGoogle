@@ -138,6 +138,11 @@ export class VoiceController {
     this.emit();
   }
 
+  async connectAi(): Promise<void> {
+    this.config = await this.ctx.api.invoke('voice:connect-ai', null);
+    this.emit();
+  }
+
   async downloadPack(): Promise<void> {
     await this.ctx.api.invoke('voice:download-pack', null);
     const { config } = await this.ctx.api.invoke('voice:get', null);

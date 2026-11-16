@@ -331,6 +331,9 @@ public struct AiIntent: Equatable, Sendable {
 
 public enum AiIntentParser {
     public static let base = "https://openrouter.ai/api/v1"
+    public static let freeModelsURL = "\(base)/models?sort=most-popular"
+    public static let budgetSeconds: TimeInterval = 30
+    public static let maxTokens = 600
 
     static func isZeroPrice(_ value: Any?) -> Bool {
         guard let value, !(value is NSNull) else {
@@ -361,7 +364,41 @@ public enum AiIntentParser {
             }
             models.append(FreeModel(id: id, contextLength: (entry["context_length"] as? Int) ?? 0))
         }
-        return models.sorted { $0.contextLength != $1.contextLength ? $0.contextLength > $1.contextLength : $0.id < $1.id }
+        return models
+    }
+
+    public static func order(_ models: [FreeModel], lastGood: String?, cooldowns: [String: Date], now: Date) -> [FreeModel] {
+        let ready = models.filter { (cooldowns[$0.id] ?? .distantPast) <= now }
+        let pool = ready.isEmpty ? models : ready
+        guard let lastGood, let preferred = pool.first(where: { $0.id == lastGood }) else {
+            return pool
+        }
+        return [preferred] + pool.filter { $0.id != lastGood }
+    }
+
+    public static func shouldStop(status: Int) -> Bool {
+        status == 401 || status == 403
+    }
+
+    public static func cooldown(status: Int?) -> TimeInterval {
+        status == 429 ? 120 : 600
+    }
+
+    public static func requestBody(model: String, text: String, offline: Bool) -> Data? {
+        guard model.hasSuffix(":free") else {
+            return nil
+        }
+        let body: [String: Any] = [
+            "model": model,
+            "temperature": 0,
+            "max_tokens": maxTokens,
+            "reasoning": ["effort": "low", "exclude": true],
+            "messages": [
+                ["role": "system", "content": systemPrompt(offline: offline)],
+                ["role": "user", "content": String(text.prefix(400))],
+            ],
+        ]
+        return try? JSONSerialization.data(withJSONObject: body)
     }
 
     public static func systemPrompt(offline: Bool) -> String {

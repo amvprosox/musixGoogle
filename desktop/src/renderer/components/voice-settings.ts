@@ -177,6 +177,31 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     h('span', { text: 'Remove key' }),
   ]);
   const keyStatus = h('p', { className: 'setting-desc' });
+  const connectButton = h('button', { className: 'btn btn-primary', attrs: { type: 'button' } }, [
+    icon('log-in'),
+    h('span', { text: 'Connect OpenRouter' }),
+  ]);
+  connectButton.addEventListener('click', () => {
+    connectButton.disabled = true;
+    toasts.show({
+      variant: 'info',
+      title: 'Connect OpenRouter',
+      message: 'Your browser opened OpenRouter. Press Authorize there, then come back to Musix.',
+    });
+    voice
+      .connectAi()
+      .then(() => {
+        toasts.show({
+          variant: 'success',
+          title: 'OpenRouter connected',
+          message: 'Only free models will be used.',
+        });
+      })
+      .catch(fail('OpenRouter not connected'))
+      .finally(() => {
+        connectButton.disabled = false;
+      });
+  });
   saveKey.addEventListener('click', () => {
     const value = keyInput.value.trim();
     if (value === '') {
@@ -272,6 +297,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
       'Understands requests the built-in commands do not. Online only.',
       aiSwitch,
     ),
+    h('div', { className: 'voice-key-row' }, [connectButton]),
     h('div', { className: 'voice-key-row' }, [keyInput, saveKey, removeKey]),
     keyStatus,
     h('h4', { className: 'voice-subtitle', text: 'Voice commands' }),
@@ -316,10 +342,14 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     setChecked(aiSwitch, config?.aiEnabled ?? true);
     removeKey.hidden = !config?.hasAiKey;
     setText(
+      connectButton.querySelector('span'),
+      config?.hasAiKey ? 'Reconnect OpenRouter' : 'Connect OpenRouter',
+    );
+    setText(
       keyStatus,
       config?.hasAiKey
         ? 'Key saved on this computer (encrypted). Only free ":free" models are ever called, so it never costs money.'
-        : 'Paste a key from openrouter.ai/keys. Set its credit limit to 0 there for extra safety.',
+        : 'Press Connect OpenRouter and Authorize in your browser. Or paste a key from openrouter.ai/keys.',
     );
     const signature = JSON.stringify(config?.commands ?? []);
     if (signature !== renderedCommandsFor) {

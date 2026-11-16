@@ -123,7 +123,12 @@ struct VoiceSettingsView: View {
                 Section {
                     Toggle("Free AI for other requests", isOn: $voice.aiEnabled)
                         .tint(Palette.accent)
-                    SecureField("OpenRouter API key", text: $keyText)
+                    Button(voice.hasAiKey ? "Reconnect OpenRouter" : "Connect OpenRouter") {
+                        Task { await voice.connectAi() }
+                    }
+                    .font(.body(DesignTokens.text16, weight: .semibold))
+                    .disabled(voice.connecting)
+                    SecureField("Or paste an OpenRouter API key", text: $keyText)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     Button("Save key") {
@@ -141,7 +146,7 @@ struct VoiceSettingsView: View {
                 } footer: {
                     Text(voice.hasAiKey
                         ? "Key saved in the iPhone Keychain. Only free \":free\" models are ever called, so it never costs money. Used online only, for requests the built-in commands do not understand."
-                        : "Paste a key from openrouter.ai/keys. Set its credit limit to 0 there for extra safety.")
+                        : "Tap Connect OpenRouter and Authorize. Musix gets its own key and only ever uses free models.")
                         .font(.body(DesignTokens.text14))
                 }
             }

@@ -3,10 +3,16 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from '
 import path from 'node:path';
 import { safeStorage } from 'electron';
 import {
+  AI_BUDGET_MS,
+  aiRequestBody,
+  attemptAfterStatus,
   chatContent,
+  cooldownFor,
+  FREE_MODELS_URL,
   freeModelsFrom,
   intentPrompt,
   OPENROUTER_BASE,
+  orderFreeModels,
   parseAiIntent,
   type FreeModel,
 } from '../shared/ai-intent';
@@ -21,6 +27,7 @@ import {
   type VoiceCommand,
 } from '../shared/voice-intent';
 import { logError, logWarn } from './log';
+import { connectOpenRouter } from './openrouter-connect';
 import { installPack, isPackInstalled, packDir } from './voice-pack';
 
 const SAMPLE_RATE = 16000;
@@ -157,6 +164,7 @@ export interface VoiceManagerOptions {
   onCommand: (command: VoiceCommandEvent) => void;
   onDuck: (ducked: boolean) => void;
   isOnline: () => boolean;
+  openExternal: (url: string) => Promise<void>;
 }
 
 export class VoiceManager {
@@ -176,6 +184,9 @@ export class VoiceManager {
   private segments: Promise<void> = Promise.resolve();
   private freeModels: FreeModel[] = [];
   private modelsFetchedAt = 0;
+  private connecting = false;
+  private lastGoodModel: string | null = null;
+  private readonly modelCooldowns = new Map<string, number>();
 
   constructor(private readonly options: VoiceManagerOptions) {
     this.voiceDir = path.join(options.userDataDir, 'voice');
@@ -319,8 +330,26 @@ export class VoiceManager {
     }
     this.freeModels = [];
     this.modelsFetchedAt = 0;
+    this.lastGoodModel = null;
+    this.modelCooldowns.clear();
     this.saveConfig();
     return this.view();
+  }
+
+  async connectAi(): Promise<VoiceConfigView> {
+    if (this.connecting) {
+      throw new Error('OpenRouter sign-in is already open in your browser.');
+    }
+    this.connecting = true;
+    try {
+      const key = await connectOpenRouter({
+        openExternal: (url) => this.options.openExternal(url),
+        label: 'Musix desktop',
+      });
+      return this.setAiKey(key);
+    } finally {
+      this.connecting = false;
+    }
   }
 
   private aiKey(): string {
@@ -628,7 +657,7 @@ export class VoiceManager {
     if (this.freeModels.length > 0 && Date.now() - this.modelsFetchedAt < MODELS_TTL_MS) {
       return this.freeModels;
     }
-    const response = await fetch(`${OPENROUTER_BASE}/models`, {
+    const response = await fetch(FREE_MODELS_URL, {
       headers: { Authorization: `Bearer ${key}` },
       signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     });
@@ -653,10 +682,12 @@ export class VoiceManager {
       return null;
     }
     const messages = intentPrompt(transcript, !this.options.isOnline());
-    for (const model of models.slice(0, 4)) {
-      if (!model.id.endsWith(':free')) {
-        continue;
+    const deadline = Date.now() + AI_BUDGET_MS;
+    for (const model of orderFreeModels(models, this.lastGoodModel, this.modelCooldowns, Date.now())) {
+      if (Date.now() > deadline) {
+        break;
       }
+      let status: number | null = null;
       try {
         const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
           method: 'POST',
@@ -665,22 +696,27 @@ export class VoiceManager {
             'Content-Type': 'application/json',
             'X-Title': 'Musix',
           },
-          body: JSON.stringify({ model: model.id, messages, temperature: 0, max_tokens: 120 }),
-          signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+          body: aiRequestBody(model.id, messages),
+          signal: AbortSignal.timeout(Math.min(AI_TIMEOUT_MS, Math.max(1000, deadline - Date.now()))),
         });
-        if (response.status === 429 || response.status >= 500) {
-          continue;
-        }
-        if (!response.ok) {
-          logWarn('voice', `AI request failed with HTTP ${response.status}`);
+        status = response.status;
+        if (response.ok) {
+          const parsed = parseAiIntent(chatContent(await response.json()));
+          if (parsed) {
+            this.lastGoodModel = model.id;
+            this.modelCooldowns.delete(model.id);
+            return { ...parsed, transcript, source: 'ai' };
+          }
+        } else if (attemptAfterStatus(response.status) === 'stop') {
+          logWarn('voice', `OpenRouter refused the key (HTTP ${response.status})`);
           return null;
-        }
-        const parsed = parseAiIntent(chatContent(await response.json()));
-        if (parsed) {
-          return { ...parsed, transcript, source: 'ai' };
         }
       } catch (error) {
         logWarn('voice', `AI model ${model.id} failed`, error);
+      }
+      this.modelCooldowns.set(model.id, Date.now() + cooldownFor(status));
+      if (this.lastGoodModel === model.id) {
+        this.lastGoodModel = null;
       }
     }
     return null;

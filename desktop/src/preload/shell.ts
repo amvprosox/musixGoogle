@@ -36,6 +36,7 @@ const INVOKE_CHANNELS: Readonly<Record<ShellInvokeChannel, true>> = {
   'voice:get': true,
   'voice:set': true,
   'voice:set-ai-key': true,
+  'voice:connect-ai': true,
   'voice:download-pack': true,
   'voice:enroll': true,
   'voice:test': true,

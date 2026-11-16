@@ -106,6 +106,7 @@ data class VoiceUiState(
     val freeModelCount: Int = 0,
     val enrollPrompt: String = "",
     val busy: Boolean = false,
+    val connecting: Boolean = false,
     val commands: List<VoiceCommand> = VoiceIntentMatcher.defaultCommands,
 ) {
     val stateText: String
@@ -167,6 +168,8 @@ class VoiceController(
     private var pendingSpeech: String? = null
     private var freeModels: List<FreeModel> = emptyList()
     private var modelsFetchedAt = 0L
+    private var lastGoodModel: String? = null
+    private val modelCooldowns = HashMap<String, Long>()
 
     private val deviceCallback =
         object : AudioDeviceCallback() {
@@ -237,6 +240,8 @@ class VoiceController(
     fun setAiKey(value: String?) {
         store.writeAiKey(value.orEmpty())
         freeModels = emptyList()
+        lastGoodModel = null
+        modelCooldowns.clear()
         stateFlow.update { it.copy(hasAiKey = store.readAiKey().isNotEmpty(), freeModelCount = 0) }
     }
 
@@ -647,7 +652,7 @@ class VoiceController(
 
     private suspend fun loadFreeModels(key: String): List<FreeModel> {
         if (freeModels.isNotEmpty() && System.currentTimeMillis() - modelsFetchedAt < MODELS_TTL_MS) return freeModels
-        val body = withContext(Dispatchers.IO) { http("GET", "${AiIntentParser.BASE}/models", key, null) } ?: return emptyList()
+        val body = withContext(Dispatchers.IO) { http("GET", AiIntentParser.FREE_MODELS_URL, key, null) } ?: return emptyList()
         if (body.first != HttpURLConnection.HTTP_OK) return emptyList()
         freeModels = AiIntentParser.freeModels(body.second)
         modelsFetchedAt = System.currentTimeMillis()
@@ -659,17 +664,48 @@ class VoiceController(
         val key = store.readAiKey()
         if (!stateFlow.value.aiEnabled || key.isEmpty()) return null
         val offline = isOffline()
-        for (model in loadFreeModels(key).take(MAX_MODELS)) {
+        val deadline = System.currentTimeMillis() + AiIntentParser.BUDGET_MS
+        val models = AiIntentParser.order(loadFreeModels(key), lastGoodModel, modelCooldowns, System.currentTimeMillis())
+        for (model in models) {
+            if (System.currentTimeMillis() > deadline) break
             if (!AiIntentParser.isFreeModelId(model.id)) continue
             val request = AiIntentParser.requestBody(model.id, text.take(MAX_TEXT), offline)
-            val response =
-                withContext(Dispatchers.IO) { http("POST", "${AiIntentParser.BASE}/chat/completions", key, request) } ?: continue
-            val status = response.first
-            if (status == HTTP_TOO_MANY || status >= HttpURLConnection.HTTP_INTERNAL_ERROR) continue
-            if (status != HttpURLConnection.HTTP_OK) return null
-            AiIntentParser.parseIntent(AiIntentParser.chatContent(response.second))?.let { return it }
+            val response = withContext(Dispatchers.IO) { http("POST", "${AiIntentParser.BASE}/chat/completions", key, request) }
+            val status = response?.first
+            if (status == HttpURLConnection.HTTP_OK) {
+                val parsed = AiIntentParser.parseIntent(AiIntentParser.chatContent(response.second))
+                if (parsed != null) {
+                    lastGoodModel = model.id
+                    modelCooldowns.remove(model.id)
+                    return parsed
+                }
+            } else if (status != null && AiIntentParser.shouldStop(status)) {
+                notice("OpenRouter refused the key. Connect OpenRouter again.")
+                return null
+            }
+            modelCooldowns[model.id] = System.currentTimeMillis() + AiIntentParser.cooldownMs(status)
+            if (lastGoodModel == model.id) lastGoodModel = null
         }
         return null
+    }
+
+    fun connectAi() {
+        if (stateFlow.value.connecting) return
+        stateFlow.update { it.copy(connecting = true, notice = "Press Authorize on OpenRouter, then come back to Musix.") }
+        scope.launch {
+            try {
+                val key = OpenRouterConnect.connect(context)
+                setAiKey(key)
+                notice("OpenRouter connected. Only free models will be used.")
+            } catch (error: IOException) {
+                Log.w(TAG, "OpenRouter connect failed", error)
+                notice("OpenRouter was not connected. Try again.")
+            } catch (error: android.content.ActivityNotFoundException) {
+                notice("No browser is available to open OpenRouter.")
+            } finally {
+                stateFlow.update { it.copy(connecting = false) }
+            }
+        }
     }
 
     private fun http(
@@ -802,7 +838,6 @@ class VoiceController(
         private const val VOICE_PITCH = 0.85f
         private const val VOICE_RATE = 0.95f
         private const val MODELS_TTL_MS = 6 * 60 * 60 * 1000L
-        private const val MAX_MODELS = 4
         private const val MAX_TEXT = 400
         private const val MAX_RESPONSE = 2_000_000
         private const val HTTP_TIMEOUT_MS = 9_000

@@ -24,8 +24,15 @@ data class AiIntent(
 
 object AiIntentParser {
     const val BASE = "https://openrouter.ai/api/v1"
+    const val FREE_MODELS_URL = "$BASE/models?sort=most-popular"
+    const val BUDGET_MS = 30_000L
     private const val MAX_QUERY = 200
-    private const val MAX_TOKENS = 120
+    private const val MAX_TOKENS = 600
+    private const val RATE_LIMIT_COOLDOWN_MS = 2 * 60_000L
+    private const val FAILURE_COOLDOWN_MS = 10 * 60_000L
+    private const val HTTP_UNAUTHORIZED = 401
+    private const val HTTP_FORBIDDEN = 403
+    private const val HTTP_TOO_MANY = 429
     private val json = Json { ignoreUnknownKeys = true }
 
     private fun parse(raw: String): JsonElement? = runCatching { json.parseToJsonElement(raw) }.getOrNull()
@@ -51,8 +58,24 @@ object AiIntentParser {
                 val priced = pricing.containsKey("prompt") && pricing.containsKey("completion")
                 if (!isFreeModelId(id) || !priced || !pricing.values.all { isZeroPrice(it) }) return@mapNotNull null
                 FreeModel(id, (record["context_length"] as? JsonPrimitive)?.intOrNull ?: 0)
-            }.sortedWith(compareByDescending<FreeModel> { it.contextLength }.thenBy { it.id })
+            }
     }
+
+    fun order(
+        models: List<FreeModel>,
+        lastGood: String?,
+        cooldowns: Map<String, Long>,
+        now: Long,
+    ): List<FreeModel> {
+        val ready = models.filter { (cooldowns[it.id] ?: 0L) <= now }
+        val pool = ready.ifEmpty { models }
+        val preferred = pool.firstOrNull { it.id == lastGood } ?: return pool
+        return listOf(preferred) + pool.filter { it !== preferred }
+    }
+
+    fun shouldStop(status: Int): Boolean = status == HTTP_UNAUTHORIZED || status == HTTP_FORBIDDEN
+
+    fun cooldownMs(status: Int?): Long = if (status == HTTP_TOO_MANY) RATE_LIMIT_COOLDOWN_MS else FAILURE_COOLDOWN_MS
 
     fun systemPrompt(offline: Boolean): String {
         val actions = VoiceAction.entries.joinToString(", ") { it.id }
@@ -78,6 +101,13 @@ object AiIntentParser {
             put("model", model)
             put("temperature", 0)
             put("max_tokens", MAX_TOKENS)
+            put(
+                "reasoning",
+                buildJsonObject {
+                    put("effort", "low")
+                    put("exclude", true)
+                },
+            )
             put(
                 "messages",
                 buildJsonArray {

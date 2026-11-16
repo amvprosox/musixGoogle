@@ -105,7 +105,7 @@ class VoiceIntentTest {
               {"id":"f/noprice:free","context_length":1}
             ]}
             """.trimIndent()
-        assertThat(AiIntentParser.freeModels(raw).map { it.id }).containsExactly("e/big:free", "b/model:free").inOrder()
+        assertThat(AiIntentParser.freeModels(raw).map { it.id }).containsExactly("b/model:free", "e/big:free").inOrder()
         assertThat(AiIntentParser.freeModels("not json")).isEmpty()
     }
 
@@ -118,6 +118,21 @@ class VoiceIntentTest {
         assertThat(AiIntentParser.parseIntent("no json")).isNull()
         val chat = "{\"choices\":[{\"message\":{\"content\":\"hi\"}}]}"
         assertThat(AiIntentParser.chatContent(chat)).isEqualTo("hi")
+    }
+
+    @Test
+    fun rotatesThroughFreeModels() {
+        val models = listOf(FreeModel("a:free", 1), FreeModel("b:free", 1), FreeModel("c:free", 1))
+        assertThat(AiIntentParser.order(models, null, emptyMap(), 0L).map { it.id }).containsExactly("a:free", "b:free", "c:free").inOrder()
+        assertThat(
+            AiIntentParser.order(models, "c:free", emptyMap(), 0L).map { it.id },
+        ).containsExactly("c:free", "a:free", "b:free").inOrder()
+        assertThat(
+            AiIntentParser.order(models, null, mapOf("a:free" to 100L), 50L).map { it.id },
+        ).containsExactly("b:free", "c:free").inOrder()
+        assertThat(AiIntentParser.order(models, null, models.associate { it.id to 100L }, 50L)).hasSize(3)
+        assertThat(AiIntentParser.shouldStop(401)).isTrue()
+        assertThat(AiIntentParser.shouldStop(429)).isFalse()
     }
 
     @Test(expected = IllegalArgumentException::class)

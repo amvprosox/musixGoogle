@@ -290,10 +290,17 @@ fun VoiceSettingsScreen(
                 SettingsSection("AI") {
                     SwitchRow("Free AI for other requests", null, state.aiEnabled) { voice.setAiEnabled(it) }
                     Spacer(Modifier.height(DesignTokens.Space8))
+                    PrimaryButton(
+                        if (state.hasAiKey) "Reconnect OpenRouter" else "Connect OpenRouter",
+                        { voice.connectAi() },
+                        icon = R.drawable.ic_log_in,
+                        enabled = !state.connecting,
+                    )
+                    Spacer(Modifier.height(DesignTokens.Space12))
                     OutlinedTextField(
                         value = keyText,
                         onValueChange = { keyText = it.take(200) },
-                        label = { Text("OpenRouter API key") },
+                        label = { Text("Or paste an OpenRouter API key") },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions =
@@ -333,7 +340,7 @@ fun VoiceSettingsScreen(
                             "Key saved encrypted on this phone. Only free \":free\" models are ever called, so it never costs money. " +
                                 "Used online only, for requests the built-in commands do not understand."
                         } else {
-                            "Paste a key from openrouter.ai/keys. Set its credit limit to 0 there for extra safety."
+                            "Tap Connect OpenRouter and Authorize. Musix gets its own key and only ever uses free models."
                         },
                     )
                 }

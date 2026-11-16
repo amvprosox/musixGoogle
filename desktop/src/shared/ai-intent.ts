@@ -1,6 +1,11 @@
 import { isVoiceAction, safeReply, VOICE_ACTIONS, type VoiceAction } from './voice-intent';
 
 export const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
+export const FREE_MODELS_URL = `${OPENROUTER_BASE}/models?sort=most-popular`;
+export const AI_MAX_TOKENS = 600;
+export const AI_BUDGET_MS = 30_000;
+const RATE_LIMIT_COOLDOWN_MS = 2 * 60_000;
+const FAILURE_COOLDOWN_MS = 10 * 60_000;
 
 export interface FreeModel {
   id: string;
@@ -56,7 +61,42 @@ export function freeModelsFrom(payload: unknown): FreeModel[] {
     const contextLength = typeof record.context_length === 'number' ? record.context_length : 0;
     models.push({ id, contextLength });
   }
-  return models.sort((a, b) => b.contextLength - a.contextLength || a.id.localeCompare(b.id));
+  return models;
+}
+
+export function orderFreeModels(
+  models: readonly FreeModel[],
+  lastGood: string | null,
+  cooldowns: ReadonlyMap<string, number>,
+  now: number,
+): FreeModel[] {
+  const ready = models.filter((model) => (cooldowns.get(model.id) ?? 0) <= now);
+  const pool = ready.length > 0 ? ready : [...models];
+  const preferred = pool.find((model) => model.id === lastGood);
+  return preferred ? [preferred, ...pool.filter((model) => model !== preferred)] : pool;
+}
+
+export type AiAttempt = 'stop' | 'next';
+
+export function attemptAfterStatus(status: number): AiAttempt {
+  return status === 401 || status === 403 ? 'stop' : 'next';
+}
+
+export function cooldownFor(status: number | null): number {
+  return status === 429 ? RATE_LIMIT_COOLDOWN_MS : FAILURE_COOLDOWN_MS;
+}
+
+export function aiRequestBody(model: string, messages: readonly { role: string; content: string }[]): string {
+  if (!model.endsWith(':free')) {
+    throw new Error('Only free models are allowed');
+  }
+  return JSON.stringify({
+    model,
+    messages,
+    temperature: 0,
+    max_tokens: AI_MAX_TOKENS,
+    reasoning: { effort: 'low', exclude: true },
+  });
 }
 
 export function isFreeModelId(id: string, allowed: readonly FreeModel[]): boolean {

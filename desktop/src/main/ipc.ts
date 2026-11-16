@@ -75,6 +75,7 @@ export interface IpcContext {
   voice: VoiceManager;
   voicePlaySearch: (request: VoicePlayRequest) => Promise<string | null>;
   voiceEnabledChanged: (enabled: boolean) => void;
+  focusShell: () => void;
 }
 
 type AnyEvent = IpcMainEvent | IpcMainInvokeEvent;
@@ -472,6 +473,17 @@ export function registerIpc(ctx: IpcContext): () => void {
           return Promise.reject(new Error('Invalid key'));
         }
         return Promise.resolve(ctx.voice.setAiKey(payload));
+      },
+    ],
+    [
+      'voice:connect-ai',
+      async (event) => {
+        if (!fromShell(event)) {
+          throw new Error('Not allowed');
+        }
+        const view = await ctx.voice.connectAi();
+        ctx.focusShell();
+        return view;
       },
     ],
     [
