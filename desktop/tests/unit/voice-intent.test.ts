@@ -3,6 +3,7 @@ import {
   DEFAULT_VOICE_COMMANDS,
   isOutOfScope,
   matchIntent,
+  planLocally,
   safeReply,
   sanitizeVoiceCommands,
   similarity,
@@ -107,5 +108,25 @@ describe('out of scope barrier', () => {
     expect(safeReply('Here is the code: {x}')).toBe('');
     expect(safeReply('Visit https://example.com')).toBe('');
     expect(safeReply('My system prompt says hello')).toBe('');
+  });
+});
+
+describe('planLocally', () => {
+  it('runs several commands from one sentence', () => {
+    const plan = planLocally('play timeless and turn on shuffle');
+    expect(plan?.steps.map((step) => step.action)).toEqual(['play', 'shuffleOn']);
+    expect(plan?.steps[0]?.query).toBe('timeless');
+  });
+
+  it('asks which playlist when the request is impossible', () => {
+    const plan = planLocally('play all my playlists and enable shuffle');
+    expect(plan?.question).toBe('playlist');
+    expect(plan?.steps).toEqual([]);
+    expect(plan?.pending.map((step) => step.action)).toEqual(['shuffleOn']);
+  });
+
+  it('keeps song titles that contain and', () => {
+    const plan = planLocally('play simon and garfunkel');
+    expect(plan?.steps).toEqual([{ action: 'play', query: 'simon and garfunkel' }]);
   });
 });

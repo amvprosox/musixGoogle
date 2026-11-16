@@ -255,7 +255,7 @@ fun ShellTabBar(
     Column(Modifier.fillMaxWidth().background(colors.surface)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.border))
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val showLabels = maxWidth / ShellTab.entries.size >= 76.dp
+            val showLabels = maxWidth / ShellTab.entries.size >= 96.dp
             Row(Modifier.fillMaxWidth().padding(top = DesignTokens.Space4)) {
                 ShellTab.entries.forEach { tab ->
                     val active = tab == selected

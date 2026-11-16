@@ -13,20 +13,33 @@ import {
   intentPrompt,
   OPENROUTER_BASE,
   orderFreeModels,
-  parseAiIntent,
+  parseAiPlan,
+  type AiPlan,
+  type AiTurn,
   revealBuiltinKey,
   type FreeModel,
 } from '../shared/ai-intent';
 
 declare const __MUSIX_AI__: string | undefined;
 const BUILTIN_AI_KEY = revealBuiltinKey(typeof __MUSIX_AI__ === 'string' ? __MUSIX_AI__ : '');
-import type { VoiceCommandEvent, VoiceConfigPatch, VoiceConfigView, VoiceStatus } from '../shared/types';
+import type {
+  VoiceChoice,
+  VoiceCommandEvent,
+  VoiceConfigPatch,
+  VoiceConfigView,
+  VoiceStatus,
+  VoiceStep,
+} from '../shared/types';
 import {
   isOutOfScope,
+  isVoiceAction,
+  isVoiceLanguage,
   matchIntent,
+  planLocally,
   normalizeSpeech,
   OUT_OF_SCOPE_REPLY,
   sanitizeVoiceCommands,
+  similarity,
   stripWakeWord,
   type VoiceCommand,
 } from '../shared/voice-intent';
@@ -39,13 +52,15 @@ import {
   isWhisperInstalled,
   packDir,
   whisperDir,
+  type WhisperVariant,
 } from './voice-pack';
 
 const SAMPLE_RATE = 16000;
 const VAD_WINDOW = 512;
 const DITHER = 2e-4;
-const AWAIT_COMMAND_MS = 6000;
-const MAX_SEGMENT_SECONDS = 8;
+const AWAIT_COMMAND_MS = 8000;
+const FOLLOW_UP_MS = 10000;
+const MAX_SEGMENT_SECONDS = 15;
 const HISTORY_SECONDS = 14;
 const LEAD_IN_SAMPLES = Math.round(SAMPLE_RATE * 0.3);
 const MODELS_TTL_MS = 6 * 60 * 60 * 1000;
@@ -61,6 +76,7 @@ interface StoredVoiceConfig {
   voiceprint: number[];
   aiEnabled: boolean;
   aiKey: string;
+  language: string;
 }
 
 interface SherpaStream {
@@ -98,6 +114,24 @@ interface SherpaModule {
   };
 }
 
+interface LearnedPhrase {
+  text: string;
+  steps: VoiceStep[];
+  uses: number;
+  at: number;
+}
+
+const MAX_LEARNED = 500;
+const LEARNED_SIMILARITY = 0.88;
+
+interface FollowUp {
+  transcript: string;
+  plan: string;
+  question: string;
+  pending: VoiceStep[];
+  choice: VoiceChoice;
+}
+
 type Engines = {
   kws: InstanceType<SherpaModule['KeywordSpotter']>;
   kwsStream: SherpaStream;
@@ -116,6 +150,7 @@ const DEFAULTS: StoredVoiceConfig = {
   voiceprint: [],
   aiEnabled: true,
   aiKey: '',
+  language: 'en',
 };
 
 function clamp(value: number, low: number, high: number): number {
@@ -199,6 +234,7 @@ export interface VoiceManagerOptions {
   isOnline: () => boolean;
   openExternal: (url: string) => Promise<void>;
   onLevel?: (level: number) => void;
+  playlistNames?: () => string[];
 }
 
 export class VoiceManager {
@@ -214,6 +250,8 @@ export class VoiceManager {
   private vadFed = 0;
   private keywordHeard = false;
   private awaitingUntil = 0;
+  private followUp: FollowUp | null = null;
+  private learned: LearnedPhrase[] | null = null;
   private wakeAudio: Float32Array | null = null;
   private segments: Promise<void> = Promise.resolve();
   private freeModels: FreeModel[] = [];
@@ -255,6 +293,7 @@ export class VoiceManager {
               .slice(0, 1024)
           : [],
         aiEnabled: raw.aiEnabled !== false,
+        language: isVoiceLanguage(raw.language) ? raw.language : 'en',
         aiKey: typeof raw.aiKey === 'string' ? raw.aiKey : '',
       };
     } catch (error) {
@@ -287,7 +326,9 @@ export class VoiceManager {
       hasAiKey: this.config.aiKey !== '' || BUILTIN_AI_KEY !== '',
       builtinAi: BUILTIN_AI_KEY !== '' && this.config.aiKey === '',
       packInstalled: isPackInstalled(this.voiceDir),
-      whisper: isWhisperInstalled(this.voiceDir),
+      whisper: isWhisperInstalled(this.voiceDir, this.config.language === 'en' ? 'en' : 'multi'),
+      language: this.config.language,
+      learnedCount: this.learnedPhrases().length,
       freeModels: this.freeModels.length,
     };
   }
@@ -344,6 +385,10 @@ export class VoiceManager {
     }
     if (patch.aiEnabled !== undefined) {
       this.config.aiEnabled = patch.aiEnabled;
+    }
+    if (patch.language !== undefined && patch.language !== this.config.language) {
+      this.config.language = patch.language;
+      this.rebuildRecognizer();
     }
     this.saveConfig();
     if (this.config.enabled && isPackInstalled(this.voiceDir)) {
@@ -488,7 +533,7 @@ export class VoiceManager {
             sileroVad: {
               model: path.join(dir, 'vad/silero_vad.onnx'),
               threshold: 0.5,
-              minSilenceDuration: 0.3,
+              minSilenceDuration: 0.65,
               minSpeechDuration: 0.15,
               windowSize: 512,
               maxSpeechDuration: MAX_SEGMENT_SECONDS,
@@ -512,13 +557,23 @@ export class VoiceManager {
   }
 
   private recognizerModel(dir: string): Record<string, unknown> {
-    if (isWhisperInstalled(this.voiceDir)) {
-      const whisper = whisperDir(this.voiceDir);
+    const language = this.config.language;
+    const wanted: WhisperVariant = language === 'en' ? 'en' : 'multi';
+    const variant: WhisperVariant | null = isWhisperInstalled(this.voiceDir, wanted)
+      ? wanted
+      : isWhisperInstalled(this.voiceDir, 'en')
+        ? 'en'
+        : null;
+    if (variant !== wanted) {
+      this.fetchWhisper(wanted);
+    }
+    if (variant) {
+      const whisper = whisperDir(this.voiceDir, variant);
       return {
         whisper: {
           encoder: path.join(whisper, 'encoder.int8.onnx'),
           decoder: path.join(whisper, 'decoder.int8.onnx'),
-          language: 'en',
+          language: variant === 'en' ? 'en' : language,
           task: 'transcribe',
         },
         tokens: path.join(whisper, 'tokens.txt'),
@@ -526,7 +581,6 @@ export class VoiceManager {
         provider: 'cpu',
       };
     }
-    this.fetchWhisper();
     return {
       transducer: {
         encoder: path.join(dir, 'asr/encoder.int8.onnx'),
@@ -539,22 +593,32 @@ export class VoiceManager {
     };
   }
 
-  private fetchWhisper(): void {
-    if (this.whisperDownload || !this.options.isOnline() || isWhisperInstalled(this.voiceDir)) {
+  private rebuildRecognizer(): void {
+    const engines = this.engines;
+    if (!engines) {
       return;
     }
-    this.whisperDownload = installWhisperPack(this.voiceDir, () => undefined)
+    try {
+      const require = createRequire(import.meta.url);
+      const sherpa = require('sherpa-onnx-node') as SherpaModule;
+      engines.asr = new sherpa.OfflineRecognizer({
+        featConfig: { sampleRate: SAMPLE_RATE, featureDim: 80 },
+        modelConfig: this.recognizerModel(packDir(this.voiceDir)),
+      });
+    } catch (error) {
+      logWarn('voice', 'Speech recognizer reload failed', error);
+    }
+  }
+
+  private fetchWhisper(variant: WhisperVariant): void {
+    if (this.whisperDownload || !this.options.isOnline() || isWhisperInstalled(this.voiceDir, variant)) {
+      return;
+    }
+    this.whisperDownload = installWhisperPack(this.voiceDir, () => undefined, variant)
       .then(() => {
-        logInfo('voice', 'Whisper speech recognition installed');
-        const engines = this.engines;
-        if (engines) {
-          const require = createRequire(import.meta.url);
-          const sherpa = require('sherpa-onnx-node') as SherpaModule;
-          engines.asr = new sherpa.OfflineRecognizer({
-            featConfig: { sampleRate: SAMPLE_RATE, featureDim: 80 },
-            modelConfig: this.recognizerModel(packDir(this.voiceDir)),
-          });
-        }
+        logInfo('voice', `Whisper speech recognition installed (${variant})`);
+        this.whisperDownload = null;
+        this.rebuildRecognizer();
         this.options.onStatus({ ...this.status });
       })
       .catch((error: unknown) => {
@@ -606,6 +670,7 @@ export class VoiceManager {
     if (this.awaitingUntil > 0 && Date.now() > this.awaitingUntil && !engines.vad.isDetected()) {
       this.awaitingUntil = 0;
       this.wakeAudio = null;
+      this.followUp = null;
       this.options.onDuck(false);
       this.options.onCommand({ action: 'none', query: '', reply: '', transcript: '', source: 'empty' });
       this.refreshIdleStatus();
@@ -652,9 +717,12 @@ export class VoiceManager {
         return;
       }
       this.awaitingUntil = 0;
-      const wakeAudio = this.wakeAudio;
+      const follow = this.followUp;
+      this.followUp = null;
+      const wakeAudio = follow ? null : this.wakeAudio;
       this.wakeAudio = null;
-      await this.resolveCommand(engines, joinAudio(wakeAudio, samples), cleaned);
+      const answer = follow ? stripWakeWord(cleaned).rest || cleaned : cleaned;
+      await this.resolveCommand(engines, joinAudio(wakeAudio, samples), answer, follow);
       return;
     }
     const stripped = stripWakeWord(text);
@@ -691,7 +759,175 @@ export class VoiceManager {
     return (engines.asr.getResult(stream).text ?? '').trim();
   }
 
-  private async resolveCommand(engines: Engines, audio: Float32Array, text: string): Promise<void> {
+  private learnedPath(): string {
+    return path.join(this.voiceDir, 'learned.json');
+  }
+
+  private learnedPhrases(): LearnedPhrase[] {
+    if (this.learned) {
+      return this.learned;
+    }
+    try {
+      const raw = JSON.parse(readFileSync(this.learnedPath(), 'utf8')) as unknown;
+      this.learned = Array.isArray(raw)
+        ? raw.flatMap((entry: unknown): LearnedPhrase[] => {
+            if (typeof entry !== 'object' || entry === null) {
+              return [];
+            }
+            const record = entry as Record<string, unknown>;
+            const steps = Array.isArray(record.steps)
+              ? record.steps.flatMap((step: unknown): VoiceStep[] => {
+                  const item = step as Record<string, unknown> | null;
+                  return item && isVoiceAction(item.action)
+                    ? [
+                        {
+                          action: item.action,
+                          query: typeof item.query === 'string' ? item.query.slice(0, 200) : '',
+                        },
+                      ]
+                    : [];
+                })
+              : [];
+            return typeof record.text === 'string' && steps.length > 0
+              ? [
+                  {
+                    text: record.text.slice(0, 300),
+                    steps,
+                    uses: typeof record.uses === 'number' ? record.uses : 1,
+                    at: typeof record.at === 'number' ? record.at : 0,
+                  },
+                ]
+              : [];
+          })
+        : [];
+    } catch {
+      this.learned = [];
+    }
+    return this.learned;
+  }
+
+  private recall(text: string): VoiceStep[] | null {
+    const normalized = normalizeSpeech(text);
+    if (normalized === '') {
+      return null;
+    }
+    const phrases = this.learnedPhrases();
+    const exact = phrases.find((phrase) => phrase.text === normalized);
+    const close =
+      exact ??
+      phrases
+        .filter((phrase) => phrase.steps.every((step) => step.query === ''))
+        .map((phrase) => ({ phrase, score: similarity(phrase.text, normalized) }))
+        .filter((entry) => entry.score >= LEARNED_SIMILARITY)
+        .sort((a, b) => b.score - a.score)[0]?.phrase;
+    if (!close) {
+      return null;
+    }
+    close.uses += 1;
+    close.at = Date.now();
+    this.saveLearned();
+    return close.steps;
+  }
+
+  private learn(text: string, steps: VoiceStep[]): void {
+    const normalized = normalizeSpeech(text);
+    if (normalized === '' || steps.length === 0 || normalized.length > 300) {
+      return;
+    }
+    const phrases = this.learnedPhrases().filter((phrase) => phrase.text !== normalized);
+    phrases.unshift({ text: normalized, steps, uses: 1, at: Date.now() });
+    phrases.sort((a, b) => b.at - a.at);
+    this.learned = phrases.slice(0, MAX_LEARNED);
+    this.saveLearned();
+  }
+
+  private saveLearned(): void {
+    try {
+      mkdirSync(this.voiceDir, { recursive: true });
+      const tmp = `${this.learnedPath()}.tmp`;
+      writeFileSync(tmp, JSON.stringify(this.learned ?? []), 'utf8');
+      renameSync(tmp, this.learnedPath());
+    } catch (error) {
+      logWarn('voice', 'Could not save learned phrases', error);
+    }
+  }
+
+  private dispatchPlan(
+    transcript: string,
+    source: 'local' | 'ai',
+    steps: VoiceStep[],
+    question: string,
+    choice: VoiceChoice | undefined,
+    pending: VoiceStep[],
+    plan: string,
+  ): void {
+    const first = steps[0];
+    this.options.onCommand({
+      action: first?.action ?? 'none',
+      query: first?.query ?? '',
+      reply: '',
+      transcript,
+      source,
+      steps,
+      ...(question !== '' ? { question, choice: choice ?? 'other' } : {}),
+    });
+    if (question !== '') {
+      this.followUp = { transcript, plan, question, pending, choice: choice ?? 'other' };
+      this.awaitingUntil = Date.now() + FOLLOW_UP_MS;
+    }
+  }
+
+  private async planFollowUp(follow: FollowUp, answer: string): Promise<boolean> {
+    const local = planLocally(answer, this.config.commands);
+    if (follow.choice === 'playlist' && (!local || local.steps.every((step) => step.action === 'play'))) {
+      const name =
+        normalizeSpeech(answer)
+          .replace(/^(play|the|my|playlist|downloaded)\s+/g, '')
+          .replace(/\s+(playlist|please)$/g, '')
+          .trim() || answer;
+      this.dispatchPlan(
+        answer,
+        'local',
+        [{ action: 'playDownloadedPlaylist', query: name }, ...follow.pending],
+        '',
+        undefined,
+        [],
+        '',
+      );
+      return true;
+    }
+    const ai = await this.askAi(answer, [
+      { role: 'user', content: follow.transcript },
+      { role: 'assistant', content: follow.plan || JSON.stringify({ steps: [], question: follow.question }) },
+    ]);
+    if (ai && (ai.plan.steps.length > 0 || ai.plan.question !== '')) {
+      if (ai.plan.question === '') {
+        this.learn(`${follow.transcript} ${answer}`, ai.plan.steps);
+      }
+      this.dispatchPlan(
+        answer,
+        'ai',
+        ai.plan.steps,
+        ai.plan.question,
+        ai.plan.choice || undefined,
+        [],
+        ai.raw,
+      );
+      return true;
+    }
+    if (local && local.steps.length > 0) {
+      this.dispatchPlan(answer, 'local', [...local.steps, ...follow.pending], '', undefined, [], '');
+      return true;
+    }
+    return false;
+  }
+
+  private async resolveCommand(
+    engines: Engines,
+    audio: Float32Array,
+    text: string,
+    follow: FollowUp | null = null,
+  ): Promise<void> {
     try {
       this.setStatus({ state: 'thinking', message: 'Thinking', heard: text });
       if (this.config.speakerCheck && this.config.voiceprint.length > 0) {
@@ -712,15 +948,20 @@ export class VoiceManager {
         this.options.onCommand({ action: 'none', query: '', reply: '', transcript: '', source: 'empty' });
         return;
       }
-      const local = matchIntent(text, this.config.commands);
+      if (follow && (await this.planFollowUp(follow, text))) {
+        return;
+      }
+      const local = planLocally(text, this.config.commands);
       if (local) {
-        this.options.onCommand({
-          action: local.action,
-          query: local.query,
-          reply: '',
-          transcript: text,
-          source: 'local',
-        });
+        this.dispatchPlan(
+          text,
+          'local',
+          local.steps,
+          local.question === 'playlist' ? 'Which playlist do you want?' : '',
+          local.question === 'playlist' ? 'playlist' : undefined,
+          local.pending,
+          '',
+        );
         return;
       }
       if (isOutOfScope(text)) {
@@ -733,16 +974,38 @@ export class VoiceManager {
         });
         return;
       }
-      const ai = await this.askAi(text);
-      this.options.onCommand(
-        ai ?? { action: 'none', query: '', reply: '', transcript: text, source: 'unknown' },
-      );
+      const remembered = this.recall(text);
+      if (remembered) {
+        this.dispatchPlan(text, 'local', remembered, '', undefined, [], '');
+        return;
+      }
+      const ai = await this.askAi(text, []);
+      if (ai && (ai.plan.steps.length > 0 || ai.plan.question !== '')) {
+        if (ai.plan.question === '') {
+          this.learn(text, ai.plan.steps);
+        }
+        this.dispatchPlan(
+          text,
+          'ai',
+          ai.plan.steps,
+          ai.plan.question,
+          ai.plan.choice || undefined,
+          [],
+          ai.raw,
+        );
+        return;
+      }
+      this.options.onCommand({ action: 'none', query: '', reply: '', transcript: text, source: 'unknown' });
     } catch (error) {
       logError('voice', 'Voice command failed', error);
       this.options.onCommand({ action: 'none', query: '', reply: '', transcript: '', source: 'unknown' });
     } finally {
       this.options.onDuck(false);
-      this.refreshIdleStatus();
+      if (this.followUp) {
+        this.setStatus({ state: 'awake', message: this.followUp.question, heard: '' });
+      } else {
+        this.refreshIdleStatus();
+      }
     }
   }
 
@@ -762,7 +1025,7 @@ export class VoiceManager {
     return this.freeModels;
   }
 
-  private async askAi(transcript: string): Promise<VoiceCommandEvent | null> {
+  private async askAi(transcript: string, history: AiTurn[]): Promise<{ plan: AiPlan; raw: string } | null> {
     const key = this.aiKey();
     if (!this.config.aiEnabled || key === '' || !this.options.isOnline()) {
       return null;
@@ -774,7 +1037,12 @@ export class VoiceManager {
       logWarn('voice', 'Could not load free AI models', error);
       return null;
     }
-    const messages = intentPrompt(transcript, !this.options.isOnline());
+    const messages = intentPrompt(
+      transcript,
+      !this.options.isOnline(),
+      this.options.playlistNames?.() ?? [],
+      history,
+    );
     const deadline = Date.now() + AI_BUDGET_MS;
     for (const model of orderFreeModels(models, this.lastGoodModel, this.modelCooldowns, Date.now())) {
       if (Date.now() > deadline) {
@@ -794,11 +1062,12 @@ export class VoiceManager {
         });
         status = response.status;
         if (response.ok) {
-          const parsed = parseAiIntent(chatContent(await response.json()));
+          const raw = chatContent(await response.json()) ?? '';
+          const parsed = parseAiPlan(raw);
           if (parsed) {
             this.lastGoodModel = model.id;
             this.modelCooldowns.delete(model.id);
-            return { ...parsed, transcript, source: 'ai' };
+            return { plan: parsed, raw: raw.slice(0, 2000) };
           }
         } else if (attemptAfterStatus(response.status) === 'stop') {
           logWarn('voice', `OpenRouter refused the key (HTTP ${response.status})`);

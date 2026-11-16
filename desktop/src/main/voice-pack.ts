@@ -85,30 +85,47 @@ export async function installPack(
   onProgress(1);
 }
 
-export const WHISPER_PACK_NAME = 'musix-whisper-pack-1';
-const WHISPER_PACK_URL = `https://github.com/amvprosox/musixGoogle/releases/download/voice-whisper-1/${WHISPER_PACK_NAME}.zip`;
-const WHISPER_PACK_SHA256 = '9f2891a4c61723e407a3f14be5794ec9046ed00238c02987202168a4c875f1bc';
-const WHISPER_PACK_BYTES = 94_129_407;
+export type WhisperVariant = 'en' | 'multi';
+
+const WHISPER_PACKS: Readonly<
+  Record<WhisperVariant, { name: string; tag: string; sha: string; bytes: number }>
+> = {
+  en: {
+    name: 'musix-whisper-pack-1',
+    tag: 'voice-whisper-1',
+    sha: '9f2891a4c61723e407a3f14be5794ec9046ed00238c02987202168a4c875f1bc',
+    bytes: 94_129_407,
+  },
+  multi: {
+    name: 'musix-whisper-multi-1',
+    tag: 'voice-whisper-multi-1',
+    sha: '8c72553ac09e849e9feb113a793c55496f1831e4a586433935783641b664a9f5',
+    bytes: 93_529_364,
+  },
+};
 const WHISPER_FILES = ['manifest.json', 'encoder.int8.onnx', 'decoder.int8.onnx', 'tokens.txt'] as const;
 
-export function whisperDir(voiceDir: string): string {
-  return path.join(voiceDir, WHISPER_PACK_NAME);
+export function whisperDir(voiceDir: string, variant: WhisperVariant = 'en'): string {
+  return path.join(voiceDir, WHISPER_PACKS[variant].name);
 }
 
-export function isWhisperInstalled(voiceDir: string): boolean {
-  const dir = whisperDir(voiceDir);
+export function isWhisperInstalled(voiceDir: string, variant: WhisperVariant = 'en'): boolean {
+  const dir = whisperDir(voiceDir, variant);
   return WHISPER_FILES.every((file) => existsSync(path.join(dir, file)));
 }
 
 export async function installWhisperPack(
   voiceDir: string,
   onProgress: (fraction: number) => void,
+  variant: WhisperVariant = 'en',
 ): Promise<void> {
-  const response = await fetch(WHISPER_PACK_URL);
+  const pack = WHISPER_PACKS[variant];
+  const url = `https://github.com/amvprosox/musixGoogle/releases/download/${pack.tag}/${pack.name}.zip`;
+  const response = await fetch(url);
   if (!response.ok || !response.body) {
     throw new Error(`Whisper download failed (HTTP ${response.status})`);
   }
-  const total = Number(response.headers.get('content-length')) || WHISPER_PACK_BYTES;
+  const total = Number(response.headers.get('content-length')) || pack.bytes;
   const chunks: Uint8Array[] = [];
   let received = 0;
   const reader = response.body.getReader();
@@ -122,20 +139,18 @@ export async function installWhisperPack(
     onProgress(Math.min(0.99, received / total));
   }
   const zip = Buffer.concat(chunks);
-  if (createHash('sha256').update(zip).digest('hex') !== WHISPER_PACK_SHA256) {
+  if (createHash('sha256').update(zip).digest('hex') !== pack.sha) {
     throw new Error('Whisper download checksum did not match.');
   }
   const files = unzipSync(new Uint8Array(zip));
-  const target = whisperDir(voiceDir);
+  const target = whisperDir(voiceDir, variant);
   const staging = `${target}.partial`;
   await fsp.rm(staging, { recursive: true, force: true });
   for (const [name, data] of Object.entries(files)) {
     if (name.endsWith('/')) {
       continue;
     }
-    const relative = name.startsWith(`${WHISPER_PACK_NAME}/`)
-      ? name.slice(WHISPER_PACK_NAME.length + 1)
-      : name;
+    const relative = name.startsWith(`${pack.name}/`) ? name.slice(pack.name.length + 1) : name;
     if (relative === '' || relative.includes('..')) {
       continue;
     }

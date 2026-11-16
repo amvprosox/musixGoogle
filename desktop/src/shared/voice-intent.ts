@@ -90,17 +90,65 @@ export const VOICE_ACTION_LABELS: Readonly<Record<VoiceAction, string>> = {
 };
 
 export const DEFAULT_VOICE_COMMANDS: readonly VoiceCommand[] = [
-  { action: 'pause', phrases: ['pause', 'pause the music', 'stop', 'stop the music', 'stop playing'] },
-  { action: 'resume', phrases: ['resume', 'play', 'continue', 'keep playing', 'play the music'] },
+  {
+    action: 'pause',
+    phrases: [
+      'pause',
+      'pause the music',
+      'stop',
+      'stop the music',
+      'stop playing',
+      'ihinto',
+      'tigil',
+      'pahinto',
+      'itigil ang kanta',
+    ],
+  },
+  {
+    action: 'resume',
+    phrases: [
+      'resume',
+      'play',
+      'continue',
+      'keep playing',
+      'play the music',
+      'ituloy',
+      'tuloy',
+      'ituloy ang kanta',
+    ],
+  },
   {
     action: 'next',
-    phrases: ['next', 'next song', 'skip', 'skip this', 'skip this song', 'play the next song'],
+    phrases: [
+      'next',
+      'next song',
+      'skip',
+      'skip this',
+      'skip this song',
+      'play the next song',
+      'susunod',
+      'susunod na kanta',
+      'lipat',
+    ],
   },
   {
     action: 'previous',
-    phrases: ['previous', 'previous song', 'go back', 'last song', 'play the previous song', 'back'],
+    phrases: [
+      'previous',
+      'previous song',
+      'go back',
+      'last song',
+      'play the previous song',
+      'back',
+      'balik',
+      'bumalik',
+      'nakaraang kanta',
+    ],
   },
-  { action: 'shuffleOn', phrases: ['shuffle', 'shuffle on', 'turn on shuffle', 'shuffle the music'] },
+  {
+    action: 'shuffleOn',
+    phrases: ['shuffle', 'shuffle on', 'turn on shuffle', 'shuffle the music', 'i shuffle'],
+  },
   { action: 'shuffleOff', phrases: ['shuffle off', 'turn off shuffle', 'stop shuffle', 'no shuffle'] },
   { action: 'repeat', phrases: ['repeat', 'repeat all', 'turn on repeat', 'loop', 'loop everything'] },
   {
@@ -110,8 +158,14 @@ export const DEFAULT_VOICE_COMMANDS: readonly VoiceCommand[] = [
   { action: 'repeatOff', phrases: ['repeat off', 'turn off repeat', 'stop repeating', 'no repeat'] },
   { action: 'like', phrases: ['like', 'like this', 'like this song', 'i like this song'] },
   { action: 'dislike', phrases: ['dislike', 'dislike this', 'i dont like this', 'thumbs down'] },
-  { action: 'volumeUp', phrases: ['volume up', 'louder', 'turn it up', 'turn up the volume'] },
-  { action: 'volumeDown', phrases: ['volume down', 'quieter', 'turn it down', 'turn down the volume'] },
+  {
+    action: 'volumeUp',
+    phrases: ['volume up', 'louder', 'turn it up', 'turn up the volume', 'lakasan', 'lakasan mo'],
+  },
+  {
+    action: 'volumeDown',
+    phrases: ['volume down', 'quieter', 'turn it down', 'turn down the volume', 'hinaan', 'hinaan mo'],
+  },
   { action: 'mute', phrases: ['mute', 'mute the music', 'silence'] },
   { action: 'unmute', phrases: ['unmute', 'unmute the music', 'sound on'] },
   { action: 'seekForward', phrases: ['forward', 'skip forward', 'fast forward', 'forward ten seconds'] },
@@ -127,7 +181,10 @@ export const DEFAULT_VOICE_COMMANDS: readonly VoiceCommand[] = [
       'what am i listening to',
     ],
   },
-  { action: 'showLyrics', phrases: ['show lyrics', 'lyrics', 'open lyrics', 'show the lyrics'] },
+  {
+    action: 'showLyrics',
+    phrases: ['show lyrics', 'lyrics', 'open lyrics', 'show the lyrics', 'ipakita ang lyrics'],
+  },
   { action: 'hideLyrics', phrases: ['hide lyrics', 'close lyrics', 'hide the lyrics'] },
   {
     action: 'downloadSong',
@@ -161,11 +218,21 @@ export const DEFAULT_VOICE_COMMANDS: readonly VoiceCommand[] = [
       'play offline',
       'play my offline music',
       'play downloaded songs',
+      'tugtugin ang downloads ko',
     ],
   },
   {
     action: 'play',
-    phrases: ['play {query}', 'put on {query}', 'i want to hear {query}', 'listen to {query}'],
+    phrases: [
+      'play {query}',
+      'put on {query}',
+      'i want to hear {query}',
+      'listen to {query}',
+      'tugtugin {query}',
+      'patugtugin {query}',
+      'pakitugtog {query}',
+      'i play {query}',
+    ],
   },
   { action: 'openHome', phrases: ['open home', 'go home', 'home'] },
   { action: 'openExplore', phrases: ['open explore', 'explore', 'go to explore'] },
@@ -420,4 +487,78 @@ export function safeReply(reply: string): string {
     return '';
   }
   return trimmed;
+}
+
+const STEP_SPLITTER = /\s+(?:and then|and also|after that|and|then|also|plus)\s+/;
+const AMBIGUOUS_COLLECTION =
+  /^(?:(?:all|every|any|some)\s+(?:of\s+)?)?(?:my\s+|the\s+|a\s+)?(?:own\s+)?(?:play ?lists?|albums?|downloaded play ?lists?)$/;
+
+export interface LocalPlan {
+  steps: { action: VoiceAction; query: string }[];
+  pending: { action: VoiceAction; query: string }[];
+  question: '' | 'playlist';
+}
+
+export function planLocally(
+  text: string,
+  commands: readonly VoiceCommand[] = DEFAULT_VOICE_COMMANDS,
+): LocalPlan | null {
+  const normalized = normalizeSpeech(text);
+  if (normalized === '') {
+    return null;
+  }
+  const parts = normalized.split(STEP_SPLITTER).filter((part) => part !== '');
+  const matchPart = (part: string): { action: VoiceAction; query: string } | null => {
+    const collection = /^(?:play|shuffle|start|put on)\s+(.+)$/.exec(part);
+    if (collection?.[1] && AMBIGUOUS_COLLECTION.test(collection[1])) {
+      return { action: 'play', query: collection[1] };
+    }
+    return matchIntent(part, commands);
+  };
+  let intents: { action: VoiceAction; query: string }[] | null = null;
+  if (parts.length > 1) {
+    const matched = parts.map(matchPart);
+    if (matched.every((intent) => intent !== null)) {
+      intents = matched.map((intent) => ({ action: intent.action, query: intent.query }));
+    }
+  }
+  if (!intents) {
+    const whole = matchPart(normalized);
+    if (!whole) {
+      return null;
+    }
+    intents = [{ action: whole.action, query: whole.query }];
+  }
+  const ambiguous = intents.findIndex(
+    (step) =>
+      (step.action === 'play' || step.action === 'playDownloadedPlaylist') &&
+      (AMBIGUOUS_COLLECTION.test(normalizeSpeech(step.query)) || step.query.trim() === ''),
+  );
+  if (ambiguous === -1) {
+    return { steps: intents, pending: [], question: '' };
+  }
+  return { steps: intents.slice(0, ambiguous), pending: intents.slice(ambiguous + 1), question: 'playlist' };
+}
+
+export const VOICE_LANGUAGES: readonly (readonly [string, string])[] = [
+  ['en', 'English'],
+  ['tl', 'Filipino (Tagalog)'],
+  ['es', 'Spanish'],
+  ['id', 'Indonesian'],
+  ['ms', 'Malay'],
+  ['hi', 'Hindi'],
+  ['ja', 'Japanese'],
+  ['ko', 'Korean'],
+  ['zh', 'Chinese'],
+  ['vi', 'Vietnamese'],
+  ['th', 'Thai'],
+  ['fr', 'French'],
+  ['de', 'German'],
+  ['pt', 'Portuguese'],
+  ['it', 'Italian'],
+  ['ar', 'Arabic'],
+];
+
+export function isVoiceLanguage(value: unknown): value is string {
+  return typeof value === 'string' && VOICE_LANGUAGES.some(([code]) => code === value);
 }

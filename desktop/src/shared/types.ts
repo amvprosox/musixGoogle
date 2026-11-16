@@ -386,15 +386,31 @@ export interface VoiceConfigView {
   builtinAi: boolean;
   packInstalled: boolean;
   whisper: boolean;
+  language: string;
+  learnedCount: number;
   freeModels: number;
 }
 
 export type VoiceConfigPatch = Partial<
   Pick<
     VoiceConfigView,
-    'enabled' | 'mic' | 'commands' | 'speakerCheck' | 'speakerThreshold' | 'sensitivity' | 'aiEnabled'
+    | 'enabled'
+    | 'mic'
+    | 'commands'
+    | 'speakerCheck'
+    | 'speakerThreshold'
+    | 'sensitivity'
+    | 'aiEnabled'
+    | 'language'
   >
 >;
+
+export interface VoiceStep {
+  action: VoiceAction;
+  query: string;
+}
+
+export type VoiceChoice = 'playlist' | 'song' | 'other';
 
 export interface VoiceCommandEvent {
   action: VoiceAction | 'none';
@@ -402,6 +418,9 @@ export interface VoiceCommandEvent {
   reply: string;
   transcript: string;
   source: 'local' | 'ai' | 'rejected' | 'empty' | 'unknown' | 'blocked';
+  steps?: VoiceStep[];
+  question?: string;
+  choice?: VoiceChoice;
 }
 
 export interface VoicePlayRequest {

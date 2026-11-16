@@ -308,6 +308,7 @@ async function start(): Promise<void> {
     },
     isOnline: () => net.isOnline(),
     openExternal: (url) => shell.openExternal(url),
+    playlistNames: () => ['Liked Music', ...downloads.listLibraries().map((library) => library.title)],
   });
   const applyMicAccess = (enabled: boolean): void => {
     micAllowed = enabled;

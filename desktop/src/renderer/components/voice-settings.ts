@@ -1,5 +1,5 @@
 import { errorMessage } from '../../shared/guards';
-import { VOICE_ACTION_LABELS, type VoiceCommand } from '../../shared/voice-intent';
+import { VOICE_LANGUAGES, VOICE_ACTION_LABELS, type VoiceCommand } from '../../shared/voice-intent';
 import type { AppContext } from '../context';
 import { h, hydrate, icon, setText } from '../dom';
 import type { VoiceController } from '../voice';
@@ -77,6 +77,14 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
   const micSelect = h('select', { className: 'voice-select', attrs: { 'aria-label': 'Microphone' } });
   micSelect.addEventListener('change', () => {
     voice.update({ mic: micSelect.value }).catch(fail('Microphone not saved'));
+  });
+  const languageSelect = h(
+    'select',
+    { className: 'voice-select', attrs: { 'aria-label': 'Voice language' } },
+    VOICE_LANGUAGES.map(([code, name]) => h('option', { attrs: { value: code }, text: name })),
+  );
+  languageSelect.addEventListener('change', () => {
+    voice.update({ language: languageSelect.value }).catch(fail('Language not saved'));
   });
   const micActive = h('span', { className: 'setting-desc voice-note' });
   let renderedDevicesFor = '';
@@ -195,6 +203,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     h('span', { text: 'Remove key' }),
   ]);
   const keyStatus = h('p', { className: 'setting-desc' });
+  const learnedNote = h('p', { className: 'setting-desc voice-note' });
   const connectButton = h('button', { className: 'btn btn-primary', attrs: { type: 'button' } }, [
     icon('log-in'),
     h('span', { text: 'Connect OpenRouter' }),
@@ -307,6 +316,11 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
       h('span', { className: 'setting-desc', text: 'Live input' }),
       meter,
     ]),
+    row(
+      'Voice language',
+      'The language you speak to Musix. Mixed English, like Taglish, works too. Other languages download a 94 MB speech model once.',
+      languageSelect,
+    ),
     row('Only my voice', 'Ignore "Prosecs" from anyone whose voice does not match yours.', speakerSwitch),
     h('div', { className: 'voice-actions' }, [
       h('div', { className: 'button-row' }, [enrollButton, testButton, forgetButton]),
@@ -329,6 +343,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
       aiSwitch,
     ),
     keyStatus,
+    learnedNote,
     connectRow,
     keyRow,
     removeRow,
@@ -379,6 +394,16 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     testButton.hidden = !config?.hasVoiceprint;
     sensitivity.value = String(config?.sensitivity ?? 0.5);
     setChecked(aiSwitch, config?.aiEnabled ?? true);
+    const learned = config?.learnedCount ?? 0;
+    setText(
+      learnedNote,
+      learned > 0
+        ? `Musix has learned ${learned} of your ${learned === 1 ? 'phrase' : 'phrases'}, so they work instantly without AI.`
+        : '',
+    );
+    if (document.activeElement !== languageSelect) {
+      languageSelect.value = config?.language ?? 'en';
+    }
     const connected = config?.hasAiKey ?? false;
     connectRow.hidden = connected;
     keyRow.hidden = connected;

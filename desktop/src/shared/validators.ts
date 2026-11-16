@@ -1,3 +1,4 @@
+import { isVoiceLanguage } from './voice-intent';
 import {
   isBoolean,
   isBoundedString,
@@ -418,6 +419,11 @@ export function isVoiceConfigPatch(value: unknown): value is VoiceConfigPatch {
         break;
       case 'commands':
         if (!Array.isArray(v) || v.length > 60) {
+          return false;
+        }
+        break;
+      case 'language':
+        if (!isVoiceLanguage(v)) {
           return false;
         }
         break;

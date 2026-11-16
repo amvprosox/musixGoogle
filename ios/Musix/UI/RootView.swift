@@ -236,7 +236,7 @@ struct RootView: View {
 
     private var tabBar: some View {
         GeometryReader { proxy in
-            let showLabels = proxy.size.width / CGFloat(ShellTab.allCases.count) >= 76
+            let showLabels = proxy.size.width / CGFloat(ShellTab.allCases.count) >= 96
             HStack(spacing: 0) {
                 ForEach(ShellTab.allCases, id: \.self) { item in
                     Button {
@@ -252,6 +252,7 @@ struct RootView: View {
                             }
                         }
                         .foregroundStyle(tab == item ? Palette.accent : Palette.textMuted)
+                        .padding(.horizontal, DesignTokens.space4)
                         .frame(maxWidth: .infinity, minHeight: 56)
                         .contentShape(Rectangle())
                     }

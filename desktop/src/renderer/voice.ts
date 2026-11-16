@@ -7,8 +7,9 @@ import type {
   VoiceConfigPatch,
   VoiceConfigView,
   VoiceStatus,
+  VoiceStep,
 } from '../shared/types';
-import { normalizeSpeech, similarity } from '../shared/voice-intent';
+import { normalizeSpeech, similarity, type VoiceAction } from '../shared/voice-intent';
 import type { AppContext } from './context';
 
 const SAMPLE_RATE = 16000;
@@ -70,6 +71,34 @@ function paletteFromSpeech(query: string): PaletteName | null {
 }
 
 type ReplyKey =
+  | 'which-playlist'
+  | 'which-one'
+  | 'which-song'
+  | 'done'
+  | 'on-it'
+  | 'playing'
+  | 'shuffle-on'
+  | 'shuffle-off'
+  | 'repeat-all'
+  | 'repeat-one'
+  | 'repeat-off'
+  | 'paused'
+  | 'resumed'
+  | 'next'
+  | 'previous'
+  | 'liked'
+  | 'disliked'
+  | 'volume-up'
+  | 'volume-down'
+  | 'muted'
+  | 'unmuted'
+  | 'lyrics'
+  | 'downloading'
+  | 'theme'
+  | 'opening'
+  | 'searching'
+  | 'restart'
+  | 'offline-playing'
   | 'okay'
   | 'sorry'
   | 'scope'
@@ -97,6 +126,45 @@ const REPLY_PATTERNS: [RegExp, ReplyKey][] = [
   [/already downloaded/i, 'downloaded'],
 ];
 
+const ACK_REPLY: Readonly<Record<VoiceAction, ReplyKey | null>> = {
+  pause: 'paused',
+  resume: 'resumed',
+  next: 'next',
+  previous: 'previous',
+  shuffleOn: 'shuffle-on',
+  shuffleOff: 'shuffle-off',
+  repeat: 'repeat-all',
+  repeatOne: 'repeat-one',
+  repeatOff: 'repeat-off',
+  like: 'liked',
+  dislike: 'disliked',
+  volumeUp: 'volume-up',
+  volumeDown: 'volume-down',
+  mute: 'muted',
+  unmute: 'unmuted',
+  seekForward: 'done',
+  seekBack: 'done',
+  restart: 'restart',
+  whatsPlaying: null,
+  showLyrics: 'lyrics',
+  hideLyrics: 'done',
+  downloadSong: 'downloading',
+  setTheme: 'theme',
+  search: 'searching',
+  play: 'playing',
+  playDownloads: 'offline-playing',
+  playDownloadedPlaylist: 'playing',
+  openHome: 'opening',
+  openExplore: 'opening',
+  openLibrary: 'opening',
+  openLiked: 'opening',
+  openPlaylists: 'opening',
+  openDownloads: 'opening',
+  openSettings: 'opening',
+  openQueue: 'opening',
+  openSearch: 'opening',
+};
+
 function replyKey(text: string): ReplyKey {
   return REPLY_PATTERNS.find(([pattern]) => pattern.test(text))?.[1] ?? 'okay';
 }
@@ -117,6 +185,7 @@ export class VoiceController {
   private recording: number[] | null = null;
   private yes: HTMLAudioElement | null = null;
   private replyAudio: HTMLAudioElement | null = null;
+  private spoke = false;
 
   constructor(private readonly ctx: AppContext) {
     const { api } = ctx;
@@ -390,6 +459,7 @@ export class VoiceController {
   }
 
   private say(text: string): void {
+    this.spoke = true;
     this.reply(replyKey(text));
   }
 
@@ -439,6 +509,60 @@ export class VoiceController {
   }
 
   private async execute(command: VoiceCommandEvent): Promise<void> {
+    const steps: VoiceStep[] =
+      command.steps ?? (command.action === 'none' ? [] : [{ action: command.action, query: command.query }]);
+    if (steps.length === 0 && command.question) {
+      this.ask(command);
+      return;
+    }
+    if (steps.length === 0) {
+      await this.runStep(command);
+      return;
+    }
+    this.notify('Voice assistant', command.transcript === '' ? (steps[0]?.action ?? '') : command.transcript);
+    let ack: ReplyKey | null = null;
+    for (const [index, step] of steps.entries()) {
+      this.spoke = false;
+      await this.runStep({ ...command, action: step.action, query: step.query, reply: '' });
+      ack = this.hasSpoken() ? null : ACK_REPLY[step.action];
+      if (index < steps.length - 1) {
+        const settle = step.action === 'play' || step.action.startsWith('playDownload') ? 1800 : 350;
+        await new Promise((resolve) => window.setTimeout(resolve, settle));
+      }
+    }
+    if (command.question) {
+      this.ask(command);
+    } else if (ack) {
+      this.reply(ack);
+    }
+  }
+
+  private hasSpoken(): boolean {
+    return this.spoke;
+  }
+
+  private ask(command: VoiceCommandEvent): void {
+    const key: ReplyKey =
+      command.choice === 'playlist'
+        ? 'which-playlist'
+        : command.choice === 'song'
+          ? 'which-song'
+          : 'which-one';
+    this.reply(key);
+    if (command.choice === 'playlist') {
+      void this.savedLibraries().then((libraries) => {
+        const names = libraries.map((lib) => lib.title).slice(0, 6);
+        this.notify(
+          command.question ?? 'Which playlist?',
+          names.length > 0 ? `Say one: ${names.join(', ')}` : 'Say its name.',
+        );
+      });
+    } else {
+      this.notify('Voice assistant', command.question ?? 'Which one?');
+    }
+  }
+
+  private async runStep(command: VoiceCommandEvent): Promise<void> {
     const { actions, store, router, api } = this.ctx;
     const player = store.getState().player;
     if (command.action === 'none') {
@@ -456,10 +580,6 @@ export class VoiceController {
         this.say(command.reply || 'Sorry, I did not catch that.');
       }
       return;
-    }
-    this.notify('Voice assistant', command.transcript === '' ? command.action : command.transcript);
-    if (command.reply !== '') {
-      this.say(command.reply);
     }
     const offline = !navigator.onLine || actions.isOfflineActive();
     switch (command.action) {
@@ -618,10 +738,17 @@ export class VoiceController {
         if (library && first) {
           actions.playDownloaded(first, scope);
           this.notify('Playing offline', library.title);
-        } else {
-          this.notify('Voice assistant', `No downloaded playlist matches "${command.query}".`);
-          this.say('I could not find that playlist in your downloads.');
+          return;
         }
+        if (!offline) {
+          const title = await api.invoke('voice:play-search', { query: command.query, kind: 'playlist' });
+          if (title) {
+            this.notify('Playing', title);
+            return;
+          }
+        }
+        this.notify('Voice assistant', `No playlist matches "${command.query}".`);
+        this.say('I could not find that playlist in your downloads.');
         return;
       }
       case 'openHome':
