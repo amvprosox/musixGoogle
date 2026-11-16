@@ -42,6 +42,7 @@ import {
   similarity,
   stripWakeWord,
   type VoiceCommand,
+  wakeHeadFrom,
 } from '../shared/voice-intent';
 import { logError, logInfo, logWarn } from './log';
 import { connectOpenRouter } from './openrouter-connect';
@@ -77,6 +78,7 @@ interface StoredVoiceConfig {
   aiEnabled: boolean;
   aiKey: string;
   language: string;
+  wakeVariants: string[];
 }
 
 interface SherpaStream {
@@ -151,6 +153,7 @@ const DEFAULTS: StoredVoiceConfig = {
   aiEnabled: true,
   aiKey: '',
   language: 'en',
+  wakeVariants: [],
 };
 
 function clamp(value: number, low: number, high: number): number {
@@ -301,6 +304,11 @@ export class VoiceManager {
           : [],
         aiEnabled: raw.aiEnabled !== false,
         language: isVoiceLanguage(raw.language) ? raw.language : 'en',
+        wakeVariants: Array.isArray(raw.wakeVariants)
+          ? raw.wakeVariants
+              .filter((value): value is string => typeof value === 'string' && value.length <= 16)
+              .slice(0, 8)
+          : [],
         aiKey: typeof raw.aiKey === 'string' ? raw.aiKey : '',
       };
     } catch (error) {
@@ -720,7 +728,11 @@ export class VoiceManager {
     const text = normalizeSpeech(this.transcribe(engines, samples));
     if (this.awaitingUntil > 0) {
       const cleaned = text.replace(/^(yes|yeah|yep)\b\s*/, '').trim();
-      if (cleaned === '' || (stripWakeWord(cleaned).heard && stripWakeWord(cleaned).rest === '')) {
+      if (
+        cleaned === '' ||
+        (stripWakeWord(cleaned, this.config.wakeVariants).heard &&
+          stripWakeWord(cleaned, this.config.wakeVariants).rest === '')
+      ) {
         return;
       }
       this.awaitingUntil = 0;
@@ -728,11 +740,11 @@ export class VoiceManager {
       this.followUp = null;
       const wakeAudio = follow ? null : this.wakeAudio;
       this.wakeAudio = null;
-      const answer = follow ? stripWakeWord(cleaned).rest || cleaned : cleaned;
+      const answer = follow ? stripWakeWord(cleaned, this.config.wakeVariants).rest || cleaned : cleaned;
       await this.resolveCommand(engines, joinAudio(wakeAudio, samples), answer, follow);
       return;
     }
-    const stripped = stripWakeWord(text);
+    const stripped = stripWakeWord(text, this.config.wakeVariants);
     if (!stripped.heard && !keyword) {
       if (text !== '' && this.status.state === 'listening') {
         this.setStatus({ ...this.status, heard: text });
@@ -1119,8 +1131,19 @@ export class VoiceManager {
     this.config.voiceprint = mean;
     this.config.speakerThreshold = threshold;
     this.config.speakerCheck = true;
+    const heads = usable
+      .map((clip) => wakeHeadFrom(this.transcribe(engines, clip)))
+      .filter((head): head is string => head !== null);
+    const learned = [...new Set([...heads, ...this.config.wakeVariants])].slice(0, 8);
+    this.config.wakeVariants = learned;
     this.saveConfig();
-    return { ok: true, threshold, message: `Voice saved. Match threshold set to ${threshold.toFixed(2)}.` };
+    const heardAs =
+      heads.length > 0 ? ` Learned how you say Prosecs: ${[...new Set(heads)].join(', ')}.` : '';
+    return {
+      ok: true,
+      threshold,
+      message: `Voice saved. Match threshold set to ${threshold.toFixed(2)}.${heardAs}`,
+    };
   }
 
   async testVoice(clip: Float32Array): Promise<number | null> {

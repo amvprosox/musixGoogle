@@ -304,7 +304,31 @@ export function similarity(a: string, b: string): number {
   return 1 - (prev[b.length] ?? 0) / Math.max(a.length, b.length);
 }
 
-export function stripWakeWord(text: string): { heard: boolean; rest: string } {
+export function wakeHeadFrom(transcript: string): string | null {
+  const words = normalizeSpeech(transcript)
+    .split(' ')
+    .filter((word) => word !== '');
+  if (words.length === 0 || WAKE_DENY.includes(words[0] ?? '')) {
+    return null;
+  }
+  let best: { head: string; score: number } | null = null;
+  for (const take of [1, 2]) {
+    if (words.length < take) {
+      continue;
+    }
+    const head = words.slice(0, take).join(' ');
+    const score = Math.max(...WAKE_VARIANTS.map((variant) => similarity(head, variant)));
+    if (!best || score > best.score) {
+      best = { head, score };
+    }
+  }
+  return best && best.score >= 0.4 && best.head.length <= 16 ? best.head : null;
+}
+
+export function stripWakeWord(
+  text: string,
+  extraVariants: readonly string[] = [],
+): { heard: boolean; rest: string } {
   const words = normalizeSpeech(text)
     .split(' ')
     .filter((word) => word !== '');
@@ -316,7 +340,9 @@ export function stripWakeWord(text: string): { heard: boolean; rest: string } {
       continue;
     }
     const head = words.slice(0, take).join(' ');
-    const best = Math.max(...WAKE_VARIANTS.map((variant) => similarity(head, variant)));
+    const best = Math.max(
+      ...[...WAKE_VARIANTS, ...extraVariants].map((variant) => similarity(head, variant)),
+    );
     if (best >= 0.7) {
       return { heard: true, rest: words.slice(take).join(' ') };
     }

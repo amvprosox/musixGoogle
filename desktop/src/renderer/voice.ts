@@ -186,6 +186,8 @@ export class VoiceController {
   private yes: HTMLAudioElement | null = null;
   private replyAudio: HTMLAudioElement | null = null;
   private spoke = false;
+  private speaking = 0;
+  private quietUntil = 0;
 
   constructor(private readonly ctx: AppContext) {
     const { api } = ctx;
@@ -411,6 +413,13 @@ export class VoiceController {
   }
 
   private onAudio(samples: Float32Array): void {
+    if (this.speaking > 0 || Date.now() < this.quietUntil) {
+      this.pending = [];
+      for (const listener of this.levelListeners) {
+        listener(0);
+      }
+      return;
+    }
     let energy = 0;
     for (const value of samples) {
       energy += value * value;
@@ -455,7 +464,29 @@ export class VoiceController {
       this.yes.preload = 'auto';
     }
     this.yes.currentTime = 0;
-    this.yes.play().catch(() => undefined);
+    this.trackSpeech(this.yes);
+    this.yes.play().catch(() => {
+      this.speechEnded();
+    });
+  }
+
+  private trackSpeech(audio: HTMLAudioElement): void {
+    this.speaking += 1;
+    let finished = false;
+    const end = (): void => {
+      if (!finished) {
+        finished = true;
+        this.speechEnded();
+      }
+    };
+    audio.addEventListener('ended', end, { once: true });
+    audio.addEventListener('error', end, { once: true });
+    audio.addEventListener('pause', end, { once: true });
+  }
+
+  private speechEnded(): void {
+    this.speaking = Math.max(0, this.speaking - 1);
+    this.quietUntil = Date.now() + 350;
   }
 
   private say(text: string): void {
@@ -477,7 +508,11 @@ export class VoiceController {
     };
     audio.addEventListener('ended', done, { once: true });
     audio.addEventListener('error', done, { once: true });
-    audio.play().catch(done);
+    this.trackSpeech(audio);
+    audio.play().catch(() => {
+      done();
+      this.speechEnded();
+    });
   }
 
   private notify(title: string, message: string): void {

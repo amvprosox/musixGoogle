@@ -398,7 +398,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     setText(
       learnedNote,
       learned > 0
-        ? `Musix has learned ${learned} of your ${learned === 1 ? 'phrase' : 'phrases'}, so they work instantly without AI.`
+        ? `Musix has learned ${learned} ${learned === 1 ? 'phrase' : 'phrases'} from you, so ${learned === 1 ? 'it works' : 'they work'} instantly without AI.`
         : '',
     );
     if (document.activeElement !== languageSelect) {
