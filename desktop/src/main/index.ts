@@ -45,6 +45,7 @@ import { logError, logInfo, logWarn } from './log';
 import { MprisManager } from './mpris';
 import { TrackNotifier } from './notifications';
 import { OverlayLayers } from './overlay';
+import { VoiceGlow } from './voice-glow';
 import { hardenContents, installQuitAccelerator, registerMediaKeys, unregisterMediaKeys } from './shortcuts';
 import { MenuController } from './menus';
 import { toPlayerState, toQueueItems } from '../shared/bridge-adapter';
@@ -269,6 +270,7 @@ async function start(): Promise<void> {
     hardenContents(child.webContents, devMode);
   });
   const overlays = new OverlayLayers(win, () => currentTheme(store), devMode);
+  const voiceGlow = new VoiceGlow(win, devMode);
   view.setTheme(currentTheme(store));
 
   const voice = new VoiceManager({
@@ -277,6 +279,14 @@ async function start(): Promise<void> {
       if (!win.isDestroyed()) {
         sendToShell(win, 'voice:status', status);
       }
+      voiceGlow.setState(
+        status.state === 'awake' || status.state === 'thinking',
+        status.state === 'thinking',
+        status.heard,
+      );
+    },
+    onLevel: (level) => {
+      voiceGlow.setLevel(level);
     },
     onCommand: (event) => {
       if (!win.isDestroyed()) {
@@ -296,7 +306,7 @@ async function start(): Promise<void> {
     }
   };
   applyMicAccess(voice.view().enabled);
-  for (const layer of overlays.views()) {
+  for (const layer of [...overlays.views(), ...voiceGlow.views()]) {
     hardenContents(layer.webContents, devMode);
   }
   const menus = new MenuController({

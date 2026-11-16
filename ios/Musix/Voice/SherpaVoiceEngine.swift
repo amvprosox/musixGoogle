@@ -4,6 +4,15 @@ import SherpaOnnxC
 final class SherpaVoiceEngine {
     static let sampleRate = 16_000
     static let vadWindow = 512
+    static let wakeKeywords = [
+        "▁PRO SE C S @PROSECS",
+        "▁PRO ▁SE C S @PROSECS",
+        "▁PRO ▁SE X @PROSECS",
+        "▁PRO SE X @PROSECS",
+        "▁PRO ▁SE K S @PROSECS",
+        "▁PRO SE K S @PROSECS",
+        "▁PRO ▁SE CK S @PROSECS",
+    ]
 
     private var strings: [UnsafeMutablePointer<CChar>] = []
     private let spotter: OpaquePointer
@@ -44,7 +53,12 @@ final class SherpaVoiceEngine {
         kws.num_trailing_blanks = 1
         kws.keywords_score = Float(1 + sensitivity)
         kws.keywords_threshold = Float(0.3 - sensitivity * 0.2)
-        kws.keywords_file = c(path("kws/keywords.txt"))
+        let wakeFile = path("kws/keywords-prosecs.txt")
+        let wakeText = Self.wakeKeywords.joined(separator: "\n") + "\n"
+        if (try? String(contentsOfFile: wakeFile, encoding: .utf8)) != wakeText {
+            try? wakeText.write(toFile: wakeFile, atomically: true, encoding: .utf8)
+        }
+        kws.keywords_file = c(wakeFile)
 
         var vadConfig = SherpaOnnxVadModelConfig()
         vadConfig.silero_vad.model = c(path("vad/silero_vad.onnx"))

@@ -16,7 +16,7 @@ import {
   TriangleAlert,
   X,
 } from 'lucide';
-import type { MenuItemSpec, OverlayRenderPayload, ToastItem } from '../shared/types';
+import type { MenuItemSpec, OverlayRenderPayload, ToastItem, VoiceGlowPayload } from '../shared/types';
 
 const OVERLAY_ICONS = {
   CircleCheck,
@@ -62,10 +62,64 @@ function iconHolder(name: string): HTMLElement {
   return holder;
 }
 
+const WAVE_BARS = 32;
+
+function startVoice(api: NonNullable<Window['musixOverlay']>): void {
+  document.documentElement.classList.add('voice-layer');
+  const stage = el('div', 'voice-stage');
+  const ring = el('div', 'voice-ring');
+  stage.append(ring);
+  const wave = el('div', 'voice-wave');
+  const bars = el('div', 'voice-bars');
+  const heights: number[] = Array.from({ length: WAVE_BARS }, () => 0);
+  const barNodes = heights.map(() => {
+    const bar = el('span', 'voice-bar');
+    bars.append(bar);
+    return bar;
+  });
+  const label = el('span', 'voice-label');
+  wave.append(bars, label);
+  document.body.append(stage);
+  let part = '';
+  api.onRender((payload: OverlayRenderPayload) => {
+    if (payload.kind !== 'voice') {
+      return;
+    }
+    const voice: VoiceGlowPayload = payload;
+    if (voice.part !== part) {
+      part = voice.part;
+      stage.replaceChildren(voice.part === 'wave' ? wave : ring);
+    }
+    stage.dataset.active = voice.active ? 'true' : 'false';
+    stage.dataset.thinking = voice.thinking ? 'true' : 'false';
+    stage.style.setProperty('--voice-level', voice.level.toFixed(3));
+    ring.style.width = `${voice.windowWidth}px`;
+    ring.style.height = `${voice.windowHeight}px`;
+    ring.style.left = `${-voice.x}px`;
+    ring.style.top = `${-voice.y}px`;
+    if (voice.part === 'wave') {
+      heights.shift();
+      heights.push(voice.active ? voice.level : 0);
+      const middle = (WAVE_BARS - 1) / 2;
+      barNodes.forEach((bar, index) => {
+        const shape = 1 - Math.abs(index - middle) / (middle + 2);
+        const value = heights[index] ?? 0;
+        const scale = Math.max(0.08, Math.min(1, (0.15 + value * 3.2) * (0.45 + shape * 0.55)));
+        bar.style.transform = `scaleY(${scale.toFixed(3)})`;
+      });
+      label.textContent = voice.thinking ? (voice.text === '' ? 'Thinking' : voice.text) : 'Listening';
+    }
+  });
+}
+
 function start(): void {
   const api = window.musixOverlay;
   const root = document.getElementById('root');
   if (!api || !root) {
+    return;
+  }
+  if (new URLSearchParams(window.location.search).get('layer') === 'voice') {
+    startVoice(api);
     return;
   }
   let lastWidth = -1;
@@ -177,6 +231,9 @@ function start(): void {
   const render = (payload: OverlayRenderPayload): void => {
     if (payload.kind !== 'menu') {
       menuKeyHandler = null;
+    }
+    if (payload.kind === 'voice') {
+      return;
     }
     if (payload.kind === 'clear') {
       root.replaceChildren();

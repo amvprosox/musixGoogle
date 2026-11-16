@@ -115,6 +115,28 @@ class SherpaVoiceEngine private constructor(
                 "speaker/campplus_en.onnx",
             )
 
+        private val WAKE_KEYWORDS =
+            listOf(
+                "▁PRO SE C S @PROSECS",
+                "▁PRO ▁SE C S @PROSECS",
+                "▁PRO ▁SE X @PROSECS",
+                "▁PRO SE X @PROSECS",
+                "▁PRO ▁SE K S @PROSECS",
+                "▁PRO SE K S @PROSECS",
+                "▁PRO ▁SE CK S @PROSECS",
+            )
+
+        private fun wakeKeywordsFile(pack: File): String {
+            val file = File(pack, "kws/keywords-prosecs.txt")
+            val text = WAKE_KEYWORDS.joinToString("\n") + "\n"
+            try {
+                if (!file.isFile || file.readText() != text) file.writeText(text)
+            } catch (error: java.io.IOException) {
+                Log.w(TAG, "Could not write the wake word file", error)
+            }
+            return file.absolutePath
+        }
+
         fun isInstalled(pack: File): Boolean = REQUIRED.all { File(pack, it).isFile }
 
         fun create(
@@ -140,7 +162,7 @@ class SherpaVoiceEngine private constructor(
                             provider = "cpu",
                         ),
                     maxActivePaths = 4,
-                    keywordsFile = path("kws/keywords.txt"),
+                    keywordsFile = wakeKeywordsFile(pack),
                     keywordsScore = (1.0 + sensitivity).toFloat(),
                     keywordsThreshold = (0.3 - sensitivity * 0.2).toFloat(),
                     numTrailingBlanks = 1,

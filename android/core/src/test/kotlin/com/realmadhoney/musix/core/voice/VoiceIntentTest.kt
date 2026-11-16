@@ -6,11 +6,12 @@ import org.junit.Test
 class VoiceIntentTest {
     @Test
     fun stripsWakeWordAndMishearings() {
-        assertThat(VoiceIntentMatcher.stripWakeWord("Prosox next song")).isEqualTo(WakeResult(true, "next song"))
-        assertThat(VoiceIntentMatcher.stripWakeWord("PRO SOCKS play timeless")).isEqualTo(WakeResult(true, "play timeless"))
-        assertThat(VoiceIntentMatcher.stripWakeWord("prose socks what should we play"))
+        assertThat(VoiceIntentMatcher.stripWakeWord("Prosecs next song")).isEqualTo(WakeResult(true, "next song"))
+        assertThat(VoiceIntentMatcher.stripWakeWord("PRO SEX play timeless")).isEqualTo(WakeResult(true, "play timeless"))
+        assertThat(VoiceIntentMatcher.stripWakeWord("prossex what should we play"))
             .isEqualTo(WakeResult(true, "what should we play"))
         assertThat(VoiceIntentMatcher.stripWakeWord("next song").heard).isFalse()
+        assertThat(VoiceIntentMatcher.stripWakeWord("process the files").heard).isFalse()
     }
 
     @Test

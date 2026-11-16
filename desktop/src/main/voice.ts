@@ -162,6 +162,28 @@ function dropLeadingWords(text: string, commands: readonly VoiceCommand[]): stri
   return best;
 }
 
+const WAKE_KEYWORDS = [
+  '▁PRO SE C S @PROSECS',
+  '▁PRO ▁SE C S @PROSECS',
+  '▁PRO ▁SE X @PROSECS',
+  '▁PRO SE X @PROSECS',
+  '▁PRO ▁SE K S @PROSECS',
+  '▁PRO SE K S @PROSECS',
+  '▁PRO ▁SE CK S @PROSECS',
+].join('\n');
+
+function wakeKeywordsFile(dir: string): string {
+  const file = path.join(dir, 'kws/keywords-prosecs.txt');
+  try {
+    if (!existsSync(file) || readFileSync(file, 'utf8') !== `${WAKE_KEYWORDS}\n`) {
+      writeFileSync(file, `${WAKE_KEYWORDS}\n`);
+    }
+  } catch (error) {
+    logWarn('voice', 'Could not write the wake word file', error);
+  }
+  return file;
+}
+
 export interface VoiceManagerOptions {
   userDataDir: string;
   onStatus: (status: VoiceStatus) => void;
@@ -169,6 +191,7 @@ export interface VoiceManagerOptions {
   onDuck: (ducked: boolean) => void;
   isOnline: () => boolean;
   openExternal: (url: string) => Promise<void>;
+  onLevel?: (level: number) => void;
 }
 
 export class VoiceManager {
@@ -283,7 +306,7 @@ export class VoiceManager {
       return;
     }
     if (this.engines) {
-      this.setStatus({ state: 'listening', progress: 0, message: 'Listening for "prosox"' });
+      this.setStatus({ state: 'listening', progress: 0, message: 'Listening for "Prosecs"' });
     }
   }
 
@@ -441,7 +464,7 @@ export class VoiceManager {
           numTrailingBlanks: 1,
           keywordsScore: score,
           keywordsThreshold: threshold,
-          keywordsFile: path.join(dir, 'kws/keywords.txt'),
+          keywordsFile: wakeKeywordsFile(dir),
         });
         const asr = new sherpa.OfflineRecognizer({
           featConfig: { sampleRate: SAMPLE_RATE, featureDim: 80 },
@@ -494,9 +517,13 @@ export class VoiceManager {
       return;
     }
     const dithered = new Float32Array(samples.length);
+    let energy = 0;
     for (let i = 0; i < samples.length; i += 1) {
-      dithered[i] = (samples[i] ?? 0) + (Math.random() - 0.5) * DITHER;
+      const sample = samples[i] ?? 0;
+      energy += sample * sample;
+      dithered[i] = sample + (Math.random() - 0.5) * DITHER;
     }
+    this.options.onLevel?.(Math.sqrt(energy / samples.length));
     engines.kwsStream.acceptWaveform({ sampleRate: SAMPLE_RATE, samples: dithered });
     while (engines.kws.isReady(engines.kwsStream)) {
       engines.kws.decode(engines.kwsStream);

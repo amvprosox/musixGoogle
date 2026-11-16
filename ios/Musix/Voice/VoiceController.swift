@@ -137,6 +137,9 @@ final class VoiceController: ObservableObject {
     static let packSHA256 = "617b4b97ee0bb45d7f9ca4c82ef8eccfc58e74d2e77313986c4ce78a1f7d7792"
 
     @Published private(set) var state: State = .off
+    @Published private(set) var levels: [Double] = Array(repeating: 0, count: VoiceController.levelCount)
+    nonisolated static let levelCount = 28
+    private var lastLevelAt = Date.distantPast
     @Published private(set) var heard = ""
     @Published private(set) var notice = ""
     @Published private(set) var inputs: [MicrophoneOption] = []
@@ -286,7 +289,7 @@ final class VoiceController: ObservableObject {
         case .needsPack: return "Download the voice pack to start listening."
         case let .downloading(progress): return "Downloading voice pack \(Int(progress * 100))%"
         case .loading: return "Starting the voice engine"
-        case .listening: return "Listening for \"prosox\""
+        case .listening: return "Listening for \"Prosecs\""
         case .awake: return "Yes?"
         case .thinking: return "Thinking"
         case let .error(text): return text
@@ -528,6 +531,16 @@ final class VoiceController: ObservableObject {
     }
 
     private func received(_ samples: [Float]) {
+        if state == .awake || state == .thinking, !samples.isEmpty {
+            let now = Date()
+            if now.timeIntervalSince(lastLevelAt) >= 0.05 {
+                lastLevelAt = now
+                let energy = samples.reduce(Float(0)) { $0 + $1 * $1 } / Float(samples.count)
+                levels = Array(levels.dropFirst()) + [Double(min(1, sqrt(energy) * 4))]
+            }
+        } else if levels.contains(where: { $0 > 0 }) {
+            levels = Array(repeating: 0, count: Self.levelCount)
+        }
         if recording != nil {
             recording?.append(contentsOf: samples)
             return
@@ -737,10 +750,10 @@ final class VoiceController: ObservableObject {
             busy = false
         }
         let phrases = [
-            "Prosox, play my favorite songs.",
-            "Prosox, what is playing right now?",
+            "Prosecs, play my favorite songs.",
+            "Prosecs, what is playing right now?",
             "I like listening to music in the morning.",
-            "Prosox, turn on shuffle and play something new.",
+            "Prosecs, turn on shuffle and play something new.",
             "The weather is nice and the coffee is warm.",
         ]
         var embeddings: [[Float]] = []

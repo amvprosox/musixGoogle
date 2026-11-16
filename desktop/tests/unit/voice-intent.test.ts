@@ -11,12 +11,14 @@ import {
 
 describe('stripWakeWord', () => {
   it('removes the wake word and close mishearings', () => {
-    expect(stripWakeWord('Prosox next song')).toEqual({ heard: true, rest: 'next song' });
-    expect(stripWakeWord('PRO SOCKS play timeless')).toEqual({ heard: true, rest: 'play timeless' });
-    expect(stripWakeWord('prose socks what should we play')).toEqual({
+    expect(stripWakeWord('Prosecs next song')).toEqual({ heard: true, rest: 'next song' });
+    expect(stripWakeWord('PRO SEX play timeless')).toEqual({ heard: true, rest: 'play timeless' });
+    expect(stripWakeWord('prossex what should we play')).toEqual({
       heard: true,
       rest: 'what should we play',
     });
+    expect(stripWakeWord('pro seks shuffle')).toEqual({ heard: true, rest: 'shuffle' });
+    expect(stripWakeWord('process the files').heard).toBe(false);
     expect(stripWakeWord('next song').heard).toBe(false);
   });
 });

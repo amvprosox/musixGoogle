@@ -6,7 +6,7 @@ A custom music YouTube app with a built-in ad blocker to play what music you wan
 
 **Testing in 1.0.8 alpha (pre-release): voice control and a better offline mode.**
 
-- **Say "prosox"** and Musix answers "Yes", then does what you ask: play a song or playlist, next, previous, shuffle, repeat, like, volume, lyrics, search, open a tab, change the theme, and more. It works offline. Turn it on in Settings, Voice assistant, and download the voice pack once (56 MB).
+- **Say "Prosecs"** (Pro-secs) and Musix answers "Yes", then does what you ask: play a song or playlist, next, previous, shuffle, repeat, like, volume, lyrics, search, open a tab, change the theme, and more. It works offline. Turn it on in Settings, Voice assistant, and download the voice pack once (56 MB).
 - **Only your voice.** Teach Musix your voice in a few seconds, and it ignores other people in the room.
 - **Pick your microphone.** Musix shows which microphone it is listening with and follows headsets as you plug them in.
 - **Edit the commands.** Change the phrases for any action.

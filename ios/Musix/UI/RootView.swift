@@ -95,6 +95,9 @@ struct RootView: View {
                 .id(settings.theme)
         }
         .background(Palette.surface.ignoresSafeArea())
+        .overlay {
+            VoiceGlowOverlay(voice: AppModel.shared.voice)
+        }
         .preferredColorScheme(settings.theme.isDark ? .dark : .light)
         .tint(Palette.accent)
         .sheet(isPresented: $showPlayer) {

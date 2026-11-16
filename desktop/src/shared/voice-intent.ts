@@ -181,8 +181,20 @@ export const DEFAULT_VOICE_COMMANDS: readonly VoiceCommand[] = [
   { action: 'openSearch', phrases: ['open search', 'go to search'] },
 ];
 
-export const WAKE_WORD = 'prosox';
-const WAKE_VARIANTS = ['prosox', 'pro sox', 'pro socks', 'prosocks', 'prose socks', 'pros ox', 'pro sax'];
+export const WAKE_WORD = 'prosecs';
+const WAKE_VARIANTS = [
+  'prosecs',
+  'pro secs',
+  'pro sex',
+  'prosex',
+  'pro seks',
+  'proseks',
+  'pro sec',
+  'prossex',
+  'pros ex',
+  'pro six',
+];
+const WAKE_DENY = ['process', 'processes', 'processing', 'prospect', 'prospects'];
 const MATCH_THRESHOLD = 0.72;
 const STRONG_MATCH = 0.8;
 const TAIL_PENALTY = 0.9;
@@ -220,6 +232,9 @@ export function stripWakeWord(text: string): { heard: boolean; rest: string } {
   const words = normalizeSpeech(text)
     .split(' ')
     .filter((word) => word !== '');
+  if (WAKE_DENY.includes(words[0] ?? '')) {
+    return { heard: false, rest: words.join(' ') };
+  }
   for (const take of [2, 1]) {
     if (words.length < take) {
       continue;

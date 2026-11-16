@@ -174,7 +174,7 @@ fun VoiceSettingsScreen(
             SettingsSection("Voice") {
                 SwitchRow(
                     title = "Voice assistant",
-                    body = "Say \"prosox\" to control Musix hands free. Works offline.",
+                    body = "Say \"Prosecs\" to control Musix hands free. Works offline.",
                     checked = state.enabled,
                     onChange = { enabled ->
                         voice.setEnabled(enabled)
@@ -276,14 +276,14 @@ fun VoiceSettingsScreen(
                     )
                     Muted(
                         if (state.hasVoiceprint) {
-                            "Musix ignores \"prosox\" from voices that do not match yours."
+                            "Musix ignores \"Prosecs\" from voices that do not match yours."
                         } else {
                             "Musix does not know your voice yet, so it answers anyone."
                         },
                     )
                 }
                 SettingsSection("Commands") {
-                    Muted("Change the phrases Musix listens for after \"prosox\".")
+                    Muted("Change the phrases Musix listens for after \"Prosecs\".")
                     Spacer(Modifier.height(DesignTokens.Space12))
                     SecondaryButton("Edit voice commands", onEditCommands, icon = R.drawable.ic_list_music)
                 }
@@ -366,7 +366,7 @@ fun VoiceCommandsScreen(
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = DesignTokens.Space32)) {
             SettingsSection("How it works") {
                 Muted(
-                    "Say \"prosox\" and then one of these phrases. Separate phrases with commas. Use {query} for a song, playlist, or theme name.",
+                    "Say \"Prosecs\" and then one of these phrases. Separate phrases with commas. Use {query} for a song, playlist, or theme name.",
                 )
                 Spacer(Modifier.height(DesignTokens.Space12))
                 PrimaryButton(

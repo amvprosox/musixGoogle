@@ -5,18 +5,24 @@ import { h, hydrate, icon, setText } from '../dom';
 import type { VoiceController } from '../voice';
 
 const ENROLL_PHRASES = [
-  'Prosox, play my favorite songs.',
-  'Prosox, what is playing right now?',
+  'Prosecs, play my favorite songs.',
+  'Prosecs, what is playing right now?',
   'I like listening to music in the morning.',
-  'Prosox, turn on shuffle and play something new.',
+  'Prosecs, turn on shuffle and play something new.',
   'The weather is nice and the coffee is warm.',
 ];
 
-function row(label: string, description: string, control: HTMLElement | null): HTMLElement {
+function row(
+  label: string,
+  description: string,
+  control: HTMLElement | null,
+  extra: HTMLElement | null = null,
+): HTMLElement {
   return h('div', { className: 'setting-row' }, [
     h('div', { className: 'setting-text' }, [
       h('span', { className: 'setting-label', text: label }),
       h('span', { className: 'setting-desc', text: description }),
+      extra,
     ]),
     control,
   ]);
@@ -72,7 +78,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
   micSelect.addEventListener('change', () => {
     voice.update({ mic: micSelect.value }).catch(fail('Microphone not saved'));
   });
-  const micActive = h('span', { className: 'setting-desc' });
+  const micActive = h('span', { className: 'setting-desc voice-note' });
 
   const speakerSwitch = switchButton('Only my voice', (next) => {
     voice.update({ speakerCheck: next }).catch(fail('Voice setting not saved'));
@@ -279,20 +285,21 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
   };
 
   const details = h('div', { className: 'voice-details' }, [
-    row('Microphone', 'Musix follows the microphone you pick, or the system default.', micSelect),
-    micActive,
-    row('Only my voice', 'Ignore "prosox" from anyone whose voice does not match yours.', speakerSwitch),
-    h('div', { className: 'button-row' }, [enrollButton, testButton, forgetButton]),
-    enrollPrompt,
+    row('Microphone', 'Musix follows the microphone you pick, or the system default.', micSelect, micActive),
+    row('Only my voice', 'Ignore "Prosecs" from anyone whose voice does not match yours.', speakerSwitch),
+    h('div', { className: 'voice-actions' }, [
+      h('div', { className: 'button-row' }, [enrollButton, testButton, forgetButton]),
+      enrollPrompt,
+    ]),
     row(
       'Voice match threshold',
       'Higher is stricter. Teach Musix your voice to set it automatically.',
       threshold,
+      thresholdValue,
     ),
-    thresholdValue,
     row(
       'Wake word sensitivity',
-      'Raise it if "prosox" is missed, lower it if it wakes by mistake.',
+      'Raise it if "Prosecs" is missed, lower it if it wakes by mistake.',
       sensitivity,
     ),
     row(
@@ -307,7 +314,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     h('h4', { className: 'voice-subtitle', text: 'Voice commands' }),
     h('p', {
       className: 'setting-desc',
-      text: 'Say "prosox" and then one of these phrases. Separate phrases with commas. Use {query} for a song, playlist, or theme name.',
+      text: 'Say "Prosecs" and then one of these phrases. Separate phrases with commas. Use {query} for a song, playlist, or theme name.',
     }),
     commandsList,
     h('div', { className: 'button-row' }, [saveCommands, resetCommands]),
@@ -375,7 +382,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
         h('h3', { className: 'card-title', attrs: { id: 'settings-voice-title' }, text: 'Voice assistant' }),
       ]),
       h('div', { className: 'card-body' }, [
-        row('Voice assistant', 'Say "prosox" to control Musix hands free. Works offline.', enabledSwitch),
+        row('Voice assistant', 'Say "Prosecs" to control Musix hands free. Works offline.', enabledSwitch),
         statusText,
         heardText,
         h('div', { className: 'button-row' }, [downloadButton]),

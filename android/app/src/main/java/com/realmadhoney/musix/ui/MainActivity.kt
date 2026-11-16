@@ -63,6 +63,7 @@ import com.realmadhoney.musix.ui.screens.ShellTabBar
 import com.realmadhoney.musix.ui.screens.ShellTopBar
 import com.realmadhoney.musix.ui.screens.SignInScreen
 import com.realmadhoney.musix.ui.screens.VoiceCommandsScreen
+import com.realmadhoney.musix.ui.screens.VoiceGlowOverlay
 import com.realmadhoney.musix.ui.screens.VoiceSettingsScreen
 import com.realmadhoney.musix.ui.screens.WebContent
 import com.realmadhoney.musix.ui.theme.Musix
@@ -575,6 +576,9 @@ fun MusixApp(viewModel: MainViewModel) {
                 ShellTabBar(shellTab, selectShell)
             }
         }
+        val voiceLevels by viewModel.graph.voice.levels
+            .collectAsState()
+        VoiceGlowOverlay(state = voiceState.state, heard = voiceState.heard, levels = voiceLevels)
         SnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter))
     }
     val targets by viewModel.saveTargets.collectAsState()

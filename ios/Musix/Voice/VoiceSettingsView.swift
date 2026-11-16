@@ -11,7 +11,7 @@ struct VoiceSettingsView: View {
                 Toggle(isOn: $voice.enabled) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Voice assistant").font(.body(DesignTokens.text16))
-                        Text("Say \"prosox\" to control Musix hands free. Works offline.")
+                        Text("Say \"Prosecs\" to control Musix hands free. Works offline.")
                             .font(.body(DesignTokens.text14))
                             .foregroundStyle(Palette.textMuted)
                     }
@@ -105,7 +105,7 @@ struct VoiceSettingsView: View {
                     Text("Your voice").font(.body(DesignTokens.text14, weight: .semibold))
                 } footer: {
                     Text(voice.hasVoiceprint
-                        ? "Musix ignores \"prosox\" from voices that do not match yours."
+                        ? "Musix ignores \"Prosecs\" from voices that do not match yours."
                         : "Musix does not know your voice yet, so it answers anyone.")
                         .font(.body(DesignTokens.text14))
                 }
@@ -167,7 +167,7 @@ struct VoiceCommandsView: View {
     var body: some View {
         Form {
             Section {
-                Text("Say \"prosox\" and then one of these phrases. Separate phrases with commas. Use {query} for a song, playlist, or theme name.")
+                Text("Say \"Prosecs\" and then one of these phrases. Separate phrases with commas. Use {query} for a song, playlist, or theme name.")
                     .font(.body(DesignTokens.text14))
                     .foregroundStyle(Palette.textMuted)
             }

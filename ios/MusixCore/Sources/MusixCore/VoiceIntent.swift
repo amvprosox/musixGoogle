@@ -97,9 +97,10 @@ public struct VoiceIntent: Equatable, Sendable {
 }
 
 public enum VoiceIntentMatcher {
-    public static let wakeWord = "prosox"
+    public static let wakeWord = "prosecs"
     public static let outOfScopeReply = "I can only control Musix music playback."
-    static let wakeVariants = ["prosox", "pro sox", "pro socks", "prosocks", "prose socks", "pros ox", "pro sax"]
+    static let wakeVariants = ["prosecs", "pro secs", "pro sex", "prosex", "pro seks", "proseks", "pro sec", "prossex", "pros ex", "pro six"]
+    static let wakeDeny: Set<String> = ["process", "processes", "processing", "prospect", "prospects"]
     static let matchThreshold = 0.72
     static let strongMatch = 0.8
     static let tailPenalty = 0.9
@@ -185,6 +186,9 @@ public enum VoiceIntentMatcher {
 
     public static func stripWakeWord(_ text: String) -> (heard: Bool, rest: String) {
         let words = normalize(text).split(separator: " ").map(String.init)
+        if let first = words.first, wakeDeny.contains(first) {
+            return (false, words.joined(separator: " "))
+        }
         for take in [2, 1] where words.count >= take {
             let head = words.prefix(take).joined(separator: " ")
             let best = wakeVariants.map { similarity(head, $0) }.max() ?? 0

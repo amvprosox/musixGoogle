@@ -118,7 +118,7 @@ data class VoiceUiState(
                 is VoiceState.Downloading -> "Downloading voice pack ${(state.progress * PERCENT).toInt()}%"
                 VoiceState.Loading -> "Starting the voice engine"
                 VoiceState.NeedsPermission -> "Allow the microphone to start listening."
-                VoiceState.Listening -> "Listening for \"prosox\""
+                VoiceState.Listening -> "Listening for \"Prosecs\""
                 VoiceState.Awake -> "Yes?"
                 VoiceState.Thinking -> "Thinking"
                 is VoiceState.Error -> state.message
@@ -154,6 +154,10 @@ class VoiceController(
             ),
         )
     val state: StateFlow<VoiceUiState> = stateFlow.asStateFlow()
+
+    private val levelFlow = MutableStateFlow(List(LEVEL_COUNT) { 0f })
+    val levels: StateFlow<List<Float>> = levelFlow.asStateFlow()
+    private var lastLevelAt = 0L
 
     private val commandFlow = MutableSharedFlow<VoiceCommandEvent>(extraBufferCapacity = 8)
     val commands: SharedFlow<VoiceCommandEvent> = commandFlow.asSharedFlow()
@@ -491,6 +495,7 @@ class VoiceController(
                 continue
             }
             val samples = buffer.copyOf(read)
+            publishLevel(samples)
             val clip = recording
             if (clip != null) {
                 synchronized(clip) { samples.forEach { clip.add(it) } }
@@ -498,6 +503,19 @@ class VoiceController(
                 processor?.accept(samples)
             }
         }
+    }
+
+    private fun publishLevel(samples: FloatArray) {
+        val active = stateFlow.value.state.let { it == VoiceState.Awake || it == VoiceState.Thinking }
+        if (!active) {
+            if (levelFlow.value.any { it > 0f }) levelFlow.value = List(LEVEL_COUNT) { 0f }
+            return
+        }
+        val now = System.currentTimeMillis()
+        if (now - lastLevelAt < LEVEL_INTERVAL_MS) return
+        lastLevelAt = now
+        val energy = samples.fold(0f) { sum, value -> sum + value * value } / samples.size
+        levelFlow.value = levelFlow.value.drop(1) + minOf(1f, sqrt(energy) * LEVEL_GAIN)
     }
 
     private fun stopCapture() {
@@ -839,6 +857,9 @@ class VoiceController(
 
     companion object {
         private const val TAG = "MusixVoice"
+        const val LEVEL_COUNT = 28
+        private const val LEVEL_INTERVAL_MS = 50L
+        private const val LEVEL_GAIN = 4f
         private const val CHUNK = 1600
         private const val TYPE_REMOTE_SUBMIX = 25
         private const val FLOAT_BYTES = 4
@@ -858,10 +879,10 @@ class VoiceController(
         private const val MAX_THRESHOLD = 0.7
         val ENROLL_PHRASES =
             listOf(
-                "Prosox, play my favorite songs.",
-                "Prosox, what is playing right now?",
+                "Prosecs, play my favorite songs.",
+                "Prosecs, what is playing right now?",
                 "I like listening to music in the morning.",
-                "Prosox, turn on shuffle and play something new.",
+                "Prosecs, turn on shuffle and play something new.",
                 "The weather is nice and the coffee is warm.",
             )
     }

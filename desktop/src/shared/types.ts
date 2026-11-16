@@ -249,7 +249,23 @@ export type OverlayRenderPayload =
   | { kind: 'tooltip'; text: string; theme: ResolvedTheme }
   | { kind: 'toasts'; toasts: ToastItem[]; theme: ResolvedTheme; maxWidth: number }
   | { kind: 'menu'; title: string; items: MenuItemSpec[]; theme: ResolvedTheme }
+  | VoiceGlowPayload
   | { kind: 'clear' };
+
+export type VoiceGlowPart = 'top' | 'bottom' | 'left' | 'right' | 'wave';
+
+export interface VoiceGlowPayload {
+  kind: 'voice';
+  part: VoiceGlowPart;
+  active: boolean;
+  thinking: boolean;
+  level: number;
+  text: string;
+  windowWidth: number;
+  windowHeight: number;
+  x: number;
+  y: number;
+}
 
 export type MenuAction =
   | 'playNext'
