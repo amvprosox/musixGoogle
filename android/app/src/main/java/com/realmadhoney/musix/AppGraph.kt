@@ -23,6 +23,8 @@ import com.realmadhoney.musix.engine.InjectedScripts
 import com.realmadhoney.musix.engine.WebEngine
 import com.realmadhoney.musix.net.Connectivity
 import com.realmadhoney.musix.player.MediaItemFactory
+import com.realmadhoney.musix.voice.VoiceActions
+import com.realmadhoney.musix.voice.VoiceController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,6 +34,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.io.File
 
 class AppGraph(
@@ -51,6 +54,26 @@ class AppGraph(
 
     private val engineFlow = MutableStateFlow<WebEngine?>(null)
     val engine: StateFlow<WebEngine?> = engineFlow.asStateFlow()
+
+    val voice: VoiceController by lazy {
+        VoiceController(
+            context = context.applicationContext,
+            duck = ::duckForVoice,
+            isOffline = { downloads.offlineNowPlaying.value != null || !connectivity.isOnline.value },
+        )
+    }
+
+    val voiceActions: VoiceActions by lazy {
+        VoiceActions(context.applicationContext, voice, engine, downloads, settings, connectivity.isOnline)
+    }
+
+    private fun duckForVoice(ducked: Boolean) {
+        if (downloads.duckOffline(ducked)) {
+            return
+        }
+        val active = engineFlow.value ?: return
+        ioScope.launch { active.queue.player { BridgeCommand.Duck(it, if (ducked) VOICE_DUCK_LEVEL else 1.0) } }
+    }
 
     init {
         downloads.lyricsFetcher = { item ->
@@ -163,5 +186,6 @@ class AppGraph(
     private companion object {
         const val TAG = "MusixGraph"
         const val BROWSE_TTL_MS = 10 * 60_000L
+        const val VOICE_DUCK_LEVEL = 0.2
     }
 }

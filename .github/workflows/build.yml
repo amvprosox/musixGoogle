@@ -99,6 +99,12 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Download the voice engine library
+        run: |
+          mkdir -p android/app/libs
+          curl -fsSL -o android/app/libs/sherpa-onnx-2.0.1.aar https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-2.0.1.aar
+          echo "a8d09d1d32f3eb8520482c6d3d43fae674681c5b050385967c70a3c2c9bf0ee7  android/app/libs/sherpa-onnx-2.0.1.aar" | sha256sum -c
+
       - name: Check, test, and build
         working-directory: android
         run: ./gradlew --no-daemon ktlintCheck test lintMobileDebug lintAutomotiveDebug assembleMobileRelease assembleAutomotiveRelease -Pmusix.signWithDebugKey=true

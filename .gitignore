@@ -25,3 +25,4 @@ ios/**/.swiftpm
 ios/release
 android/release
 ios/Frameworks
+android/app/libs/*.aar

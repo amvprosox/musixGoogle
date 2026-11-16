@@ -40,6 +40,9 @@ android {
         versionCode = 15
         versionName = "1.0.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            abiFilters += setOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     flavorDimensions += "platform"
@@ -103,6 +106,10 @@ android {
         resources {
             excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "/META-INF/LICENSE*", "/META-INF/NOTICE*")
         }
+        jniLibs {
+            useLegacyPackaging = true
+            excludes += setOf("**/libsherpa-onnx-c-api.so", "**/libsherpa-onnx-cxx-api.so")
+        }
     }
 
     lint {
@@ -115,6 +122,7 @@ android {
                 "NewerVersionAvailable",
                 "AndroidGradlePluginVersion",
                 "OldTargetApi",
+                "ChromeOsAbiSupport",
             )
     }
 }
@@ -154,6 +162,7 @@ dependencies {
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
     implementation(libs.coil.compose)
+    implementation(files("libs/sherpa-onnx-2.0.1.aar"))
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)

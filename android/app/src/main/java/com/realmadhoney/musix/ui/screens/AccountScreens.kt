@@ -149,6 +149,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     palette: MusixPalette? = null,
     onPalette: (MusixPalette) -> Unit = {},
+    voiceStatus: String? = null,
+    onVoice: (() -> Unit)? = null,
 ) {
     val colors = Musix.colors
     Column(modifier = modifier.fillMaxSize().background(colors.bg)) {
@@ -226,6 +228,22 @@ fun SettingsScreen(
                     }
                 }
             }
+            if (onVoice != null) {
+                SettingsSection("Voice assistant") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        MusixIcon(R.drawable.ic_mic, null, tint = colors.textMuted)
+                        Spacer(Modifier.width(DesignTokens.Space12))
+                        Text(
+                            voiceStatus ?: "Say \"prosox\" to control Musix hands free.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = colors.text,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Spacer(Modifier.height(DesignTokens.Space12))
+                    SecondaryButton("Voice assistant settings", onVoice, icon = R.drawable.ic_settings)
+                }
+            }
             SettingsSection(stringResource(R.string.settings_playback)) {
                 Row(
                     modifier =
@@ -277,7 +295,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsSection(
+internal fun SettingsSection(
     title: String,
     content: @Composable () -> Unit,
 ) {

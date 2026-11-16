@@ -62,12 +62,15 @@ import com.realmadhoney.musix.ui.screens.ShellTab
 import com.realmadhoney.musix.ui.screens.ShellTabBar
 import com.realmadhoney.musix.ui.screens.ShellTopBar
 import com.realmadhoney.musix.ui.screens.SignInScreen
+import com.realmadhoney.musix.ui.screens.VoiceCommandsScreen
+import com.realmadhoney.musix.ui.screens.VoiceSettingsScreen
 import com.realmadhoney.musix.ui.screens.WebContent
 import com.realmadhoney.musix.ui.theme.Musix
 import com.realmadhoney.musix.ui.theme.MusixPalette
 import com.realmadhoney.musix.ui.theme.MusixTheme
 import com.realmadhoney.musix.ui.theme.ytmThemeBackground
 import com.realmadhoney.musix.ui.theme.ytmThemeCss
+import com.realmadhoney.musix.voice.VoiceUiRequest
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.merge
@@ -84,6 +87,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        viewModel.graph.voiceActions
         handleIntent(intent)
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -115,6 +119,11 @@ class MainActivity : ComponentActivity() {
                 MusixApp(viewModel)
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        viewModel.graph.voice.onForeground()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -167,6 +176,8 @@ fun MusixApp(viewModel: MainViewModel) {
         .collectAsState(initial = "dark")
     val fetchingLyrics by viewModel.fetchingLyrics.collectAsState()
     val librariesLoading by viewModel.librariesLoading.collectAsState()
+    val voiceState by viewModel.graph.voice.state
+        .collectAsState()
     LaunchedEffect(onlineNowPlaying.isPlaying, onlineNowPlaying.mediaId) {
         if (onlineNowPlaying.isPlaying && onlineNowPlaying.hasTrack && offlineNowPlaying != null) {
             viewModel.stopOffline()
@@ -230,6 +241,59 @@ fun MusixApp(viewModel: MainViewModel) {
                 suggesting = false
                 shellTab = next
                 next.route?.let { target -> engine?.navigate(target) }
+            }
+        }
+    }
+
+    LaunchedEffect(viewModel) {
+        viewModel.graph.voiceActions.requests.collect { request ->
+            val web = viewModel.graph.engine.value
+            when (request) {
+                is VoiceUiRequest.OpenTab -> {
+                    viewModel.popToRoot()
+                    suggesting = false
+                    shellTab =
+                        when (request.tab) {
+                            "downloads" -> ShellTab.Downloads
+                            "explore" -> ShellTab.Explore
+                            "library" -> ShellTab.Library
+                            else -> ShellTab.Home
+                        }
+                    shellTab.route?.let { web?.navigate(it) }
+                }
+
+                is VoiceUiRequest.OpenBrowse -> {
+                    viewModel.popToRoot()
+                    suggesting = false
+                    shellTab = ShellTab.Library
+                    web?.openBrowse(request.browseId)
+                }
+
+                VoiceUiRequest.OpenSettings -> {
+                    viewModel.navigate(Route.Settings)
+                }
+
+                VoiceUiRequest.OpenNowPlaying -> {
+                    viewModel.navigate(Route.NowPlaying)
+                }
+
+                is VoiceUiRequest.Lyrics -> {
+                    showLyrics = request.show
+                    if (request.show) viewModel.navigate(Route.NowPlaying)
+                }
+
+                is VoiceUiRequest.Search -> {
+                    viewModel.popToRoot()
+                    shellTab = ShellTab.Search
+                    webQuery = request.query
+                    suggesting = false
+                    web?.search(request.query)
+                }
+
+                VoiceUiRequest.FocusSearch -> {
+                    viewModel.popToRoot()
+                    shellTab = ShellTab.Search
+                }
             }
         }
     }
@@ -458,6 +522,24 @@ fun MusixApp(viewModel: MainViewModel) {
                         )
                     }
 
+                    Route.Voice -> {
+                        VoiceSettingsScreen(
+                            state = voiceState,
+                            voice = viewModel.graph.voice,
+                            onBack = { viewModel.back() },
+                            onEditCommands = { viewModel.navigate(Route.VoiceCommands) },
+                        )
+                    }
+
+                    Route.VoiceCommands -> {
+                        VoiceCommandsScreen(
+                            commands = voiceState.commands,
+                            onSave = { viewModel.graph.voice.setCommands(it) },
+                            onReset = { viewModel.graph.voice.resetCommands() },
+                            onBack = { viewModel.back() },
+                        )
+                    }
+
                     Route.Settings -> {
                         SettingsScreen(
                             account = account,
@@ -470,6 +552,8 @@ fun MusixApp(viewModel: MainViewModel) {
                             onAdSkip = { enabled -> scope.launch { viewModel.graph.settings.setAdSkip(enabled) } },
                             palette = MusixPalette.from(themeSetting),
                             onPalette = { picked -> scope.launch { viewModel.graph.settings.setTheme(picked.id) } },
+                            voiceStatus = if (voiceState.enabled) voiceState.stateText else null,
+                            onVoice = { viewModel.navigate(Route.Voice) },
                             onClearCache = {
                                 viewModel.graph.clearCaches()
                                 viewModel.refreshAll()

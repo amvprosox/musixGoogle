@@ -710,6 +710,39 @@ class DownloadRepository(
         return true
     }
 
+    fun duckOffline(ducked: Boolean): Boolean {
+        val player = mediaPlayer ?: return false
+        val level = if (ducked) OFFLINE_DUCK_LEVEL else 1f
+        try {
+            player.setVolume(level, level)
+        } catch (error: IllegalStateException) {
+            Log.w(TAG, "Offline duck failed", error)
+        }
+        return true
+    }
+
+    fun setOfflinePlaying(playing: Boolean): Boolean {
+        val player = mediaPlayer ?: return false
+        if (player.isPlaying != playing) {
+            toggleOfflinePlay()
+        }
+        return true
+    }
+
+    fun setOfflineShuffle(enabled: Boolean): Boolean {
+        val current = offlinePlayingFlow.value ?: return false
+        if (current.shuffle != enabled) {
+            toggleOfflineShuffle()
+        }
+        return true
+    }
+
+    fun setOfflineRepeat(mode: Int): Boolean {
+        val current = offlinePlayingFlow.value ?: return false
+        offlinePlayingFlow.value = current.copy(repeatMode = mode)
+        return true
+    }
+
     fun offlinePositionMs(): Long? {
         val player = mediaPlayer ?: return null
         return try {
@@ -1302,6 +1335,7 @@ class DownloadRepository(
         const val CHUNK_SIZE = 524_288L
         const val MAX_LOG_LINES = 500
         const val MAX_CONCURRENT_DOWNLOADS = 3
+        const val OFFLINE_DUCK_LEVEL = 0.2f
         const val MAX_SAVED_LIBRARIES = 200
         const val VISIONOS_UA =
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) " +

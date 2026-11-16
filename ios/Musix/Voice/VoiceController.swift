@@ -6,6 +6,15 @@ import MusixCore
 import Security
 import UIKit
 
+private final class ConverterFeed: @unchecked Sendable {
+    let buffer: AVAudioPCMBuffer
+    var consumed = false
+
+    init(_ buffer: AVAudioPCMBuffer) {
+        self.buffer = buffer
+    }
+}
+
 enum ShellRequest: Equatable {
     case tab(ShellTab)
     case settings
@@ -472,16 +481,16 @@ final class VoiceController: ObservableObject {
         guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else {
             return nil
         }
-        var consumed = false
+        let feed = ConverterFeed(buffer)
         var error: NSError?
         converter.convert(to: output, error: &error) { _, status in
-            if consumed {
+            if feed.consumed {
                 status.pointee = .noDataNow
                 return nil
             }
-            consumed = true
+            feed.consumed = true
             status.pointee = .haveData
-            return buffer
+            return feed.buffer
         }
         guard error == nil, let channel = output.floatChannelData?[0], output.frameLength > 0 else {
             return nil

@@ -55,6 +55,10 @@ sealed interface Route {
     data object SignIn : Route
 
     data object Settings : Route
+
+    data object Voice : Route
+
+    data object VoiceCommands : Route
 }
 
 sealed interface LyricsState {
@@ -324,6 +328,10 @@ class MainViewModel(
         if (stack.value.lastOrNull() != route) {
             stack.value = stack.value + route
         }
+    }
+
+    fun popToRoot() {
+        stack.value = listOf(Route.Home)
     }
 
     fun back(): Boolean {
