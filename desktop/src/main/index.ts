@@ -734,6 +734,7 @@ async function start(): Promise<void> {
           case 'lyricsResult':
           case 'suggestResult':
           case 'browseResult':
+          case 'searchResult':
             settleRequest(event.requestId, event);
             return;
           case 'error':
@@ -747,7 +748,6 @@ async function start(): Promise<void> {
           case 'adStart':
           case 'adEnd':
           case 'ack':
-          case 'searchResult':
             return;
         }
       },
