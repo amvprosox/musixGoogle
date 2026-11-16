@@ -432,8 +432,13 @@ export function isVoiceConfigPatch(value: unknown): value is VoiceConfigPatch {
           return false;
         }
         break;
+      case 'noiseReduction':
+        if (typeof v !== 'boolean') {
+          return false;
+        }
+        break;
       case 'micBoost':
-        if (!isFiniteNumber(v) || v < 1 || v > 8) {
+        if (!isFiniteNumber(v) || v < 1 || v > 12) {
           return false;
         }
         break;

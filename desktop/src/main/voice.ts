@@ -44,6 +44,7 @@ import {
   type VoiceCommand,
   wakeHeadFrom,
 } from '../shared/voice-intent';
+import { paths } from './config';
 import { logError, logInfo, logWarn } from './log';
 import { connectOpenRouter } from './openrouter-connect';
 import {
@@ -81,6 +82,7 @@ interface StoredVoiceConfig {
   wakeVariants: string[];
   quality: 'standard' | 'high';
   micBoost: number;
+  noiseReduction: boolean;
 }
 
 interface SherpaStream {
@@ -100,6 +102,12 @@ interface SherpaModule {
     createStream(): SherpaStream;
     decode(stream: SherpaStream): void;
     getResult(stream: SherpaStream): { text?: string };
+  };
+  OnlineSpeechDenoiser: new (config: unknown) => {
+    run(input: { samples: Float32Array; sampleRate: number; enableExternalBuffer?: boolean }): {
+      samples: Float32Array;
+    };
+    reset(): void;
   };
   SpeakerEmbeddingExtractor: new (config: unknown) => {
     createStream(): SherpaStream;
@@ -142,6 +150,7 @@ type Engines = {
   asr: InstanceType<SherpaModule['OfflineRecognizer']>;
   speaker: InstanceType<SherpaModule['SpeakerEmbeddingExtractor']>;
   vad: InstanceType<SherpaModule['Vad']>;
+  denoiser: InstanceType<SherpaModule['OnlineSpeechDenoiser']> | null;
 };
 
 const DEFAULTS: StoredVoiceConfig = {
@@ -157,7 +166,8 @@ const DEFAULTS: StoredVoiceConfig = {
   language: 'en',
   wakeVariants: [],
   quality: 'standard',
-  micBoost: 3,
+  micBoost: 6,
+  noiseReduction: true,
 };
 
 function clamp(value: number, low: number, high: number): number {
@@ -309,7 +319,8 @@ export class VoiceManager {
         aiEnabled: raw.aiEnabled !== false,
         language: isVoiceLanguage(raw.language) ? raw.language : 'en',
         quality: raw.quality === 'high' ? 'high' : 'standard',
-        micBoost: typeof raw.micBoost === 'number' ? clamp(raw.micBoost, 1, 8) : 3,
+        micBoost: typeof raw.micBoost === 'number' ? clamp(raw.micBoost, 1, 12) : 6,
+        noiseReduction: raw.noiseReduction !== false,
         wakeVariants: Array.isArray(raw.wakeVariants)
           ? raw.wakeVariants
               .filter((value): value is string => typeof value === 'string' && value.length <= 16)
@@ -355,6 +366,7 @@ export class VoiceManager {
       learnedCount: this.learnedPhrases().length,
       quality: this.config.quality,
       micBoost: this.config.micBoost,
+      noiseReduction: this.config.noiseReduction,
       freeModels: this.freeModels.length,
     };
   }
@@ -413,7 +425,10 @@ export class VoiceManager {
       this.config.aiEnabled = patch.aiEnabled;
     }
     if (patch.micBoost !== undefined) {
-      this.config.micBoost = clamp(patch.micBoost, 1, 8);
+      this.config.micBoost = clamp(patch.micBoost, 1, 12);
+    }
+    if (patch.noiseReduction !== undefined) {
+      this.config.noiseReduction = patch.noiseReduction;
     }
     const recognizerChanged =
       (patch.language !== undefined && patch.language !== this.config.language) ||
@@ -569,7 +584,7 @@ export class VoiceManager {
           {
             sileroVad: {
               model: path.join(dir, 'vad/silero_vad.onnx'),
-              threshold: 0.5,
+              threshold: 0.4,
               minSilenceDuration: 0.65,
               minSpeechDuration: 0.15,
               windowSize: 512,
@@ -580,7 +595,20 @@ export class VoiceManager {
           },
           MAX_SEGMENT_SECONDS + 4,
         );
-        this.engines = { kws, kwsStream: kws.createStream(), asr, speaker, vad };
+        let denoiser: Engines['denoiser'] = null;
+        const denoiseModel = path
+          .join(path.dirname(paths.fontsDir), 'voice', 'gtcrn_simple.onnx')
+          .replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
+        if (existsSync(denoiseModel)) {
+          try {
+            denoiser = new sherpa.OnlineSpeechDenoiser({
+              model: { gtcrn: { model: denoiseModel }, numThreads: 1, provider: 'cpu' },
+            });
+          } catch (error) {
+            logWarn('voice', 'Noise reduction could not start', error);
+          }
+        }
+        this.engines = { kws, kwsStream: kws.createStream(), asr, speaker, vad, denoiser };
       })
       .catch((error: unknown) => {
         logError('voice', 'Voice engine failed to start', error);
@@ -665,10 +693,26 @@ export class VoiceManager {
       });
   }
 
-  acceptAudio(samples: Float32Array): void {
+  acceptAudio(input: Float32Array): void {
     const engines = this.engines;
-    if (!this.config.enabled || !engines || samples.length === 0) {
+    if (!this.config.enabled || !engines || input.length === 0) {
       return;
+    }
+    let samples = input;
+    if (this.config.noiseReduction && engines.denoiser) {
+      try {
+        samples = engines.denoiser.run({
+          samples: input,
+          sampleRate: SAMPLE_RATE,
+          enableExternalBuffer: false,
+        }).samples;
+      } catch (error) {
+        logWarn('voice', 'Noise reduction failed', error);
+        engines.denoiser = null;
+      }
+      if (samples.length === 0) {
+        return;
+      }
     }
     const dithered = new Float32Array(samples.length);
     let energy = 0;

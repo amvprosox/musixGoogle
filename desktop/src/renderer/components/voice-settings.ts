@@ -100,7 +100,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
   });
   const boostRange = h('input', {
     className: 'voice-range',
-    attrs: { type: 'range', min: '1', max: '8', step: '0.5', 'aria-label': 'Mic boost' },
+    attrs: { type: 'range', min: '1', max: '12', step: '0.5', 'aria-label': 'Mic boost' },
   });
   const boostValue = h('span', { className: 'setting-desc' });
   boostRange.addEventListener('change', () => {
@@ -108,6 +108,9 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
   });
   boostRange.addEventListener('input', () => {
     setText(boostValue, `Up to ${Number(boostRange.value).toFixed(1)}x louder`);
+  });
+  const noiseSwitch = switchButton('Noise reduction', (next) => {
+    voice.update({ noiseReduction: next }).catch(fail('Noise reduction not saved'));
   });
   const micActive = h('span', { className: 'setting-desc voice-note' });
   let renderedDevicesFor = '';
@@ -335,6 +338,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
       micSelect,
       micActive,
     ),
+    row('Noise reduction', 'Cleans background noise so Musix hears you from across the room.', noiseSwitch),
     row(
       'Mic boost',
       'Makes quiet voices louder before Musix listens. Raise it if Musix misses what you say.',
@@ -435,12 +439,13 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
         ? `Musix has learned ${learned} ${learned === 1 ? 'phrase' : 'phrases'} from you, so ${learned === 1 ? 'it works' : 'they work'} instantly without AI.`
         : '',
     );
+    setChecked(noiseSwitch, config?.noiseReduction ?? true);
     if (document.activeElement !== qualitySelect) {
       qualitySelect.value = config?.quality ?? 'standard';
     }
     if (document.activeElement !== boostRange) {
-      boostRange.value = String(config?.micBoost ?? 3);
-      setText(boostValue, `Up to ${(config?.micBoost ?? 3).toFixed(1)}x louder`);
+      boostRange.value = String(config?.micBoost ?? 6);
+      setText(boostValue, `Up to ${(config?.micBoost ?? 6).toFixed(1)}x louder`);
     }
     if (document.activeElement !== languageSelect) {
       languageSelect.value = config?.language ?? 'en';

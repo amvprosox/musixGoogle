@@ -390,6 +390,7 @@ export interface VoiceConfigView {
   learnedCount: number;
   quality: 'standard' | 'high';
   micBoost: number;
+  noiseReduction: boolean;
   freeModels: number;
 }
 
@@ -406,6 +407,7 @@ export type VoiceConfigPatch = Partial<
     | 'language'
     | 'quality'
     | 'micBoost'
+    | 'noiseReduction'
   >
 >;
 

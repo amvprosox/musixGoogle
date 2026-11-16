@@ -419,7 +419,7 @@ export class VoiceController {
       peak = Math.max(peak, Math.abs(value));
     }
     this.envelope = Math.max(this.envelope * 0.995, peak);
-    const maxGain = this.config?.micBoost ?? 3;
+    const maxGain = this.config?.micBoost ?? 6;
     const gain = Math.min(maxGain, Math.max(1, 0.6 / Math.max(this.envelope, 0.02)));
     if (gain <= 1.01) {
       return input;

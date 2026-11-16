@@ -20,6 +20,7 @@ files:
 asar: true
 asarUnpack:
   - '**/node_modules/sherpa-onnx-*/**'
+  - 'assets/voice/*.onnx'
 npmRebuild: false
 nodeGypRebuild: false
 buildDependenciesFromSource: false
