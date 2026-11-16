@@ -183,7 +183,7 @@ export function mountTopbar(root: HTMLElement, ctx: AppContext): { searchInput: 
 
   store.select(
     (state) => ({
-      canBack: state.settingsOpen || state.nav.canGoBack,
+      canBack: state.settingsOpen || state.downloadsOpen || state.nav.canGoBack,
       canForward: !state.settingsOpen && state.nav.canGoForward,
     }),
     ({ canBack, canForward }) => {

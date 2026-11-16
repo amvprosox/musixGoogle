@@ -5,6 +5,18 @@ import type { OverlayManager } from './overlays';
 import type { Store } from './state';
 
 export class Router {
+  private readonly backHandlers: (() => boolean)[] = [];
+
+  registerBack(handler: () => boolean): () => void {
+    this.backHandlers.push(handler);
+    return () => {
+      const index = this.backHandlers.indexOf(handler);
+      if (index !== -1) {
+        this.backHandlers.splice(index, 1);
+      }
+    };
+  }
+
   constructor(
     private readonly store: Store,
     private readonly api: ShellApi,
@@ -87,6 +99,11 @@ export class Router {
   }
 
   back(): void {
+    for (const handler of [...this.backHandlers].reverse()) {
+      if (handler()) {
+        return;
+      }
+    }
     if (this.store.getState().settingsOpen) {
       this.closeSettings();
       return;

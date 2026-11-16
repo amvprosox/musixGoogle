@@ -1162,26 +1162,11 @@
   color: var(--accent);
 }
 
-.bottom-nav {
-  container-type: inline-size;
-}
-
 .bottom-nav-item span {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-@container (max-width: 600px) {
-  .bottom-nav-item span {
-    display: none;
-  }
-
-  .bottom-nav-item svg {
-    width: 24px;
-    height: 24px;
-  }
 }
 
 .compact-player {
@@ -2250,4 +2235,88 @@
 
 .downloads-header-actions {
   flex-wrap: wrap;
+}
+
+.downloads-libraries-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  gap: var(--sp-16);
+}
+
+.downloads-libraries-list > .download-card {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sp-12);
+  padding: var(--sp-16);
+  min-width: 0;
+}
+
+.downloads-libraries-list > .download-card .download-thumb-wrap {
+  width: 100%;
+  height: auto;
+  flex: none;
+  aspect-ratio: 1;
+}
+
+.downloads-libraries-list > .download-card .download-thumb {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-card);
+}
+
+.downloads-libraries-list > .download-card .download-info {
+  width: 100%;
+  flex: none;
+  align-items: center;
+}
+
+.downloads-libraries-list > .download-card .download-title,
+.downloads-libraries-list > .download-card .download-desc {
+  max-width: 100%;
+}
+
+.downloads-libraries-list > .download-card .download-actions {
+  width: 100%;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.downloads-libraries-list > .download-card:hover .download-thumb {
+  transform: scale(1.02);
+}
+
+.download-lib-card {
+  cursor: pointer;
+}
+
+.download-lib-card[data-selected='true'] {
+  border-radius: var(--radius-card);
+}
+
+.downloads-detail-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-12);
+  flex-wrap: wrap;
+}
+
+.downloads-detail-header .downloads-section-actions {
+  margin-left: auto;
+}
+
+.downloads-detail {
+  animation: downloads-expand 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (max-width: 600px) {
+  .bottom-nav-item span {
+    display: none;
+  }
+
+  .bottom-nav-item svg {
+    width: 24px;
+    height: 24px;
+  }
 }

@@ -318,11 +318,11 @@ function renderSavedLibraryCard(
       attrs: { type: 'button', 'aria-expanded': selected ? 'true' : 'false' },
       on: {
         click: () => {
-          onSelect(selected ? null : saved.id);
+          onSelect(saved.id);
         },
       },
     },
-    [icon(selected ? 'chevron-up' : 'chevron-down'), h('span', { text: selected ? 'Hide songs' : 'Songs' })],
+    [icon('list-music'), h('span', { text: 'Open' })],
   );
 
   return h(
@@ -333,6 +333,13 @@ function renderSavedLibraryCard(
         current: scopeActive ? 'true' : 'false',
         selected: selected ? 'true' : 'false',
         status: 'completed',
+      },
+      on: {
+        click: (event: Event) => {
+          if (!(event.target instanceof Element) || !event.target.closest('button')) {
+            onSelect(saved.id);
+          }
+        },
       },
     },
     [
@@ -408,17 +415,24 @@ function renderAllSongsCard(
       attrs: { type: 'button', 'aria-expanded': selected ? 'true' : 'false' },
       on: {
         click: () => {
-          onSelect(selected ? null : ALL_SONGS);
+          onSelect(ALL_SONGS);
         },
       },
     },
-    [icon(selected ? 'chevron-up' : 'chevron-down'), h('span', { text: selected ? 'Hide songs' : 'Songs' })],
+    [icon('list-music'), h('span', { text: 'Open' })],
   );
   return h(
     'div',
     {
       className: 'download-card download-lib-card download-all-card',
       dataset: { selected: selected ? 'true' : 'false', status: 'completed' },
+      on: {
+        click: (event: Event) => {
+          if (!(event.target instanceof Element) || !event.target.closest('button')) {
+            onSelect(ALL_SONGS);
+          }
+        },
+      },
     },
     [
       h('div', { className: 'download-thumb-wrap' }, [collage]),
@@ -636,7 +650,7 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
   const { store, router, api, toasts } = ctx;
 
   let searchQuery = '';
-  let selectedLibraryId: string | null = ALL_SONGS;
+  let selectedLibraryId: string | null = null;
   let savedLibraries: SavedLibrary[] = [];
   let logsOpen = false;
   let logsList: string[] = [];
@@ -918,9 +932,23 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
     className: 'downloads-section-title',
     text: 'Downloaded Tracks',
   });
+  const backToLibraries = h(
+    'button',
+    {
+      className: 'btn btn-ghost downloads-back',
+      attrs: { type: 'button', 'aria-label': 'Back to downloaded playlists' },
+      on: {
+        click: () => {
+          selectLibrary(null);
+        },
+      },
+    },
+    [icon('arrow-left'), h('span', { text: 'Back' })],
+  );
   const listContainer = h('div', { className: 'downloads-list' });
-  const tracksSection = h('div', { className: 'downloads-section' }, [
-    h('div', { className: 'downloads-section-header' }, [
+  const tracksSection = h('div', { className: 'downloads-section downloads-detail' }, [
+    h('div', { className: 'downloads-detail-header' }, [
+      backToLibraries,
       tracksSectionTitle,
       h('div', { className: 'downloads-section-actions' }, [showAllBtn]),
     ]),
@@ -1007,6 +1035,8 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
   function selectLibrary(id: string | null): void {
     selectedLibraryId = id;
     renderAll(true);
+    root.scrollTop = 0;
+    inner.scrollIntoView({ block: 'start' });
   }
 
   function renderSaved(downloads: DownloadItem[]): void {
@@ -1173,29 +1203,20 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
   }
 
   function placeTracks(hasDownloads: boolean): void {
-    const key =
-      selectedLibraryId === null
-        ? null
-        : selectedLibraryId === ALL_SONGS
-          ? 'all-songs'
-          : `saved:${selectedLibraryId}`;
-    const anchor =
-      key === null
-        ? null
-        : Array.from(savedListContainer.children).find(
-            (child) => child instanceof HTMLElement && child.dataset.key === key,
-          );
-    tracksSection.hidden = hasDownloads && key === null;
-    if (anchor) {
-      if (anchor.nextElementSibling !== tracksSection) {
-        anchor.after(tracksSection);
-      }
-      tracksSection.classList.add('downloads-tracks-inline');
-    } else if (tracksSection.previousElementSibling !== savedSection) {
-      savedSection.after(tracksSection);
-      tracksSection.classList.remove('downloads-tracks-inline');
-    }
+    const detail = selectedLibraryId !== null;
+    tracksSection.hidden = !detail && hasDownloads;
+    savedSection.hidden = detail || !hasDownloads;
+    librariesSection.hidden = detail;
+    root.dataset.view = detail ? 'detail' : 'grid';
   }
+
+  ctx.router.registerBack(() => {
+    if (!store.getState().downloadsOpen || selectedLibraryId === null) {
+      return false;
+    }
+    selectLibrary(null);
+    return true;
+  });
 
   store.select(
     (state) => ({

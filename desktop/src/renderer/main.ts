@@ -195,12 +195,8 @@ function bootstrap(): void {
       if (overlays.closeTop()) {
         return true;
       }
-      if (store.getState().settingsOpen) {
-        router.closeSettings();
-        return true;
-      }
-      if (store.getState().downloadsOpen) {
-        router.closeDownloads();
+      if (store.getState().settingsOpen || store.getState().downloadsOpen) {
+        router.back();
         return true;
       }
       return false;
@@ -208,6 +204,16 @@ function bootstrap(): void {
     quit: () => {
       api.send('app:quit', null);
     },
+  });
+
+  window.addEventListener('mouseup', (event) => {
+    if (event.button === 3) {
+      event.preventDefault();
+      router.back();
+    } else if (event.button === 4) {
+      event.preventDefault();
+      router.forward();
+    }
   });
 
   api.on('player:state', (player) => {
