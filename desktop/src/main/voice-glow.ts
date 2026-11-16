@@ -4,11 +4,12 @@ import { paths } from './config';
 import { logError } from './log';
 
 const EDGE = 64;
-const WAVE_WIDTH = 360;
-const WAVE_HEIGHT = 112;
+const WAVE_WIDTH = 460;
+const WAVE_HEIGHT = 156;
 const WAVE_BOTTOM = 112;
 const HIDE_DELAY_MS = 380;
 const LEVEL_INTERVAL_MS = 50;
+const CAPTION_MS = 4200;
 
 interface Part {
   part: VoiceGlowPart;
@@ -23,6 +24,10 @@ export class VoiceGlow {
   private thinking = false;
   private level = 0;
   private text = '';
+  private caption = '';
+  private note = '';
+  private laidOut = false;
+  private captionTimer: NodeJS.Timeout | null = null;
   private hideTimer: NodeJS.Timeout | null = null;
   private lastLevelSent = 0;
 
@@ -60,7 +65,7 @@ export class VoiceGlow {
       return entry;
     });
     win.on('resize', () => {
-      if (this.active) {
+      if (this.active || this.caption !== '') {
         this.layout();
       }
     });
@@ -71,6 +76,7 @@ export class VoiceGlow {
   }
 
   private layout(): void {
+    this.laidOut = true;
     const [width, height] = this.win.getContentSize();
     const w = width ?? 0;
     const h = height ?? 0;
@@ -112,6 +118,8 @@ export class VoiceGlow {
       thinking: this.thinking,
       level: this.level,
       text: this.text,
+      caption: this.caption,
+      note: this.note,
       windowWidth: width ?? 0,
       windowHeight: height ?? 0,
       x: entry.rect.x,
@@ -132,6 +140,10 @@ export class VoiceGlow {
     }
     this.thinking = thinking;
     this.text = text.slice(0, 120);
+    if (thinking && this.text !== '') {
+      this.caption = this.text;
+      this.note = '';
+    }
     if (active) {
       if (this.hideTimer) {
         clearTimeout(this.hideTimer);
@@ -163,10 +175,47 @@ export class VoiceGlow {
       this.hideTimer = null;
       if (!this.active) {
         for (const entry of this.parts) {
-          entry.view.setVisible(false);
+          entry.view.setVisible(entry.part === 'wave' && this.caption !== '');
         }
       }
     }, HIDE_DELAY_MS);
+  }
+
+  /** Pops what Musix heard (and what it is doing) on screen for a few seconds. */
+  showCommand(transcript: string, note: string): void {
+    if (this.win.isDestroyed() || transcript.trim() === '') {
+      return;
+    }
+    this.caption = transcript.trim().slice(0, 140);
+    this.note = note.trim().slice(0, 80);
+    if (this.captionTimer) {
+      clearTimeout(this.captionTimer);
+    }
+    if (!this.laidOut) {
+      this.layout();
+    }
+    for (const entry of this.parts) {
+      this.send(entry);
+      if (entry.part === 'wave') {
+        this.win.contentView.addChildView(entry.view);
+        entry.view.setVisible(true);
+      }
+    }
+    this.captionTimer = setTimeout(() => {
+      this.captionTimer = null;
+      this.caption = '';
+      this.note = '';
+      for (const entry of this.parts) {
+        this.send(entry);
+      }
+      setTimeout(() => {
+        if (!this.active && this.caption === '') {
+          for (const entry of this.parts) {
+            entry.view.setVisible(false);
+          }
+        }
+      }, HIDE_DELAY_MS);
+    }, CAPTION_MS);
   }
 
   setLevel(level: number): void {

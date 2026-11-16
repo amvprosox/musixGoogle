@@ -705,7 +705,7 @@ fun DownloadsScreen(
                 val allDone = total > 0 && remaining == 0
                 val label =
                     when {
-                        allDone -> "Already Downloaded"
+                        allDone -> "Downloaded"
                         done > 0 -> "Download ($remaining left)"
                         else -> "Download All"
                     }

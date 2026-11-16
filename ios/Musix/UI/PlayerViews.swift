@@ -538,7 +538,7 @@ struct DownloadsView: View {
         let done = lib.tracks.filter { completedIds.contains($0.videoId) }.count
         let remaining = total - done
         let allDone = total > 0 && remaining == 0
-        let label = allDone ? "Already Downloaded" : (done > 0 ? "Download (\(remaining) left)" : "Download All")
+        let label = allDone ? "Downloaded" : (done > 0 ? "Download (\(remaining) left)" : "Download All")
         return HStack(spacing: DesignTokens.space12) {
             ArtworkView(address: lib.artworkUrl, size: 56, corner: DesignTokens.radiusControl)
             VStack(alignment: .leading, spacing: 2) {

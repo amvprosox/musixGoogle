@@ -90,8 +90,18 @@ export function orderFreeModels(
 
 export type AiAttempt = 'stop' | 'next';
 
-export function attemptAfterStatus(status: number): AiAttempt {
-  return status === 401 || status === 403 ? 'stop' : 'next';
+/**
+ * 401 means the key itself is bad. A 403 is usually about one model (moderation,
+ * provider or region rules), so only stop when OpenRouter says the key is the problem.
+ */
+export function attemptAfterStatus(status: number, reason = ''): AiAttempt {
+  if (status === 401) {
+    return 'stop';
+  }
+  if (status === 403 && /\bkey\b|credit|disabled|banned/i.test(reason)) {
+    return 'stop';
+  }
+  return 'next';
 }
 
 export function cooldownFor(status: number | null): number {

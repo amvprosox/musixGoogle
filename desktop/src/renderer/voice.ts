@@ -276,17 +276,19 @@ export class VoiceController {
       (device) => device.kind === 'audioinput',
     );
     const wireless = /bluetooth|airpods|beats|hands-?free|headset|buds|bose|sony wh|jabra/i;
+    // Virtual inputs that carry the computer's own sound instead of a real microphone.
+    const loopback =
+      /blackhole|loopback|soundflower|aggregate|multi-output|background music|eqmac|vb-audio|cable output|stereo mix|what u hear|monitor of|zoomaudio|teams audio|virtual/i;
+    const avoid = (label: string): boolean => wireless.test(label) || loopback.test(label);
     const fallback = inputs.find((device) => device.deviceId === 'default') ?? inputs[0];
-    if (!fallback || !wireless.test(fallback.label)) {
+    if (!fallback || !avoid(fallback.label)) {
       return null;
     }
     const builtIn =
       inputs.find(
         (device) => device.deviceId !== 'default' && /built-in|macbook|internal/i.test(device.label),
       ) ??
-      inputs.find(
-        (device) => device.deviceId !== 'default' && device.label !== '' && !wireless.test(device.label),
-      );
+      inputs.find((device) => device.deviceId !== 'default' && device.label !== '' && !avoid(device.label));
     return builtIn?.deviceId ?? null;
   }
 
@@ -345,7 +347,9 @@ export class VoiceController {
     try {
       const constraints: MediaTrackConstraints = {
         channelCount: 1,
-        echoCancellation: false,
+        // Chromium's own echo canceller removes everything Musix plays (music, Lauren's
+        // replies) from the mic without switching macOS into voice-call mode.
+        echoCancellation: true,
         noiseSuppression: false,
         autoGainControl: true,
       };
@@ -484,10 +488,9 @@ export class VoiceController {
       this.yes.preload = 'auto';
     }
     this.yes.currentTime = 0;
-    this.trackSpeech(this.yes);
-    this.yes.play().catch(() => {
-      this.speechEnded();
-    });
+    // The mic stays open during "Yes?" (echo cancellation removes it) so a command
+    // said straight after Veru is heard in full.
+    this.yes.play().catch(() => undefined);
   }
 
   private trackSpeech(audio: HTMLAudioElement): void {

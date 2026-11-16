@@ -299,6 +299,7 @@ async function start(): Promise<void> {
       voiceGlow.setLevel(level);
     },
     onCommand: (event) => {
+      voiceGlow.showCommand(event.transcript, event.question ?? event.reply);
       if (!win.isDestroyed()) {
         sendToShell(win, 'voice:command', event);
       }

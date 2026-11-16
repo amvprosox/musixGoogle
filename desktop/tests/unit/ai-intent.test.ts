@@ -97,6 +97,8 @@ describe('free model rotation', () => {
     expect(attemptAfterStatus(401)).toBe('stop');
     expect(attemptAfterStatus(429)).toBe('next');
     expect(attemptAfterStatus(404)).toBe('next');
+    expect(attemptAfterStatus(403, 'Input was flagged by moderation')).toBe('next');
+    expect(attemptAfterStatus(403, 'Key limit exceeded')).toBe('stop');
     expect(() => aiRequestBody('openai/gpt-5', [])).toThrow();
     expect(JSON.parse(aiRequestBody('a:free', []))).toMatchObject({ model: 'a:free', temperature: 0 });
   });

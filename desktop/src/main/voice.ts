@@ -39,6 +39,7 @@ import {
   normalizeSpeech,
   OUT_OF_SCOPE_REPLY,
   sanitizeVoiceCommands,
+  findWakeWord,
   similarity,
   stripWakeWord,
   type VoiceCommand,
@@ -62,6 +63,9 @@ const SAMPLE_RATE = 16000;
 const VAD_WINDOW = 512;
 const DITHER = 2e-4;
 const AWAIT_COMMAND_MS = 8000;
+// Extra quiet time after the speech detector closes a phrase before Musix acts, so a
+// short breath in the middle of a sentence never cuts the command off.
+const END_OF_TURN_MS = 850;
 const FOLLOW_UP_MS = 10000;
 const MAX_SEGMENT_SECONDS = 15;
 const HISTORY_SECONDS = 14;
@@ -208,6 +212,16 @@ function joinAudio(first: Float32Array | null, second: Float32Array): Float32Arr
   return joined;
 }
 
+function joinParts(parts: readonly Float32Array[]): Float32Array {
+  const joined = new Float32Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    joined.set(part, offset);
+    offset += part.length;
+  }
+  return joined;
+}
+
 function dropLeadingWords(text: string, commands: readonly VoiceCommand[]): string {
   const words = text.split(' ').filter((word) => word !== '');
   let best = words.slice(1).join(' ');
@@ -270,6 +284,9 @@ export class VoiceManager {
   private readonly configPath: string;
   private config: StoredVoiceConfig;
   private status: VoiceStatus = { state: 'off', progress: 0, message: '', heard: '' };
+  private utterance: Float32Array[] = [];
+  private utteranceSamples = 0;
+  private utteranceEndedAt = 0;
   private engines: Engines | null = null;
   private loading: Promise<void> | null = null;
   private downloading: Promise<void> | null = null;
@@ -287,6 +304,8 @@ export class VoiceManager {
   private connecting = false;
   private whisperDownload: Promise<void> | null = null;
   private lastGoodModel: string | null = null;
+  /** Set when the account's free daily AI allowance is used up; offline commands keep working. */
+  private aiPausedUntil = 0;
   private readonly modelCooldowns = new Map<string, number>();
 
   constructor(private readonly options: VoiceManagerOptions) {
@@ -558,8 +577,8 @@ export class VoiceManager {
         const dir = packDir(this.voiceDir);
         const require = createRequire(import.meta.url);
         const sherpa = require('sherpa-onnx-node') as SherpaModule;
-        const threshold = 0.3 - this.config.sensitivity * 0.2;
-        const score = 1 + this.config.sensitivity;
+        const threshold = 0.25 - this.config.sensitivity * 0.2;
+        const score = 1.5 + this.config.sensitivity;
         const kws = new sherpa.KeywordSpotter({
           featConfig: { sampleRate: SAMPLE_RATE, featureDim: 80 },
           modelConfig: {
@@ -734,6 +753,9 @@ export class VoiceManager {
       if (engines.kws.getResult(engines.kwsStream).keyword) {
         engines.kws.reset(engines.kwsStream);
         this.keywordHeard = true;
+        // Anything said before Veru is not part of the command.
+        this.utterance = [];
+        this.utteranceSamples = 0;
         this.wake();
       }
     }
@@ -750,10 +772,27 @@ export class VoiceManager {
       while (!engines.vad.isEmpty()) {
         const segment = engines.vad.front(false);
         engines.vad.pop();
-        this.enqueueSegment(engines, this.withLeadIn(segment.start, segment.samples));
+        this.utterance.push(this.withLeadIn(segment.start, segment.samples));
+        this.utteranceSamples += segment.samples.length;
+        this.utteranceEndedAt = Date.now();
       }
     }
-    if (this.awaitingUntil > 0 && Date.now() > this.awaitingUntil && !engines.vad.isDetected()) {
+    if (
+      this.utterance.length > 0 &&
+      ((!engines.vad.isDetected() && Date.now() - this.utteranceEndedAt >= END_OF_TURN_MS) ||
+        this.utteranceSamples >= MAX_SEGMENT_SECONDS * SAMPLE_RATE)
+    ) {
+      const parts = this.utterance;
+      this.utterance = [];
+      this.utteranceSamples = 0;
+      this.enqueueSegment(engines, joinParts(parts));
+    }
+    if (
+      this.awaitingUntil > 0 &&
+      Date.now() > this.awaitingUntil &&
+      !engines.vad.isDetected() &&
+      this.utterance.length === 0
+    ) {
       this.awaitingUntil = 0;
       this.wakeAudio = null;
       this.followUp = null;
@@ -815,7 +854,7 @@ export class VoiceManager {
       await this.resolveCommand(engines, joinAudio(wakeAudio, samples), answer, follow);
       return;
     }
-    const stripped = stripWakeWord(text, this.config.wakeVariants);
+    const stripped = findWakeWord(text, this.config.wakeVariants);
     if (!stripped.heard && !keyword) {
       if (text !== '' && this.status.state === 'listening') {
         this.setStatus({ ...this.status, heard: text });
@@ -825,7 +864,9 @@ export class VoiceManager {
     if (!stripped.heard && keyword) {
       this.learnWakeSpelling(text);
     }
-    const rest = stripped.heard ? stripped.rest : dropLeadingWords(text, this.config.commands);
+    const rest = (stripped.heard ? stripped.rest : dropLeadingWords(text, this.config.commands))
+      .replace(/^(yes|yeah|yep)\b\s*/, '')
+      .trim();
     this.wake();
     if (rest === '') {
       this.wakeAudio = samples;
@@ -1130,7 +1171,7 @@ export class VoiceManager {
 
   private async askAi(transcript: string, history: AiTurn[]): Promise<{ plan: AiPlan; raw: string } | null> {
     const key = this.aiKey();
-    if (!this.config.aiEnabled || key === '' || !this.options.isOnline()) {
+    if (!this.config.aiEnabled || key === '' || !this.options.isOnline() || Date.now() < this.aiPausedUntil) {
       return null;
     }
     let models: FreeModel[];
@@ -1172,9 +1213,23 @@ export class VoiceManager {
             this.modelCooldowns.delete(model.id);
             return { plan: parsed, raw: raw.slice(0, 2000) };
           }
-        } else if (attemptAfterStatus(response.status) === 'stop') {
-          logWarn('voice', `OpenRouter refused the key (HTTP ${response.status})`);
-          return null;
+        } else {
+          const body = await response.text().catch(() => '');
+          const reason = body.slice(0, 300);
+          if (response.status === 429 && reason.includes('free-models-per-day')) {
+            const reset = Number(
+              response.headers.get('x-ratelimit-reset') ?? /"X-RateLimit-Reset":"(\d+)"/.exec(body)?.[1],
+            );
+            this.aiPausedUntil =
+              Number.isFinite(reset) && reset > Date.now() ? reset : Date.now() + 60 * 60 * 1000;
+            logWarn('voice', `Free AI allowance used up until ${new Date(this.aiPausedUntil).toISOString()}`);
+            return null;
+          }
+          if (attemptAfterStatus(response.status, reason) === 'stop') {
+            logWarn('voice', `OpenRouter refused the key (HTTP ${response.status}): ${reason}`);
+            return null;
+          }
+          logWarn('voice', `AI model ${model.id} skipped (HTTP ${response.status}): ${reason}`);
         }
       } catch (error) {
         logWarn('voice', `AI model ${model.id} failed`, error);

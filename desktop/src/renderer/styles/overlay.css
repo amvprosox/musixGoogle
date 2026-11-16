@@ -228,6 +228,10 @@ body {
   opacity: 1;
 }
 
+.voice-stage[data-caption='true']:has(.voice-wave) {
+  opacity: 1;
+}
+
 .voice-ring {
   position: absolute;
   border-radius: 12px;
@@ -319,14 +323,29 @@ body {
 }
 
 .voice-label {
+  display: -webkit-box;
   max-width: 100%;
-  line-height: 1.4;
+  line-height: 1.35;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-align: center;
+  font-size: var(--fs-16);
+  font-weight: 600;
+  color: #f4f4f8;
+}
+
+.voice-note {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--fs-14);
-  font-weight: 600;
-  color: #f4f4f8;
+  color: #b9b9c6;
+}
+
+.voice-note:empty {
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

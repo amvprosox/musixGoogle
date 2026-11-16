@@ -251,6 +251,16 @@ export const DEFAULT_VOICE_COMMANDS: readonly VoiceCommand[] = [
 export const WAKE_WORD = 'veru';
 const WAKE_VARIANTS = [
   'veru',
+  'barrow',
+  'burrow',
+  'bureau',
+  'peru',
+  'vairu',
+  'bairu',
+  'veeru',
+  'viru',
+  'fero',
+  'feru',
   'vero',
   'beru',
   'be ru',
@@ -270,18 +280,7 @@ const WAKE_VARIANTS = [
   'beyru',
   'bey ru',
 ];
-const WAKE_DENY = [
-  'very',
-  'every',
-  'vary',
-  'berry',
-  'bury',
-  'bureau',
-  'burrow',
-  'borrow',
-  'barrow',
-  'bureaus',
-];
+const WAKE_DENY = ['very', 'pero', 'hero', 'zero', 'every', 'vary', 'berry', 'bury', 'borrow'];
 const MATCH_THRESHOLD = 0.72;
 const STRONG_MATCH = 0.8;
 const TAIL_PENALTY = 0.9;
@@ -336,15 +335,32 @@ export function wakeHeadFrom(transcript: string): string | null {
   return best && best.score >= 0.4 && best.head.length <= 16 ? best.head : null;
 }
 
+const WAKE_GREETINGS = new Set(['hey', 'hi', 'ok', 'okay', 'oi', 'uy', 'yo', 'hello', 'oy']);
+
+/** Any spelling shaped like V-E-R-U: a b/v/f/w sound, a vowel, an r, a vowel. */
+function soundsLikeVeru(word: string): boolean {
+  if (WAKE_DENY.includes(word) || word.length > 7) {
+    return false;
+  }
+  return /^(v|b|bh|f|w)(e|ee|ei|ey|ai|ay|i|eh)rr?(u|oo|o|ou|uh|ue)h?$/.test(word);
+}
+
 export function stripWakeWord(
   text: string,
   extraVariants: readonly string[] = [],
 ): { heard: boolean; rest: string } {
-  const words = normalizeSpeech(text)
+  const all = normalizeSpeech(text)
     .split(' ')
     .filter((word) => word !== '');
+  // "hey Veru", "okay Veru", "uy Veru": skip one greeting word before the name.
+  const words = WAKE_GREETINGS.has(all[0] ?? '') && all.length > 1 ? all.slice(1) : all;
   if (WAKE_DENY.includes(words[0] ?? '')) {
-    return { heard: false, rest: words.join(' ') };
+    return { heard: false, rest: all.join(' ') };
+  }
+  for (const take of [2, 1]) {
+    if (words.length >= take && soundsLikeVeru(words.slice(0, take).join(''))) {
+      return { heard: true, rest: words.slice(take).join(' ') };
+    }
   }
   for (const take of [2, 1]) {
     if (words.length < take) {
@@ -356,6 +372,39 @@ export function stripWakeWord(
     );
     if (best >= 0.7) {
       return { heard: true, rest: words.slice(take).join(' ') };
+    }
+  }
+  return { heard: false, rest: all.join(' ') };
+}
+
+/**
+ * Finds Veru anywhere in what was heard (people often talk before saying it, or
+ * background chatter runs into the command). Mid-sentence matches must sound
+ * clearly like Veru, so ordinary words never wake Musix.
+ */
+export function findWakeWord(
+  text: string,
+  extraVariants: readonly string[] = [],
+): { heard: boolean; rest: string } {
+  const start = stripWakeWord(text, extraVariants);
+  if (start.heard) {
+    return start;
+  }
+  const words = normalizeSpeech(text)
+    .split(' ')
+    .filter((word) => word !== '');
+  const exact = new Set([...WAKE_VARIANTS.filter((variant) => !variant.includes(' ')), ...extraVariants]);
+  for (let i = 1; i < words.length; i += 1) {
+    const word = words[i] ?? '';
+    if (WAKE_DENY.includes(word)) {
+      continue;
+    }
+    const pair = word + (words[i + 1] ?? '');
+    if (i + 1 < words.length && soundsLikeVeru(pair)) {
+      return { heard: true, rest: words.slice(i + 2).join(' ') };
+    }
+    if (exact.has(word) || soundsLikeVeru(word)) {
+      return { heard: true, rest: words.slice(i + 1).join(' ') };
     }
   }
   return { heard: false, rest: words.join(' ') };
@@ -545,6 +594,14 @@ export interface LocalPlan {
   question: '' | 'playlist';
 }
 
+const FILLER_PHRASES =
+  /\b(?:can you|could you|would you|will you|i want you to|i want to|i wanna|lets|let us|please|pls|kindly|for me|right now|now|naman|nga|po|pakis?)\b/g;
+const FILLER_WORDS = /\b(?:the|a|an|tab|page|screen|section|menu|area|view)\b/g;
+
+function stripFiller(text: string): string {
+  return text.replace(FILLER_PHRASES, ' ').replace(FILLER_WORDS, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export function planLocally(
   text: string,
   commands: readonly VoiceCommand[] = DEFAULT_VOICE_COMMANDS,
@@ -559,7 +616,13 @@ export function planLocally(
     if (collection?.[1] && AMBIGUOUS_COLLECTION.test(collection[1])) {
       return { action: 'play', query: collection[1] };
     }
-    return matchIntent(part, commands);
+    const direct = matchIntent(part, commands);
+    if (direct) {
+      return direct;
+    }
+    // Retry without polite and filler words ("please open the downloads tab for me").
+    const plain = stripFiller(part);
+    return plain !== '' && plain !== part ? matchIntent(plain, commands) : null;
   };
   let intents: { action: VoiceAction; query: string }[] | null = null;
   if (parts.length > 1) {

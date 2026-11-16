@@ -261,6 +261,10 @@ export interface VoiceGlowPayload {
   thinking: boolean;
   level: number;
   text: string;
+  /** What Musix heard, kept on screen for a few seconds after the command runs. */
+  caption: string;
+  /** What Musix is doing about it, shown under the caption. */
+  note: string;
   windowWidth: number;
   windowHeight: number;
   x: number;

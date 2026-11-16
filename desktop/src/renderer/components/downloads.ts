@@ -97,7 +97,7 @@ export function downloadTrackButton(
         button.dataset.status = 'completed';
         setAttr(button, 'aria-pressed', 'true');
         setButtonIcon(button, 'check');
-        setLabel(button, 'Already downloaded');
+        setLabel(button, 'Downloaded');
         return;
       }
       button.disabled = false;
@@ -161,7 +161,7 @@ function renderLibraryCard(lib: DetectedLibrary, downloads: DownloadItem[], ctx:
 
   let btnText = 'Download All';
   if (allCompleted) {
-    btnText = 'Already Downloaded';
+    btnText = 'Downloaded';
   } else if (downloadingCount > 0) {
     btnText = `Downloading (${completedCount}/${total})`;
   } else if (completedCount > 0) {

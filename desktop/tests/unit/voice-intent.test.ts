@@ -8,6 +8,7 @@ import {
   sanitizeVoiceCommands,
   similarity,
   stripWakeWord,
+  findWakeWord,
 } from '../../src/shared/voice-intent';
 
 describe('stripWakeWord', () => {
@@ -148,5 +149,41 @@ describe('wake word pronunciations', () => {
       expect(stripWakeWord(`${said} next song`)).toEqual({ heard: true, rest: 'next song' });
     }
     expect(stripWakeWord('very nice song').heard).toBe(false);
+  });
+
+  it('accepts greetings and close spellings of Veru', () => {
+    expect(stripWakeWord('hey veru play timeless')).toEqual({ heard: true, rest: 'play timeless' });
+    expect(stripWakeWord('okay peru next song')).toEqual({ heard: true, rest: 'next song' });
+    expect(stripWakeWord('Bairu, shuffle on')).toEqual({ heard: true, rest: 'shuffle on' });
+    expect(stripWakeWord('veroo pause')).toEqual({ heard: true, rest: 'pause' });
+    expect(stripWakeWord('hey play timeless').heard).toBe(false);
+    expect(stripWakeWord('every song').heard).toBe(false);
+    expect(stripWakeWord('berry good').heard).toBe(false);
+    expect(stripWakeWord('pero ayoko').heard).toBe(false);
+  });
+});
+
+describe('findWakeWord', () => {
+  it('finds Veru after background chatter', () => {
+    expect(findWakeWord('six orders after ten days barrow open the downloads tab')).toEqual({
+      heard: true,
+      rest: 'open the downloads tab',
+    });
+    expect(findWakeWord('okay so veru play timeless')).toEqual({ heard: true, rest: 'play timeless' });
+    expect(findWakeWord('i was saying be ru next song')).toEqual({ heard: true, rest: 'next song' });
+    expect(findWakeWord('that was a very good song every time').heard).toBe(false);
+    expect(findWakeWord('pero hindi ko alam').heard).toBe(false);
+  });
+});
+
+describe('planLocally filler words', () => {
+  it('understands commands with filler words and pauses joined', () => {
+    expect(planLocally('open the downloads tab and then go to settings')?.steps).toEqual([
+      { action: 'openDownloads', query: '' },
+      { action: 'openSettings', query: '' },
+    ]);
+    expect(planLocally('can you please open the settings page')?.steps).toEqual([
+      { action: 'openSettings', query: '' },
+    ]);
   });
 });

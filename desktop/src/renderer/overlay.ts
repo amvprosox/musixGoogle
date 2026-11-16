@@ -78,7 +78,8 @@ function startVoice(api: NonNullable<Window['musixOverlay']>): void {
     return bar;
   });
   const label = el('span', 'voice-label');
-  wave.append(bars, label);
+  const note = el('span', 'voice-note');
+  wave.append(bars, label, note);
   document.body.append(stage);
   let part = '';
   api.onRender((payload: OverlayRenderPayload) => {
@@ -91,6 +92,7 @@ function startVoice(api: NonNullable<Window['musixOverlay']>): void {
       stage.replaceChildren(voice.part === 'wave' ? wave : ring);
     }
     stage.dataset.active = voice.active ? 'true' : 'false';
+    stage.dataset.caption = voice.caption === '' ? 'false' : 'true';
     stage.dataset.thinking = voice.thinking ? 'true' : 'false';
     stage.style.setProperty('--voice-level', voice.level.toFixed(3));
     ring.style.width = `${voice.windowWidth}px`;
@@ -107,7 +109,13 @@ function startVoice(api: NonNullable<Window['musixOverlay']>): void {
         const scale = Math.max(0.08, Math.min(1, (0.15 + value * 3.2) * (0.45 + shape * 0.55)));
         bar.style.transform = `scaleY(${scale.toFixed(3)})`;
       });
-      label.textContent = voice.thinking ? (voice.text === '' ? 'Thinking' : voice.text) : 'Listening';
+      if (voice.caption !== '') {
+        label.textContent = `\u201c${voice.caption}\u201d`;
+        note.textContent = voice.thinking ? 'Thinking\u2026' : voice.note;
+      } else {
+        label.textContent = voice.thinking ? 'Thinking\u2026' : 'Listening\u2026';
+        note.textContent = '';
+      }
     }
   });
 }
