@@ -4,6 +4,7 @@ import com.realmadhoney.musix.core.voice.VoiceCommand
 import com.realmadhoney.musix.core.voice.VoiceIntentMatcher
 import java.io.File
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import kotlin.random.Random
 
 data class VoiceProcessorSettings(
@@ -61,15 +62,18 @@ class VoiceProcessor(
         sensitivity: Double,
         done: (Boolean) -> Unit,
     ) {
-        worker.execute {
-            engine?.release()
-            engine = SherpaVoiceEngine.create(pack, sensitivity)
-            done(engine != null)
+        if (!submit {
+                engine?.release()
+                engine = SherpaVoiceEngine.create(pack, sensitivity)
+                done(engine != null)
+            }
+        ) {
+            done(false)
         }
     }
 
     fun unload() {
-        worker.execute {
+        submit {
             engine?.release()
             engine = null
             pending = FloatArray(0)
@@ -85,20 +89,29 @@ class VoiceProcessor(
     }
 
     fun update(next: VoiceProcessorSettings) {
-        worker.execute { settings = next }
+        submit { settings = next }
     }
 
     fun embedding(
         samples: FloatArray,
         done: (FloatArray) -> Unit,
     ) {
-        worker.execute { done(engine?.embedding(samples) ?: FloatArray(0)) }
+        if (!submit { done(engine?.embedding(samples) ?: FloatArray(0)) }) {
+            done(FloatArray(0))
+        }
     }
 
     fun accept(samples: FloatArray) {
-        if (worker.isShutdown) return
-        worker.execute { process(samples) }
+        submit { process(samples) }
     }
+
+    private fun submit(block: () -> Unit): Boolean =
+        try {
+            worker.execute(block)
+            true
+        } catch (error: RejectedExecutionException) {
+            false
+        }
 
     private fun process(samples: FloatArray) {
         val engine = engine ?: return

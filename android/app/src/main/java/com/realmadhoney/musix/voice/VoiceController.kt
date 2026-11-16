@@ -601,7 +601,7 @@ class VoiceController(
     private fun configureVoice() {
         val engine = tts ?: return
         engine.language = Locale.US
-        val male = listOf("iom", "tpd", "iol", "male")
+        val male = listOf("-iom-", "-tpd-", "-iol-")
         val voices = engine.voices.orEmpty().filter { it.locale.language == "en" && !it.isNetworkConnectionRequired }
         voices.firstOrNull { voice -> male.any { voice.name.contains(it, ignoreCase = true) } }?.let { engine.voice = it }
         engine.setPitch(VOICE_PITCH)
