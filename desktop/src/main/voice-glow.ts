@@ -4,8 +4,8 @@ import { paths } from './config';
 import { logError } from './log';
 
 const EDGE = 64;
-const WAVE_WIDTH = 300;
-const WAVE_HEIGHT = 84;
+const WAVE_WIDTH = 360;
+const WAVE_HEIGHT = 112;
 const WAVE_BOTTOM = 112;
 const HIDE_DELAY_MS = 380;
 const LEVEL_INTERVAL_MS = 50;
