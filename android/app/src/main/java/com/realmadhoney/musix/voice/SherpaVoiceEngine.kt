@@ -124,6 +124,13 @@ class SherpaVoiceEngine private constructor(
                 "▁PRO ▁SE K S @PROSECS",
                 "▁PRO SE K S @PROSECS",
                 "▁PRO ▁SE CK S @PROSECS",
+                "▁PRO S I X @PROSECS",
+                "▁PRO ▁SIX @PROSECS",
+                "▁PRO CH I X @PROSECS",
+                "▁PRO ▁CHI X @PROSECS",
+                "▁PRO CH E K S @PROSECS",
+                "▁PRO ▁C HE K S @PROSECS",
+                "▁PRO ▁C HE CK S @PROSECS",
             )
 
         private fun wakeKeywordsFile(pack: File): String {

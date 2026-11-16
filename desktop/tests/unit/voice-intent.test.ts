@@ -130,3 +130,23 @@ describe('planLocally', () => {
     expect(plan?.steps).toEqual([{ action: 'play', query: 'simon and garfunkel' }]);
   });
 });
+
+describe('wake word pronunciations', () => {
+  it('accepts every way of saying Prosecs', () => {
+    for (const said of [
+      'pro secs',
+      'prosecs',
+      'proseks',
+      'pro seks',
+      'prosix',
+      'pro six',
+      'prochix',
+      'pro chix',
+      'procheks',
+      'pro cheks',
+    ]) {
+      expect(stripWakeWord(`${said} next song`)).toEqual({ heard: true, rest: 'next song' });
+    }
+    expect(stripWakeWord('process the files').heard).toBe(false);
+  });
+});

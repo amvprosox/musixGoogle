@@ -76,7 +76,7 @@ object VoiceIntentMatcher {
     private const val MAX_PHRASE_CHARS = 80
     private const val MAX_REPLY_CHARS = 160
     private val wakeVariants =
-        listOf("prosecs", "pro secs", "pro sex", "prosex", "pro seks", "proseks", "pro sec", "prossex", "pros ex", "pro six")
+        listOf("prosecs", "pro secs", "pro sex", "prosex", "pro seks", "proseks", "pro sec", "prossex", "pros ex", "pro six", "prosix", "pro six", "prochix", "pro chix", "procheks", "pro cheks", "prochecks", "pro checks", "pro sicks")
     private val wakeDeny = setOf("process", "processes", "processing", "prospect", "prospects")
     private val outOfScope =
         listOf(

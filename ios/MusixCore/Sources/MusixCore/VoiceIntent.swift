@@ -99,7 +99,7 @@ public struct VoiceIntent: Equatable, Sendable {
 public enum VoiceIntentMatcher {
     public static let wakeWord = "prosecs"
     public static let outOfScopeReply = "I can only control Musix music playback."
-    static let wakeVariants = ["prosecs", "pro secs", "pro sex", "prosex", "pro seks", "proseks", "pro sec", "prossex", "pros ex", "pro six"]
+    static let wakeVariants = ["prosecs", "pro secs", "pro sex", "prosex", "pro seks", "proseks", "pro sec", "prossex", "pros ex", "pro six", "prosix", "pro six", "prochix", "pro chix", "procheks", "pro cheks", "prochecks", "pro checks", "pro sicks"]
     static let wakeDeny: Set<String> = ["process", "processes", "processing", "prospect", "prospects"]
     static let matchThreshold = 0.72
     static let strongMatch = 0.8

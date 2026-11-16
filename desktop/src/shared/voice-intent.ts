@@ -260,6 +260,15 @@ const WAKE_VARIANTS = [
   'prossex',
   'pros ex',
   'pro six',
+  'prosix',
+  'pro six',
+  'prochix',
+  'pro chix',
+  'procheks',
+  'pro cheks',
+  'prochecks',
+  'pro checks',
+  'pro sicks',
 ];
 const WAKE_DENY = ['process', 'processes', 'processing', 'prospect', 'prospects'];
 const MATCH_THRESHOLD = 0.72;
