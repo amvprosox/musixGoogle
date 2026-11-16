@@ -87,6 +87,26 @@ data class DetectedLibrary(
     val subtitle: String,
     val artworkUrl: String,
     val tracks: List<DownloadTrackSpec>,
+) {
+    val kind: String
+        get() =
+            when {
+                id == "library-liked" -> "Liked"
+                id == "recent" -> "Recent"
+                id.startsWith("home-") -> "Mix"
+                id.startsWith("MPRE") -> "Album"
+                else -> "Playlist"
+            }
+}
+
+@Serializable
+data class SavedLibrary(
+    val id: String,
+    val title: String,
+    val kind: String = "Playlist",
+    val artworkUrl: String = "",
+    val videoIds: List<String> = emptyList(),
+    val updatedAt: Long = 0L,
 )
 
 class DownloadRepository(
@@ -100,12 +120,16 @@ class DownloadRepository(
     private val miscDir = File(directory, "misc")
     private val storeFile = File(miscDir, "downloads.json")
     private val logFile = File(miscDir, "downloads.log")
+    private val librariesFile = File(miscDir, "libraries.json")
     private val json = Json { ignoreUnknownKeys = true }
     private val jobs = ConcurrentHashMap<String, Job>()
     private val downloadSlots = Semaphore(MAX_CONCURRENT_DOWNLOADS)
 
     private val itemsFlow = MutableStateFlow<List<DownloadItem>>(emptyList())
     val items: StateFlow<List<DownloadItem>> = itemsFlow.asStateFlow()
+
+    private val savedLibrariesFlow = MutableStateFlow<List<SavedLibrary>>(emptyList())
+    val savedLibraries: StateFlow<List<SavedLibrary>> = savedLibrariesFlow.asStateFlow()
 
     private val logsFlow = MutableStateFlow<List<String>>(emptyList())
     val logs: StateFlow<List<String>> = logsFlow.asStateFlow()
@@ -125,6 +149,65 @@ class DownloadRepository(
         ensureDirectories()
         loadLogs()
         load()
+        loadLibraries()
+    }
+
+    @Synchronized
+    private fun loadLibraries() {
+        if (!librariesFile.isFile) {
+            savedLibrariesFlow.value = emptyList()
+            return
+        }
+        try {
+            val decoded = json.decodeFromString(ListSerializer(SavedLibrary.serializer()), librariesFile.readText(Charsets.UTF_8))
+            savedLibrariesFlow.value =
+                decoded
+                    .filter { it.id.isNotBlank() }
+                    .distinctBy { it.id }
+                    .map { lib -> lib.copy(videoIds = lib.videoIds.filter { BridgeCodec.isValidVideoId(it) }) }
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not load libraries.json", error)
+            savedLibrariesFlow.value = emptyList()
+        }
+    }
+
+    @Synchronized
+    private fun persistLibraries() {
+        try {
+            ensureDirectories()
+            val tmp = File(miscDir, "libraries.json.tmp")
+            tmp.writeText(json.encodeToString(ListSerializer(SavedLibrary.serializer()), savedLibrariesFlow.value), Charsets.UTF_8)
+            if (!tmp.renameTo(librariesFile)) {
+                tmp.copyTo(librariesFile, overwrite = true)
+                tmp.delete()
+            }
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not persist libraries.json", error)
+        }
+    }
+
+    @Synchronized
+    private fun recordLibrary(
+        library: DetectedLibrary,
+        videoIds: List<String>,
+    ) {
+        val entry =
+            SavedLibrary(
+                id = library.id,
+                title = library.title,
+                kind = library.kind,
+                artworkUrl =
+                    library.artworkUrl.ifEmpty {
+                        library.tracks
+                            .firstOrNull()
+                            ?.artworkUrl
+                            .orEmpty()
+                    },
+                videoIds = videoIds,
+                updatedAt = System.currentTimeMillis(),
+            )
+        savedLibrariesFlow.value = (listOf(entry) + savedLibrariesFlow.value.filterNot { it.id == library.id }).take(MAX_SAVED_LIBRARIES)
+        persistLibraries()
     }
 
     private fun ensureDirectories() {
@@ -254,7 +337,9 @@ class DownloadRepository(
     fun downloadBatch(
         title: String,
         specs: List<DownloadTrackSpec>,
-    ) {
+        library: DetectedLibrary? = null,
+        quiet: Boolean = false,
+    ): Int {
         val unique = LinkedHashMap<String, DownloadTrackSpec>()
         for (spec in specs) {
             if (BridgeCodec.isValidVideoId(spec.videoId) && spec.title.isNotBlank() && !unique.containsKey(spec.videoId)) {
@@ -262,7 +347,10 @@ class DownloadRepository(
             }
         }
         if (unique.isEmpty()) {
-            return
+            return 0
+        }
+        if (library != null) {
+            recordLibrary(library, unique.keys.toList())
         }
         var skipped = 0
         val existingById = itemsFlow.value.associateBy { it.videoId }
@@ -282,11 +370,35 @@ class DownloadRepository(
         val started = toQueue.size
         if (started == 0 && skipped > 0) {
             appendLog("Batch [$title]: all $skipped songs already downloaded")
-            onMessage("Already downloaded")
+            if (!quiet) {
+                onMessage("Already downloaded")
+            }
         } else {
             appendLog("Batch [$title]: queued $started songs, skipped $skipped already downloaded")
             val skipNote = if (skipped > 0) " (skipped $skipped already downloaded)" else ""
-            onMessage("Downloading $started songs from $title$skipNote")
+            if (!quiet) {
+                onMessage("Downloading $started songs from $title$skipNote")
+            }
+        }
+        return started
+    }
+
+    fun downloadLibraries(libraries: List<DetectedLibrary>) {
+        var started = 0
+        val total = HashSet<String>()
+        for (library in libraries) {
+            started += downloadBatch(library.title, library.tracks, library, quiet = true)
+            library.tracks.mapTo(total) { it.videoId }
+        }
+        if (total.isEmpty()) {
+            return
+        }
+        if (started == 0) {
+            onMessage("Already downloaded")
+        } else {
+            val skipped = total.size - started
+            val skipNote = if (skipped > 0) " (skipped $skipped already downloaded)" else ""
+            onMessage("Downloading $started songs from all libraries$skipNote")
         }
     }
 
@@ -372,13 +484,15 @@ class DownloadRepository(
         item: DownloadItem,
         pauseOnline: () -> Unit,
         scope: List<String>? = null,
+        shuffle: Boolean? = null,
     ) {
         if (item.status != DownloadStatus.COMPLETED || !File(item.audioPath).isFile) {
             onMessage("Downloaded file is not available.")
             return
         }
         offlineScope = scope
-        offlineSession = OfflineSession(playableItems().map { it.videoId }, item.videoId, offlinePlayingFlow.value?.shuffle ?: false)
+        val useShuffle = shuffle ?: offlinePlayingFlow.value?.shuffle ?: false
+        offlineSession = OfflineSession(playableItems().map { it.videoId }, item.videoId, useShuffle)
         loadOffline(item, pauseOnline)
     }
 
@@ -1113,6 +1227,7 @@ class DownloadRepository(
         const val CHUNK_SIZE = 524_288L
         const val MAX_LOG_LINES = 500
         const val MAX_CONCURRENT_DOWNLOADS = 3
+        const val MAX_SAVED_LIBRARIES = 200
         const val VISIONOS_UA =
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) " +
                 "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"

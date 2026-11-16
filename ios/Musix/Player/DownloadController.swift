@@ -41,6 +41,28 @@ struct DetectedLibrary: Identifiable, Equatable, Sendable {
     var subtitle: String
     var artworkUrl: String
     var tracks: [DownloadTrackRequest]
+
+    var kind: String {
+        if id == "library-liked" {
+            return "Liked"
+        }
+        if id == "recent" {
+            return "Recent"
+        }
+        if id.hasPrefix("home-") {
+            return "Mix"
+        }
+        return id.hasPrefix("MPRE") ? "Album" : "Playlist"
+    }
+}
+
+struct SavedLibrary: Codable, Identifiable, Equatable, Sendable {
+    var id: String
+    var title: String
+    var kind: String
+    var artworkUrl: String
+    var videoIds: [String]
+    var updatedAt: Double
 }
 
 private struct InnertubeClientSpec: Sendable {
@@ -71,6 +93,7 @@ final class DownloadController: ObservableObject {
     @Published private(set) var libraries: [DetectedLibrary] = []
     @Published private(set) var detectingLibraries = false
     @Published private(set) var notice: String?
+    @Published private(set) var savedLibraries: [SavedLibrary] = []
 
     private let engine: WebEngine
     private let downloadsDir: URL
@@ -78,6 +101,7 @@ final class DownloadController: ObservableObject {
     private let thumbnailsDir: URL
     private let miscDir: URL
     private let indexFile: URL
+    private let librariesFile: URL
     private let logFile: URL
     private var activeTasks: [String: Task<Void, Never>] = [:]
     private var runningCount = 0
@@ -172,8 +196,52 @@ final class DownloadController: ObservableObject {
         self.miscDir = misc
         self.indexFile = misc.appendingPathComponent("downloads.json")
         self.logFile = misc.appendingPathComponent("downloads.log")
+        self.librariesFile = misc.appendingPathComponent("libraries.json")
         loadLogs()
         loadIndex()
+        loadLibraries()
+    }
+
+    private func loadLibraries() {
+        guard let data = try? Data(contentsOf: librariesFile),
+              let decoded = try? JSONDecoder().decode([SavedLibrary].self, from: data) else {
+            savedLibraries = []
+            return
+        }
+        var seen = Set<String>()
+        savedLibraries = decoded.compactMap { entry in
+            guard !entry.id.isEmpty, seen.insert(entry.id).inserted else {
+                return nil
+            }
+            var copy = entry
+            copy.videoIds = entry.videoIds.filter { BridgeCodec.isValidVideoId($0) }
+            return copy
+        }
+    }
+
+    private func persistLibraries() {
+        guard let data = try? JSONEncoder().encode(savedLibraries) else {
+            return
+        }
+        try? data.write(to: librariesFile, options: .atomic)
+    }
+
+    private func recordLibrary(_ library: DetectedLibrary, videoIds: [String]) {
+        let entry = SavedLibrary(
+            id: library.id,
+            title: library.title,
+            kind: library.kind,
+            artworkUrl: library.artworkUrl.isEmpty ? (library.tracks.first?.artworkUrl ?? "") : library.artworkUrl,
+            videoIds: videoIds,
+            updatedAt: Date().timeIntervalSince1970 * 1000
+        )
+        savedLibraries = Array(([entry] + savedLibraries.filter { $0.id != library.id }).prefix(200))
+        persistLibraries()
+    }
+
+    func savedItems(for library: SavedLibrary) -> [DownloadItem] {
+        let byId = Dictionary(items.map { ($0.videoId, $0) }, uniquingKeysWith: { first, _ in first })
+        return library.videoIds.compactMap { byId[$0] }
     }
 
     private func loadLogs() {
@@ -406,10 +474,25 @@ final class DownloadController: ObservableObject {
     }
 
     @discardableResult
-    func downloadBatch(title: String, tracks: [DownloadTrackRequest]) -> (started: Int, skipped: Int, alreadyDownloaded: Bool) {
+    func downloadBatch(
+        title: String,
+        tracks: [DownloadTrackRequest],
+        library: DetectedLibrary? = nil,
+        quiet: Bool = false
+    ) -> (started: Int, skipped: Int, alreadyDownloaded: Bool) {
         var seen = Set<String>()
         var started = 0
         var skipped = 0
+        if let library {
+            var ids: [String] = []
+            var unique = Set<String>()
+            for track in tracks where BridgeCodec.isValidVideoId(track.videoId) && unique.insert(track.videoId).inserted {
+                ids.append(track.videoId)
+            }
+            if !ids.isEmpty {
+                recordLibrary(library, videoIds: ids)
+            }
+        }
         for track in tracks {
             guard BridgeCodec.isValidVideoId(track.videoId), !track.title.isEmpty, seen.insert(track.videoId).inserted else {
                 continue
@@ -426,13 +509,36 @@ final class DownloadController: ObservableObject {
         let allDone = started == 0 && skipped > 0
         if allDone {
             appendLog("Batch [\(title)]: all \(skipped) songs already downloaded")
-            postNotice("Already downloaded")
+            if !quiet {
+                postNotice("Already downloaded")
+            }
         } else if started > 0 {
             appendLog("Batch [\(title)]: queued \(started) songs, skipped \(skipped) already downloaded")
             let note = skipped > 0 ? " (skipped \(skipped) already downloaded)" : ""
-            postNotice("Downloading \(started) songs from \(title)\(note)")
+            if !quiet {
+                postNotice("Downloading \(started) songs from \(title)\(note)")
+            }
         }
         return (started, skipped, allDone)
+    }
+
+    func downloadAllLibraries(_ libraries: [DetectedLibrary]) {
+        var started = 0
+        var total = Set<String>()
+        for library in libraries {
+            started += downloadBatch(title: library.title, tracks: library.tracks, library: library, quiet: true).started
+            library.tracks.forEach { total.insert($0.videoId) }
+        }
+        guard !total.isEmpty else {
+            return
+        }
+        if started == 0 {
+            postNotice("Already downloaded")
+        } else {
+            let skipped = total.count - started
+            let note = skipped > 0 ? " (skipped \(skipped) already downloaded)" : ""
+            postNotice("Downloading \(started) songs from all libraries\(note)")
+        }
     }
 
     func detectLibraries(force: Bool = false) async {

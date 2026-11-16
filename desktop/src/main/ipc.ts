@@ -425,6 +425,15 @@ export function registerIpc(ctx: IpcContext): () => void {
       },
     ],
     [
+      'downloads:saved-libraries',
+      (event) => {
+        if (!fromShell(event)) {
+          return Promise.reject(new Error('Unauthorized sender'));
+        }
+        return Promise.resolve(ctx.downloads.listLibraries());
+      },
+    ],
+    [
       'view:freeze',
       (event) => {
         if (!fromShell(event)) {

@@ -374,6 +374,7 @@ async function start(): Promise<void> {
       subtitle: string,
       artworkUrl: string,
       tracks: DownloadTrackRequest[],
+      kind: string,
     ): void => {
       if (tracks.length === 0 || seenIds.has(id)) {
         return;
@@ -383,6 +384,7 @@ async function start(): Promise<void> {
         id,
         title,
         subtitle,
+        kind,
         artworkUrl: artworkUrl || tracks[0]?.artworkUrl || '',
         tracks,
       });
@@ -397,11 +399,11 @@ async function start(): Promise<void> {
 
     if (likedPage) {
       const tracks = extractPlayableTracks(likedPage);
-      pushLibrary('library-liked', 'Liked Music', `${tracks.length} songs`, '', tracks);
+      pushLibrary('library-liked', 'Liked Music', `${tracks.length} songs`, '', tracks, 'Liked');
     }
     if (recentPage) {
       const tracks = extractPlayableTracks(recentPage);
-      pushLibrary('recent', 'Recently Played', `${tracks.length} songs`, '', tracks);
+      pushLibrary('recent', 'Recently Played', `${tracks.length} songs`, '', tracks, 'Recent');
     }
 
     const collectionItems: { id: string; title: string; artworkUrl: string; kind: string }[] = [];
@@ -440,7 +442,14 @@ async function start(): Promise<void> {
         continue;
       }
       const tracks = extractPlayableTracks(page);
-      pushLibrary(col.id, col.title, `${col.kind} • ${tracks.length} songs`, col.artworkUrl, tracks);
+      pushLibrary(
+        col.id,
+        col.title,
+        `${col.kind} • ${tracks.length} songs`,
+        col.artworkUrl,
+        tracks,
+        col.kind,
+      );
     }
 
     if (libraries.length === 0) {
@@ -461,6 +470,7 @@ async function start(): Promise<void> {
               `${sectionTracks.length} songs`,
               sectionTracks[0]?.artworkUrl ?? '',
               sectionTracks,
+              'Mix',
             );
           }
         }
@@ -623,6 +633,9 @@ async function start(): Promise<void> {
     }),
   );
   disposers.push(
+    downloads.onLibrariesChanged((saved) => {
+      sendToShell(win, 'downloads:saved-libraries-changed', saved);
+    }),
     downloads.onLogsChanged((logs) => {
       sendToShell(win, 'downloads:logs-changed', logs);
     }),

@@ -346,11 +346,14 @@ class MainViewModel(
         graph.downloads.clearLogs()
     }
 
-    fun downloadBatch(
-        title: String,
-        specs: List<DownloadTrackSpec>,
-    ) {
-        graph.downloads.downloadBatch(title, specs)
+    val savedLibraries = graph.downloads.savedLibraries
+
+    fun downloadLibrary(library: DetectedLibrary) {
+        graph.downloads.downloadBatch(library.title, library.tracks, library)
+    }
+
+    fun downloadAllLibraries(libraries: List<DetectedLibrary>) {
+        graph.downloads.downloadLibraries(libraries)
     }
 
     fun detectLibraries(force: Boolean = false) {
@@ -585,8 +588,9 @@ class MainViewModel(
     fun playDownloaded(
         item: DownloadItem,
         scope: List<String>? = null,
+        shuffle: Boolean? = null,
     ) {
-        graph.downloads.playOffline(item, pauseOnline = { connection.pause() }, scope = scope)
+        graph.downloads.playOffline(item, pauseOnline = { connection.pause() }, scope = scope, shuffle = shuffle)
     }
 
     fun deleteDownload(videoId: String) {

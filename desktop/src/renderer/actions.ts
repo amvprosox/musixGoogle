@@ -76,13 +76,14 @@ export class PlayerActions {
     return this.offlineScope;
   }
 
-  playDownloaded(item: DownloadItem, scope?: readonly string[]): void {
+  playDownloaded(item: DownloadItem, scope?: readonly string[], shuffle?: boolean): void {
     if (item.status !== 'completed' || item.audioUrl === '') {
       return;
     }
     const prev = this.store.getState().player;
     this.offlineScope = scope ? [...scope] : null;
-    this.offlineSession = new OfflineSession(this.playableIds(), item.videoId, prev ? prev.shuffle : false);
+    const useShuffle = shuffle ?? (prev ? prev.shuffle : false);
+    this.offlineSession = new OfflineSession(this.playableIds(), item.videoId, useShuffle);
     this.loadOfflineItem(item);
   }
 

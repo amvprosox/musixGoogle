@@ -7,6 +7,7 @@ import type {
   DownloadBatchResult,
   DownloadItem,
   DownloadTrackRequest,
+  SavedLibrary,
   AdblockStatus,
   AppCommand,
   AppSettings,
@@ -50,6 +51,7 @@ export interface ShellInvokeChannels {
   'downloads:logs': { request: null; response: string[] };
   'downloads:logs-clear': { request: null; response: boolean };
   'downloads:libraries': { request: null; response: DetectedLibrary[] };
+  'downloads:saved-libraries': { request: null; response: SavedLibrary[] };
 }
 
 export interface ShellSendChannels {
@@ -85,6 +87,7 @@ export interface ShellEventChannels {
   'downloads:changed': DownloadItem[];
   'downloads:logs-changed': string[];
   'player:remote': PlayerCommand;
+  'downloads:saved-libraries-changed': SavedLibrary[];
 }
 
 export interface YtmSendChannels {
@@ -134,6 +137,7 @@ export const SHELL_EVENT_CHANNELS: readonly ShellEventChannel[] = [
   'downloads:changed',
   'downloads:logs-changed',
   'player:remote',
+  'downloads:saved-libraries-changed',
 ];
 
 export interface ShellApi {

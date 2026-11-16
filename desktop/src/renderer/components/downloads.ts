@@ -1,5 +1,5 @@
 import { formatTime } from '../../shared/format';
-import type { DetectedLibrary, DownloadItem } from '../../shared/types';
+import type { DetectedLibrary, DownloadItem, SavedLibrary } from '../../shared/types';
 import type { AppContext } from '../context';
 import { h, hydrate, icon, iconButton, setAttr, setButtonIcon, setLabel, setText } from '../dom';
 import { displayedPlaying } from '../state';
@@ -185,7 +185,13 @@ function renderLibraryCard(lib: DetectedLibrary, downloads: DownloadItem[], ctx:
             return;
           }
           api
-            .invoke('downloads:batch', { title: lib.title, tracks: lib.tracks })
+            .invoke('downloads:batch', {
+              title: lib.title,
+              tracks: lib.tracks,
+              libraryId: lib.id,
+              kind: lib.kind,
+              artworkUrl: lib.artworkUrl,
+            })
             .then((res) => {
               if (res.alreadyDownloaded) {
                 toasts.show({
@@ -230,11 +236,121 @@ function renderLibraryCard(lib: DetectedLibrary, downloads: DownloadItem[], ctx:
   ]);
 }
 
+function savedLibraryItems(saved: SavedLibrary, downloads: DownloadItem[]): DownloadItem[] {
+  const byId = new Map(downloads.map((item) => [item.videoId, item]));
+  return saved.videoIds.flatMap((id) => {
+    const item = byId.get(id);
+    return item ? [item] : [];
+  });
+}
+
+function renderSavedLibraryCard(
+  saved: SavedLibrary,
+  downloads: DownloadItem[],
+  ctx: AppContext,
+  selected: boolean,
+  onSelect: (id: string | null) => void,
+): HTMLElement {
+  const { actions } = ctx;
+  const items = savedLibraryItems(saved, downloads);
+  const playable = items.filter((item) => item.status === 'completed' && item.audioUrl !== '');
+  const scope = playable.map((item) => item.videoId);
+  const scopeActive = actions.isOfflineActive() && actions.offlineScopeIds()?.join() === scope.join();
+
+  const thumbImg = h('img', {
+    className: 'download-thumb',
+    attrs: {
+      src: saved.artworkUrl,
+      alt: `${saved.title} thumbnail`,
+      width: 48,
+      height: 48,
+      loading: 'lazy',
+      decoding: 'async',
+      referrerpolicy: 'no-referrer',
+    },
+  });
+  const thumbFallback = h(
+    'div',
+    { className: 'download-thumb art-placeholder', attrs: { 'aria-hidden': 'true' } },
+    [icon('list-music')],
+  );
+  if (saved.artworkUrl !== '') {
+    thumbFallback.hidden = true;
+    thumbImg.addEventListener(
+      'error',
+      () => {
+        thumbImg.hidden = true;
+        thumbFallback.hidden = false;
+      },
+      { once: true },
+    );
+  } else {
+    thumbImg.hidden = true;
+  }
+
+  const playBtn = iconButton({
+    icon: 'play',
+    label: `Play ${saved.title} offline`,
+    placement: 'top',
+    className: 'icon-btn download-play-btn',
+    onClick: () => {
+      const first = playable[0];
+      if (first) {
+        actions.playDownloaded(first, scope, false);
+      }
+    },
+  });
+  const shuffleBtn = iconButton({
+    icon: 'shuffle',
+    label: `Shuffle ${saved.title} offline`,
+    placement: 'top',
+    onClick: () => {
+      const pick = playable[Math.floor(Math.random() * playable.length)];
+      if (pick) {
+        actions.playDownloaded(pick, scope, true);
+      }
+    },
+  });
+  const openBtn = h(
+    'button',
+    {
+      className: selected ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm',
+      attrs: { type: 'button', 'aria-pressed': selected ? 'true' : 'false' },
+      on: {
+        click: () => {
+          onSelect(selected ? null : saved.id);
+        },
+      },
+    },
+    [icon('list-music'), h('span', { text: selected ? 'Showing' : 'Songs' })],
+  );
+
+  return h(
+    'div',
+    {
+      className: 'download-card download-lib-card',
+      dataset: { current: scopeActive ? 'true' : 'false', status: 'completed' },
+    },
+    [
+      h('div', { className: 'download-thumb-wrap' }, [thumbImg, thumbFallback]),
+      h('div', { className: 'download-info' }, [
+        h('div', { className: 'download-title truncate', text: saved.title }),
+        h('div', {
+          className: 'download-desc truncate',
+          text: `${saved.kind} • ${playable.length}/${saved.videoIds.length} songs offline`,
+        }),
+      ]),
+      h('div', { className: 'download-actions' }, [playBtn, shuffleBtn, openBtn]),
+    ],
+  );
+}
+
 function renderDownloadRow(
   item: DownloadItem,
   currentVideoId: string,
   playing: boolean,
   ctx: AppContext,
+  scope?: readonly string[],
 ): HTMLElement {
   const { actions, api, toasts } = ctx;
   const isCurrent = item.videoId === currentVideoId;
@@ -312,7 +428,7 @@ function renderDownloadRow(
           actions.togglePlay();
           return;
         }
-        actions.playDownloaded(item);
+        actions.playDownloaded(item, scope);
       },
     });
     actionNodes.push(playBtn);
@@ -373,7 +489,7 @@ function renderDownloadRow(
       on: {
         dblclick: () => {
           if (item.status === 'completed') {
-            actions.playDownloaded(item);
+            actions.playDownloaded(item, scope);
           }
         },
       },
@@ -395,6 +511,8 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
   const { store, router, api, toasts } = ctx;
 
   let searchQuery = '';
+  let selectedLibraryId: string | null = null;
+  let savedLibraries: SavedLibrary[] = [];
   let logsOpen = false;
   let logsList: string[] = [];
   let librariesList: DetectedLibrary[] = [];
@@ -555,26 +673,33 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
       attrs: { type: 'button' },
       on: {
         click: () => {
-          const seenIds = new Set<string>();
-          const allTracks = librariesList
-            .flatMap((lib) => lib.tracks)
-            .filter((track) => {
-              if (seenIds.has(track.videoId)) {
-                return false;
-              }
-              seenIds.add(track.videoId);
-              return true;
-            });
-          if (allTracks.length === 0) {
+          const libs = librariesList.filter((lib) => lib.tracks.length > 0);
+          if (libs.length === 0) {
             return;
           }
-          api
-            .invoke('downloads:batch', {
-              title: 'All Libraries',
-              tracks: allTracks,
-            })
+          const run = async (): Promise<{ started: number; skipped: number; total: number }> => {
+            const totals = { started: 0, skipped: 0, total: 0 };
+            const counted = new Set<string>();
+            for (const lib of libs) {
+              const res = await api.invoke('downloads:batch', {
+                title: lib.title,
+                tracks: lib.tracks,
+                libraryId: lib.id,
+                kind: lib.kind,
+                artworkUrl: lib.artworkUrl,
+              });
+              totals.started += res.started;
+              for (const track of lib.tracks) {
+                counted.add(track.videoId);
+              }
+            }
+            totals.total = counted.size;
+            totals.skipped = Math.max(0, totals.total - totals.started);
+            return totals;
+          };
+          run()
             .then((res) => {
-              if (res.alreadyDownloaded) {
+              if (res.started === 0) {
                 toasts.show({
                   variant: 'info',
                   title: 'Already downloaded',
@@ -611,13 +736,39 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
     librariesListContainer,
   ]);
 
+  const savedListContainer = h('div', { className: 'downloads-list downloads-libraries-list' });
+  const savedSection = h('div', { className: 'downloads-section' }, [
+    h('div', { className: 'downloads-section-header' }, [
+      h('span', { className: 'downloads-section-title', text: 'Downloaded Playlists' }),
+    ]),
+    savedListContainer,
+  ]);
+
+  const showAllBtn = h(
+    'button',
+    {
+      className: 'btn btn-ghost btn-sm',
+      attrs: { type: 'button' },
+      on: {
+        click: () => {
+          selectLibrary(null);
+        },
+      },
+    },
+    [icon('x'), h('span', { text: 'Show all songs' })],
+  );
+  showAllBtn.hidden = true;
+
   const tracksSectionTitle = h('span', {
     className: 'downloads-section-title',
     text: 'Downloaded Tracks',
   });
   const listContainer = h('div', { className: 'downloads-list' });
   const tracksSection = h('div', { className: 'downloads-section' }, [
-    h('div', { className: 'downloads-section-header' }, [tracksSectionTitle]),
+    h('div', { className: 'downloads-section-header' }, [
+      tracksSectionTitle,
+      h('div', { className: 'downloads-section-actions' }, [showAllBtn]),
+    ]),
     listContainer,
   ]);
 
@@ -628,6 +779,7 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
     ]),
     searchBar,
     logsPanel,
+    savedSection,
     librariesSection,
     tracksSection,
   ]);
@@ -696,6 +848,51 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
     hydrate(librariesListContainer);
   }
 
+  function selectLibrary(id: string | null): void {
+    selectedLibraryId = id;
+    renderAll(true);
+  }
+
+  function renderSaved(downloads: DownloadItem[]): void {
+    const completed = new Set(downloads.filter((d) => d.status === 'completed').map((d) => d.videoId));
+    const visible = savedLibraries.filter((saved) => {
+      if (!saved.videoIds.some((id) => completed.has(id))) {
+        return false;
+      }
+      if (searchQuery === '') {
+        return true;
+      }
+      if (saved.title.toLowerCase().includes(searchQuery)) {
+        return true;
+      }
+      return savedLibraryItems(saved, downloads).some(
+        (item) =>
+          item.title.toLowerCase().includes(searchQuery) ||
+          item.artist.toLowerCase().includes(searchQuery) ||
+          item.album.toLowerCase().includes(searchQuery),
+      );
+    });
+    savedSection.hidden = visible.length === 0;
+    const cards = visible.map((saved) =>
+      renderSavedLibraryCard(saved, downloads, ctx, saved.id === selectedLibraryId, selectLibrary),
+    );
+    savedListContainer.replaceChildren(...cards);
+    hydrate(savedListContainer);
+  }
+
+  api
+    .invoke('downloads:saved-libraries', null)
+    .then((initial) => {
+      savedLibraries = initial;
+      renderAll(true);
+    })
+    .catch(() => undefined);
+
+  api.on('downloads:saved-libraries-changed', (next) => {
+    savedLibraries = next;
+    renderAll(true);
+  });
+
   api
     .invoke('downloads:logs', null)
     .then((initialLogs) => {
@@ -742,6 +939,7 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
       playing,
       searchQuery,
       libCount: librariesList.length,
+      selectedLibraryId,
     });
     if (!force && signature === lastSignature) {
       return;
@@ -749,8 +947,19 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
     lastSignature = signature;
 
     renderLibraries(downloads);
+    renderSaved(downloads);
 
-    const filteredDownloads = downloads.filter((item) => {
+    const selected = savedLibraries.find((saved) => saved.id === selectedLibraryId) ?? null;
+    if (selectedLibraryId !== null && !selected) {
+      selectedLibraryId = null;
+    }
+    const baseList = selected ? savedLibraryItems(selected, downloads) : downloads;
+    const scope = selected
+      ? baseList.filter((item) => item.status === 'completed').map((item) => item.videoId)
+      : undefined;
+    showAllBtn.hidden = selected === null;
+
+    const filteredDownloads = baseList.filter((item) => {
       if (searchQuery === '') {
         return true;
       }
@@ -761,11 +970,12 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
       );
     });
 
+    const sectionName = selected ? selected.title : 'Downloaded Tracks';
     setText(
       tracksSectionTitle,
       searchQuery !== ''
-        ? `Downloaded Tracks (${filteredDownloads.length}/${downloads.length})`
-        : `Downloaded Tracks (${downloads.length})`,
+        ? `${sectionName} (${filteredDownloads.length}/${baseList.length})`
+        : `${sectionName} (${baseList.length})`,
     );
 
     if (filteredDownloads.length === 0) {
@@ -784,7 +994,9 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
       return;
     }
 
-    const rows = filteredDownloads.map((item) => renderDownloadRow(item, currentVideoId, playing, ctx));
+    const rows = filteredDownloads.map((item) =>
+      renderDownloadRow(item, currentVideoId, playing, ctx, scope),
+    );
     listContainer.replaceChildren(...rows);
     hydrate(listContainer);
   }

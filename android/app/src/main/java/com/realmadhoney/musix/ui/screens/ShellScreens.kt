@@ -10,6 +10,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,6 +71,7 @@ import com.realmadhoney.musix.core.bridge.SearchSuggestions
 import com.realmadhoney.musix.download.DetectedLibrary
 import com.realmadhoney.musix.download.DownloadItem
 import com.realmadhoney.musix.download.DownloadStatus
+import com.realmadhoney.musix.download.SavedLibrary
 import com.realmadhoney.musix.engine.WebEngine
 import com.realmadhoney.musix.engine.WebRoute
 import com.realmadhoney.musix.ui.components.Artwork
@@ -472,8 +474,10 @@ fun DownloadsScreen(
     libraries: List<DetectedLibrary>,
     librariesLoading: Boolean,
     logs: List<String>,
+    savedLibraries: List<SavedLibrary>,
     artworkFor: (String) -> android.net.Uri?,
     onPlay: (DownloadItem) -> Unit,
+    onPlayScoped: (DownloadItem, List<String>, Boolean?) -> Unit,
     onRetry: (DownloadItem) -> Unit,
     onDelete: (String) -> Unit,
     onRefreshLibraries: () -> Unit,
@@ -486,8 +490,26 @@ fun DownloadsScreen(
     val context = LocalContext.current
     var query by rememberSaveable { mutableStateOf("") }
     var logsOpen by rememberSaveable { mutableStateOf(false) }
+    var selectedLibraryId by rememberSaveable { mutableStateOf<String?>(null) }
     val needle = query.trim().lowercase()
     val completedIds = items.filter { it.status == DownloadStatus.COMPLETED }.mapTo(HashSet()) { it.videoId }
+    val itemsById = items.associateBy { it.videoId }
+    val visibleSaved =
+        savedLibraries.filter { saved ->
+            saved.videoIds.any { it in completedIds } &&
+                (
+                    needle.isEmpty() ||
+                        saved.title.lowercase().contains(needle) ||
+                        saved.videoIds.any { id ->
+                            val item = itemsById[id]
+                            item != null &&
+                                (item.title.lowercase().contains(needle) || item.artist.lowercase().contains(needle))
+                        }
+                )
+        }
+    val selectedLibrary = savedLibraries.firstOrNull { it.id == selectedLibraryId }
+    val baseItems = selectedLibrary?.videoIds?.mapNotNull { itemsById[it] } ?: items
+    val scope = selectedLibrary?.let { lib -> lib.videoIds.filter { it in completedIds } }
     val filteredLibs =
         if (needle.isEmpty()) {
             libraries
@@ -504,9 +526,9 @@ fun DownloadsScreen(
         }
     val filteredItems =
         if (needle.isEmpty()) {
-            items
+            baseItems
         } else {
-            items.filter {
+            baseItems.filter {
                 it.title.lowercase().contains(needle) ||
                     it.artist.lowercase().contains(needle) ||
                     it.album.lowercase().contains(needle)
@@ -518,7 +540,11 @@ fun DownloadsScreen(
         }
         item(key = "toolbar") {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space4),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space4),
                 horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -559,6 +585,56 @@ fun DownloadsScreen(
                         modifier = Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()),
                     )
                 }
+            }
+        }
+        if (visibleSaved.isNotEmpty()) {
+            item(key = "saved-header") {
+                SectionHeader("Downloaded Playlists")
+            }
+        }
+        items(visibleSaved, key = { "saved:${it.id}" }) { saved ->
+            val playable = saved.videoIds.filter { it in completedIds }
+            val selected = saved.id == selectedLibraryId
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(role = Role.Button, onClick = { selectedLibraryId = if (selected) null else saved.id })
+                        .padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Artwork(saved.artworkUrl.takeIf { it.isNotEmpty() }?.let(artworkFor), 56.dp, fallback = R.drawable.ic_list_music)
+                Spacer(Modifier.width(DesignTokens.Space12))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        saved.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (selected) colors.accent else colors.text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        "${saved.kind} • ${playable.size}/${saved.videoIds.size} songs offline",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                IconAction(
+                    icon = R.drawable.ic_play_filled,
+                    label = "Play ${saved.title} offline",
+                    onClick = {
+                        itemsById[playable.firstOrNull()]?.let { onPlayScoped(it, playable, false) }
+                    },
+                )
+                IconAction(
+                    icon = R.drawable.ic_shuffle,
+                    label = "Shuffle ${saved.title} offline",
+                    onClick = {
+                        itemsById[playable.randomOrNull()]?.let { onPlayScoped(it, playable, true) }
+                    },
+                )
             }
         }
         item(key = "libs-header") {
@@ -622,9 +698,19 @@ fun DownloadsScreen(
             }
         }
         item(key = "tracks-header") {
-            SectionHeader(
-                if (needle.isEmpty()) "Downloaded Tracks (${items.size})" else "Downloaded Tracks (${filteredItems.size}/${items.size})",
-            )
+            val name = selectedLibrary?.title ?: "Downloaded Tracks"
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) {
+                    SectionHeader(
+                        if (needle.isEmpty()) "$name (${baseItems.size})" else "$name (${filteredItems.size}/${baseItems.size})",
+                    )
+                }
+                if (selectedLibrary != null) {
+                    Box(Modifier.padding(end = DesignTokens.Space16)) {
+                        DownloadPill("Show all", R.drawable.ic_close, { selectedLibraryId = null })
+                    }
+                }
+            }
         }
         if (filteredItems.isEmpty()) {
             item(key = "tracks-empty") {
@@ -659,7 +745,7 @@ fun DownloadsScreen(
                         .clickable(
                             enabled = item.status == DownloadStatus.COMPLETED,
                             role = Role.Button,
-                            onClick = { onPlay(item) },
+                            onClick = { if (scope != null && !active) onPlayScoped(item, scope, null) else onPlay(item) },
                         ).padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space12),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -693,7 +779,7 @@ fun DownloadsScreen(
                         IconAction(
                             icon = if (playingThis) R.drawable.ic_pause_filled else R.drawable.ic_play_filled,
                             label = stringResource(if (playingThis) R.string.action_pause else R.string.action_play),
-                            onClick = { onPlay(item) },
+                            onClick = { if (scope != null && !active) onPlayScoped(item, scope, null) else onPlay(item) },
                             active = active,
                         )
                     }

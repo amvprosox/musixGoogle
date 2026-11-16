@@ -19,12 +19,15 @@ import type {
   DownloadItem,
   DownloadStatus,
   DownloadTrackRequest,
+  SavedLibrary,
 } from '../shared/types';
 import { isVideoId } from '../shared/validators';
 import { logError, logWarn } from './log';
 
 const STORE_FILE = 'downloads.json';
 const LOG_FILE = 'downloads.log';
+const LIBRARIES_FILE = 'libraries.json';
+const MAX_SAVED_LIBRARIES = 200;
 const MAX_LOG_LINES = 500;
 const MAX_CONCURRENT_DOWNLOADS = 3;
 const CHUNK_SIZE = 524_288;
@@ -253,7 +256,10 @@ export class DownloadManager {
   private readonly toolsDir: string;
   private readonly storePath: string;
   private readonly logPath: string;
+  private readonly librariesPath: string;
   private items: DownloadItem[] = [];
+  private savedLibraries: SavedLibrary[] = [];
+  private readonly libraryListeners = new Set<(libraries: SavedLibrary[]) => void>();
   private logs: string[] = [];
   private readonly activeControllers = new Map<string, AbortController>();
   private readonly activeProcesses = new Map<string, ChildProcess>();
@@ -276,9 +282,98 @@ export class DownloadManager {
     this.toolsDir = path.join(userDataDir, 'tools');
     this.storePath = path.join(this.miscDir, STORE_FILE);
     this.logPath = path.join(this.miscDir, LOG_FILE);
+    this.librariesPath = path.join(this.miscDir, LIBRARIES_FILE);
     this.ensureDirectories();
     this.loadLogs();
     this.load();
+    this.loadLibraries();
+  }
+
+  private loadLibraries(): void {
+    if (!existsSync(this.librariesPath)) {
+      this.savedLibraries = [];
+      return;
+    }
+    try {
+      const raw: unknown = JSON.parse(readFileSync(this.librariesPath, 'utf8'));
+      const list = Array.isArray(raw) ? raw : [];
+      const seen = new Set<string>();
+      this.savedLibraries = list.flatMap((entry: unknown): SavedLibrary[] => {
+        if (
+          !isRecord(entry) ||
+          !isBoundedString(entry.id, 300) ||
+          entry.id === '' ||
+          seen.has(entry.id) ||
+          !isString(entry.title) ||
+          !Array.isArray(entry.videoIds)
+        ) {
+          return [];
+        }
+        seen.add(entry.id);
+        return [
+          {
+            id: entry.id,
+            title: entry.title,
+            kind: isString(entry.kind) ? entry.kind : 'Playlist',
+            artworkUrl: isString(entry.artworkUrl) ? entry.artworkUrl : '',
+            videoIds: entry.videoIds.filter((id: unknown): id is string => isString(id) && isVideoId(id)),
+            updatedAt: isFiniteNumber(entry.updatedAt) ? entry.updatedAt : 0,
+          },
+        ];
+      });
+    } catch (error) {
+      logWarn('downloads', 'Failed to load libraries.json', error);
+      this.savedLibraries = [];
+    }
+  }
+
+  private persistLibraries(): void {
+    try {
+      this.ensureDirectories();
+      const tmp = `${this.librariesPath}.tmp`;
+      writeFileSync(tmp, JSON.stringify(this.savedLibraries, null, 2), 'utf8');
+      renameSync(tmp, this.librariesPath);
+    } catch (error) {
+      logError('downloads', 'Failed to persist libraries.json', error);
+    }
+  }
+
+  listLibraries(): SavedLibrary[] {
+    return this.savedLibraries.map((library) => ({ ...library, videoIds: [...library.videoIds] }));
+  }
+
+  onLibrariesChanged(listener: (libraries: SavedLibrary[]) => void): () => void {
+    this.libraryListeners.add(listener);
+    return () => {
+      this.libraryListeners.delete(listener);
+    };
+  }
+
+  private recordLibrary(library: Omit<SavedLibrary, 'updatedAt'>): void {
+    const entry: SavedLibrary = { ...library, updatedAt: Date.now() };
+    this.savedLibraries = [entry, ...this.savedLibraries.filter((saved) => saved.id !== library.id)].slice(
+      0,
+      MAX_SAVED_LIBRARIES,
+    );
+    this.persistLibraries();
+    const snapshot = this.listLibraries();
+    for (const listener of this.libraryListeners) {
+      listener(snapshot);
+    }
+  }
+
+  removeLibrary(id: string): boolean {
+    const before = this.savedLibraries.length;
+    this.savedLibraries = this.savedLibraries.filter((saved) => saved.id !== id);
+    if (this.savedLibraries.length === before) {
+      return false;
+    }
+    this.persistLibraries();
+    const snapshot = this.listLibraries();
+    for (const listener of this.libraryListeners) {
+      listener(snapshot);
+    }
+    return true;
   }
 
   private ensureDirectories(): void {
@@ -557,6 +652,16 @@ export class DownloadManager {
     }
     this.queueTracks(toQueue);
     const started = toQueue.length;
+    const libraryId = request.libraryId?.trim() ?? '';
+    if (libraryId !== '' && uniqueTracks.length > 0) {
+      this.recordLibrary({
+        id: libraryId,
+        title: label,
+        kind: request.kind?.trim() || 'Playlist',
+        artworkUrl: request.artworkUrl ?? uniqueTracks[0]?.artworkUrl ?? '',
+        videoIds: uniqueTracks.map((track) => track.videoId),
+      });
+    }
 
     const total = uniqueTracks.length;
     const alreadyDownloaded = total > 0 && started === 0;

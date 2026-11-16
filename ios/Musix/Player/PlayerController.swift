@@ -113,7 +113,7 @@ final class PlayerController: ObservableObject {
         PlaybackModel.availability(state: state, timeline: timeline, signedIn: !offlineActive && engine.account == .signedIn)
     }
 
-    func playOffline(item: DownloadItem, downloads: DownloadController, scope: [String]? = nil) {
+    func playOffline(item: DownloadItem, downloads: DownloadController, scope: [String]? = nil, shuffle: Bool? = nil) {
         guard let targetAudio = downloads.audioURL(for: item.videoId) else {
             message = "Downloaded audio file could not be found."
             return
@@ -163,7 +163,13 @@ final class PlayerController: ObservableObject {
         offlineTracks = list
         offlineIndex = index
         offlineScope = scope
-        offlineSession = OfflineSession(queue: list.map(\.videoId), startId: item.videoId, shuffle: state.shuffle)
+        let useShuffle = shuffle ?? state.shuffle
+        if useShuffle != state.shuffle {
+            var nextState = state
+            nextState.shuffle = useShuffle
+            state = nextState
+        }
+        offlineSession = OfflineSession(queue: list.map(\.videoId), startId: item.videoId, shuffle: useShuffle)
         offlineActive = true
         startOfflineTrack(at: index)
     }

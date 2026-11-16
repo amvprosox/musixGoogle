@@ -363,6 +363,9 @@ export function isDownloadBatchRequest(value: unknown): value is DownloadBatchRe
     isBoundedString(value.title, MAX_TEXT) &&
     Array.isArray(value.tracks) &&
     value.tracks.length <= 5000 &&
-    value.tracks.every(isDownloadTrackRequest)
+    value.tracks.every(isDownloadTrackRequest) &&
+    (value.libraryId === undefined || isBoundedString(value.libraryId, MAX_TEXT)) &&
+    (value.kind === undefined || isBoundedString(value.kind, 40)) &&
+    (value.artworkUrl === undefined || isBoundedString(value.artworkUrl, MAX_URL))
   );
 }

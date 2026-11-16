@@ -62,13 +62,26 @@ export interface DetectedLibrary {
   id: string;
   title: string;
   subtitle: string;
+  kind: string;
   artworkUrl: string;
   tracks: DownloadTrackRequest[];
+}
+
+export interface SavedLibrary {
+  id: string;
+  title: string;
+  kind: string;
+  artworkUrl: string;
+  videoIds: string[];
+  updatedAt: number;
 }
 
 export interface DownloadBatchRequest {
   title: string;
   tracks: DownloadTrackRequest[];
+  libraryId?: string;
+  kind?: string;
+  artworkUrl?: string;
 }
 
 export interface DownloadBatchResult {
