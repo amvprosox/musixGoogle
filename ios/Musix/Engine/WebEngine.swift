@@ -105,7 +105,7 @@ final class WebEngine: NSObject, ObservableObject {
         }
         super.init()
         link.engine = self
-        container.backgroundColor = .black
+        container.backgroundColor = ThemeStore.palette.webBackground
         container.clipsToBounds = true
     }
 
@@ -295,8 +295,31 @@ final class WebEngine: NSObject, ObservableObject {
         }
     }
 
+    private var themeCss = ""
+
+    func setTheme(_ palette: ThemePalette) {
+        themeCss = palette.webCss
+        container.backgroundColor = palette.webBackground
+        webView?.backgroundColor = palette.webBackground
+        applyThemeCss()
+    }
+
+    private func applyThemeCss() {
+        guard let webView,
+              let data = try? JSONEncoder().encode([themeCss]),
+              let encoded = String(data: data, encoding: .utf8) else {
+            return
+        }
+        let script = "(function(){if(location.hostname!=='music.youtube.com'){return;}var id='musix-theme';var css=\(encoded)[0];"
+            + "var s=document.getElementById(id);if(!css){if(s){s.remove();}return;}"
+            + "if(!s){s=document.createElement('style');s.id=id;(document.head||document.documentElement).appendChild(s);}"
+            + "if(s.textContent!==css){s.textContent=css;}})();"
+        webView.evaluateJavaScript(script, completionHandler: nil)
+    }
+
     private func onReady() {
         status = .ready
+        applyThemeCss()
         Task {
             await commandQueue.markReady()
             let configure = await commandQueue.send(.configure(adSkip: settings.adSkip))
@@ -364,7 +387,7 @@ final class WebEngine: NSObject, ObservableObject {
         view.navigationDelegate = self
         view.uiDelegate = self
         view.isOpaque = false
-        view.backgroundColor = .black
+        view.backgroundColor = ThemeStore.palette.webBackground
         view.scrollView.contentInsetAdjustmentBehavior = .never
         view.allowsBackForwardNavigationGestures = true
         view.allowsLinkPreview = false

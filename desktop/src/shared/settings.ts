@@ -5,7 +5,7 @@ import {
   MIN_WINDOW_WIDTH,
 } from './constants';
 import { isBoolean, isFiniteNumber, isRecord } from './guards';
-import type { AppSettings, ThemePreference, WindowState } from './types';
+import type { AppSettings, PaletteName, ResolvedTheme, ThemePreference, WindowState } from './types';
 
 export const DEFAULT_SETTINGS: Readonly<AppSettings> = {
   theme: 'system',
@@ -36,8 +36,34 @@ export const DEFAULT_WINDOW_STATE: Readonly<WindowState> = {
   sidebarCollapsed: false,
 };
 
+export const PALETTES: readonly PaletteName[] = ['dark', 'graphite', 'slate', 'amoled', 'light'];
+
+export const PALETTE_LABELS: Readonly<Record<PaletteName, string>> = {
+  dark: 'Midnight',
+  graphite: 'Graphite',
+  slate: 'Slate Grey',
+  amoled: 'AMOLED Black',
+  light: 'Light',
+};
+
+export function isResolvedTheme(value: unknown): value is ResolvedTheme {
+  return typeof value === 'string' && (PALETTES as readonly string[]).includes(value);
+}
+
 export function isThemePreference(value: unknown): value is ThemePreference {
-  return value === 'system' || value === 'light' || value === 'dark';
+  return value === 'system' || isResolvedTheme(value);
+}
+
+export function nativeThemeSource(preference: ThemePreference): 'system' | 'light' | 'dark' {
+  if (preference === 'system' || preference === 'light') {
+    return preference;
+  }
+  return 'dark';
+}
+
+export function nextPalette(current: ResolvedTheme): ResolvedTheme {
+  const index = PALETTES.indexOf(current);
+  return PALETTES[(index + 1) % PALETTES.length] ?? 'dark';
 }
 
 function isValidSettingValue(key: keyof AppSettings, value: unknown): boolean {
@@ -122,7 +148,7 @@ export function normalizeWindowState(input: unknown): WindowState {
   return result;
 }
 
-export function resolveTheme(preference: ThemePreference, systemDark: boolean): 'light' | 'dark' {
+export function resolveTheme(preference: ThemePreference, systemDark: boolean): ResolvedTheme {
   if (preference === 'system') {
     return systemDark ? 'dark' : 'light';
   }

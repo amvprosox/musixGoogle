@@ -60,16 +60,18 @@ struct RootView: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
+                .id(settings.theme)
             if tab != .downloads {
                 EngineStatusBanner(engine: engine)
             }
             ZStack {
                 EngineHost(engine: engine, role: .background)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black)
+                    .background(Color(uiColor: settings.theme.webBackground))
                 if tab == .downloads {
                     DownloadsView(downloads: downloads, player: player, account: engine.account)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .id(settings.theme)
                 } else if showSuggestions {
                     SearchSuggestionsList(
                         suggestions: suggester.suggestions,
@@ -87,11 +89,13 @@ struct RootView: View {
             }
             Rectangle().fill(Palette.border).frame(height: 1)
             MiniPlayer(player: player, downloads: downloads) { showPlayer = true }
+                .id(settings.theme)
             Rectangle().fill(Palette.border).frame(height: 1)
             tabBar
+                .id(settings.theme)
         }
         .background(Palette.surface.ignoresSafeArea())
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(settings.theme.isDark ? .dark : .light)
         .tint(Palette.accent)
         .sheet(isPresented: $showPlayer) {
             NowPlayingView(player: player, downloads: downloads, lyrics: lyrics)
@@ -109,6 +113,12 @@ struct RootView: View {
         }
         .onReceive(engine.externalLinks) { url in
             openURL(url)
+        }
+        .onAppear {
+            engine.setTheme(settings.theme)
+        }
+        .onChange(of: settings.theme) { palette in
+            engine.setTheme(palette)
         }
         .onChange(of: settings.adSkip) { enabled in
             Task { await player.send(.configure(adSkip: enabled)) }

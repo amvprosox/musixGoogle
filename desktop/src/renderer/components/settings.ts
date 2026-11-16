@@ -120,8 +120,11 @@ export function mountSettings(root: HTMLElement, ctx: AppContext): void {
 
   const themeOptions: { value: ThemePreference; label: string; icon: IconName }[] = [
     { value: 'system', label: 'System', icon: 'monitor' },
+    { value: 'dark', label: 'Midnight', icon: 'moon' },
+    { value: 'graphite', label: 'Graphite', icon: 'palette' },
+    { value: 'slate', label: 'Slate Grey', icon: 'palette' },
+    { value: 'amoled', label: 'AMOLED Black', icon: 'palette' },
     { value: 'light', label: 'Light', icon: 'sun' },
-    { value: 'dark', label: 'Dark', icon: 'moon' },
   ];
   const themeButtons = new Map<ThemePreference, HTMLButtonElement>();
   const themeGroup = h(

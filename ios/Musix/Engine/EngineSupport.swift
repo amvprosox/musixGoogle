@@ -128,7 +128,15 @@ final class ContentRules {
 final class AppSettings: ObservableObject {
     private static let adSkipKey = "musix.adSkip"
     private static let resumeKey = "musix.resume"
+    private static let themeKey = "musix.theme"
     private let defaults: UserDefaults
+
+    @Published var theme: ThemePalette {
+        didSet {
+            ThemeStore.palette = theme
+            defaults.set(theme.rawValue, forKey: Self.themeKey)
+        }
+    }
 
     @Published var adSkip: Bool {
         didSet {
@@ -139,6 +147,9 @@ final class AppSettings: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.adSkip = (defaults.object(forKey: Self.adSkipKey) as? Bool) ?? true
+        let storedTheme = ThemePalette(rawValue: defaults.string(forKey: Self.themeKey) ?? "") ?? .dark
+        self.theme = storedTheme
+        ThemeStore.palette = storedTheme
     }
 
     var resume: ResumeSnapshot? {

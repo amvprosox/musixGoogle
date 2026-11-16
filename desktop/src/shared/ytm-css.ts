@@ -247,3 +247,25 @@ ytmusic-menu-navigation-item-renderer:has(a[href*="/premium"]) {
   display: none !important;
 }
 `;
+
+export function ytmThemeCss(theme: string): string {
+  if (theme === 'light') {
+    return '';
+  }
+  const palette = (tokens.color as Record<string, Record<string, string> | undefined>)[theme];
+  if (!palette) {
+    return '';
+  }
+  const bg = palette.bg ?? '#030303';
+  const surface = palette.surface ?? bg;
+  const surface2 = palette.surface2 ?? surface;
+  return [
+    `html,body,ytmusic-app,ytmusic-app-layout,#layout,ytmusic-browse-response,ytmusic-search-page,ytmusic-tabbed-search-results-renderer,ytmusic-section-list-renderer{background-color:${bg}!important}`,
+    `html,ytmusic-app{--ytmusic-general-background-a:${bg}!important;--ytmusic-general-background-b:${bg}!important;--ytmusic-general-background-c:${bg}!important;--ytmusic-brand-background-solid:${bg}!important;--yt-spec-base-background:${bg}!important;--yt-spec-general-background-a:${bg}!important;--yt-spec-general-background-b:${surface}!important;--yt-spec-general-background-c:${surface}!important;--yt-spec-raised-background:${surface}!important;--yt-spec-menu-background:${surface2}!important;--paper-dialog-background-color:${surface2}!important}`,
+  ].join('\n');
+}
+
+export function ytmThemeBackground(theme: string): string {
+  const palette = (tokens.color as Record<string, Record<string, string> | undefined>)[theme];
+  return theme === 'light' || !palette?.bg ? '#030303' : palette.bg;
+}

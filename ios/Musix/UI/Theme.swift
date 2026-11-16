@@ -20,19 +20,165 @@ extension Color {
     }
 }
 
+struct PaletteValues: Sendable {
+    let bg: UInt32
+    let surface: UInt32
+    let surface2: UInt32
+    let border: UInt32
+    let text: UInt32
+    let textMuted: UInt32
+    let accent: UInt32
+    let accentSoft: UInt32
+    let onAccent: UInt32
+    let warning: UInt32
+    let danger: UInt32
+    let skeleton: UInt32
+}
+
+enum ThemePalette: String, CaseIterable, Identifiable, Sendable {
+    case dark
+    case graphite
+    case slate
+    case amoled
+    case light
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .dark: return "Midnight"
+        case .graphite: return "Graphite"
+        case .slate: return "Slate Grey"
+        case .amoled: return "AMOLED Black"
+        case .light: return "Light"
+        }
+    }
+
+    var isDark: Bool { self != .light }
+
+    var values: PaletteValues {
+        switch self {
+        case .dark:
+            return PaletteValues(
+                bg: DesignTokens.Dark.bg,
+                surface: DesignTokens.Dark.surface,
+                surface2: DesignTokens.Dark.surface2,
+                border: DesignTokens.Dark.border,
+                text: DesignTokens.Dark.text,
+                textMuted: DesignTokens.Dark.textMuted,
+                accent: DesignTokens.Dark.accent,
+                accentSoft: DesignTokens.Dark.accentSoft,
+                onAccent: DesignTokens.Dark.onAccent,
+                warning: DesignTokens.Dark.warning,
+                danger: DesignTokens.Dark.danger,
+                skeleton: DesignTokens.Dark.skeleton
+            )
+        case .graphite:
+            return PaletteValues(
+                bg: DesignTokens.Graphite.bg,
+                surface: DesignTokens.Graphite.surface,
+                surface2: DesignTokens.Graphite.surface2,
+                border: DesignTokens.Graphite.border,
+                text: DesignTokens.Graphite.text,
+                textMuted: DesignTokens.Graphite.textMuted,
+                accent: DesignTokens.Graphite.accent,
+                accentSoft: DesignTokens.Graphite.accentSoft,
+                onAccent: DesignTokens.Graphite.onAccent,
+                warning: DesignTokens.Graphite.warning,
+                danger: DesignTokens.Graphite.danger,
+                skeleton: DesignTokens.Graphite.skeleton
+            )
+        case .slate:
+            return PaletteValues(
+                bg: DesignTokens.Slate.bg,
+                surface: DesignTokens.Slate.surface,
+                surface2: DesignTokens.Slate.surface2,
+                border: DesignTokens.Slate.border,
+                text: DesignTokens.Slate.text,
+                textMuted: DesignTokens.Slate.textMuted,
+                accent: DesignTokens.Slate.accent,
+                accentSoft: DesignTokens.Slate.accentSoft,
+                onAccent: DesignTokens.Slate.onAccent,
+                warning: DesignTokens.Slate.warning,
+                danger: DesignTokens.Slate.danger,
+                skeleton: DesignTokens.Slate.skeleton
+            )
+        case .amoled:
+            return PaletteValues(
+                bg: DesignTokens.Amoled.bg,
+                surface: DesignTokens.Amoled.surface,
+                surface2: DesignTokens.Amoled.surface2,
+                border: DesignTokens.Amoled.border,
+                text: DesignTokens.Amoled.text,
+                textMuted: DesignTokens.Amoled.textMuted,
+                accent: DesignTokens.Amoled.accent,
+                accentSoft: DesignTokens.Amoled.accentSoft,
+                onAccent: DesignTokens.Amoled.onAccent,
+                warning: DesignTokens.Amoled.warning,
+                danger: DesignTokens.Amoled.danger,
+                skeleton: DesignTokens.Amoled.skeleton
+            )
+        case .light:
+            return PaletteValues(
+                bg: DesignTokens.Light.bg,
+                surface: DesignTokens.Light.surface,
+                surface2: DesignTokens.Light.surface2,
+                border: DesignTokens.Light.border,
+                text: DesignTokens.Light.text,
+                textMuted: DesignTokens.Light.textMuted,
+                accent: DesignTokens.Light.accent,
+                accentSoft: DesignTokens.Light.accentSoft,
+                onAccent: DesignTokens.Light.onAccent,
+                warning: DesignTokens.Light.warning,
+                danger: DesignTokens.Light.danger,
+                skeleton: DesignTokens.Light.skeleton
+            )
+        }
+    }
+
+    var webCss: String {
+        guard isDark else {
+            return ""
+        }
+        let bg = Self.hex(values.bg)
+        let surface = Self.hex(values.surface)
+        let surface2 = Self.hex(values.surface2)
+        return "html,body,ytmusic-app,ytmusic-app-layout,#layout,ytmusic-browse-response,ytmusic-search-page,"
+            + "ytmusic-tabbed-search-results-renderer,ytmusic-section-list-renderer{background-color:\(bg)!important}\n"
+            + "html,ytmusic-app{--ytmusic-general-background-a:\(bg)!important;--ytmusic-general-background-b:\(bg)!important;"
+            + "--ytmusic-general-background-c:\(bg)!important;--ytmusic-brand-background-solid:\(bg)!important;"
+            + "--yt-spec-base-background:\(bg)!important;--yt-spec-general-background-a:\(bg)!important;"
+            + "--yt-spec-general-background-b:\(surface)!important;--yt-spec-general-background-c:\(surface)!important;"
+            + "--yt-spec-raised-background:\(surface)!important;--yt-spec-menu-background:\(surface2)!important;"
+            + "--paper-dialog-background-color:\(surface2)!important}"
+    }
+
+    var webBackground: UIColor {
+        isDark ? UIColor(rgb: values.bg) : .black
+    }
+
+    private static func hex(_ value: UInt32) -> String {
+        String(format: "#%06X", value & 0xFFFFFF)
+    }
+}
+
+enum ThemeStore {
+    static var palette: ThemePalette = .dark
+}
+
 enum Palette {
-    static let bg = Color.token(dark: DesignTokens.Dark.bg, light: DesignTokens.Light.bg)
-    static let surface = Color.token(dark: DesignTokens.Dark.surface, light: DesignTokens.Light.surface)
-    static let surface2 = Color.token(dark: DesignTokens.Dark.surface2, light: DesignTokens.Light.surface2)
-    static let border = Color.token(dark: DesignTokens.Dark.border, light: DesignTokens.Light.border)
-    static let text = Color.token(dark: DesignTokens.Dark.text, light: DesignTokens.Light.text)
-    static let textMuted = Color.token(dark: DesignTokens.Dark.textMuted, light: DesignTokens.Light.textMuted)
-    static let accent = Color.token(dark: DesignTokens.Dark.accent, light: DesignTokens.Light.accent)
-    static let accentSoft = Color.token(dark: DesignTokens.Dark.accentSoft, light: DesignTokens.Light.accentSoft)
-    static let onAccent = Color.token(dark: DesignTokens.Dark.onAccent, light: DesignTokens.Light.onAccent)
-    static let warning = Color.token(dark: DesignTokens.Dark.warning, light: DesignTokens.Light.warning)
-    static let danger = Color.token(dark: DesignTokens.Dark.danger, light: DesignTokens.Light.danger)
-    static let skeleton = Color.token(dark: DesignTokens.Dark.skeleton, light: DesignTokens.Light.skeleton)
+    static var bg: Color { Color(uiColor: UIColor(rgb: ThemeStore.palette.values.bg)) }
+    static var surface: Color { Color(uiColor: UIColor(rgb: ThemeStore.palette.values.surface)) }
+    static var surface2: Color { Color(uiColor: UIColor(rgb: ThemeStore.palette.values.surface2)) }
+    static var border: Color { Color(uiColor: UIColor(rgb: ThemeStore.palette.values.border)) }
+    static var text: Color { Color(uiColor: UIColor(rgb: ThemeStore.palette.values.text)) }
+    static var textMuted: Color { Color(uiColor: UIColor(rgb: ThemeStore.palette.values.textMuted)) }
+    static var accent: Color { Color(uiColor: UIColor(rgb: ThemeStore.palette.values.accent)) }
+    static var accentSoft: Color { Color(uiColor: UIColor(rgb: ThemeStore.palette.values.accentSoft)) }
+    static var onAccent: Color { Color(uiColor: UIColor(rgb: ThemeStore.palette.values.onAccent)) }
+    static var warning: Color { Color(uiColor: UIColor(rgb: ThemeStore.palette.values.warning)) }
+    static var danger: Color { Color(uiColor: UIColor(rgb: ThemeStore.palette.values.danger)) }
+    static var skeleton: Color { Color(uiColor: UIColor(rgb: ThemeStore.palette.values.skeleton)) }
 }
 
 extension Font {

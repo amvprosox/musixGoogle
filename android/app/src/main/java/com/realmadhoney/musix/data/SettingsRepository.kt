@@ -38,6 +38,12 @@ class SettingsRepository(
 
     val adSkip: Flow<Boolean> = safeData.map { it[AD_SKIP] ?: true }.distinctUntilChanged()
 
+    val theme: Flow<String> = safeData.map { it[THEME] ?: "dark" }.distinctUntilChanged()
+
+    suspend fun setTheme(id: String) {
+        store.edit { it[THEME] = id }
+    }
+
     val resume: Flow<ResumeSnapshot?> = safeData.map { ResumeSnapshot.decode(it[RESUME]) }.distinctUntilChanged()
 
     suspend fun setAdSkip(enabled: Boolean) {
@@ -59,5 +65,6 @@ class SettingsRepository(
     private companion object {
         val AD_SKIP = booleanPreferencesKey("ad_skip")
         val RESUME = stringPreferencesKey("resume_snapshot")
+        val THEME = stringPreferencesKey("theme")
     }
 }

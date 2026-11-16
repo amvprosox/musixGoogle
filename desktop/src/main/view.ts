@@ -23,7 +23,7 @@ import type {
 } from '../shared/types';
 import type { BridgeCommand } from '@musix/bridge/contract';
 import { routeCommand } from '../shared/bridge-adapter';
-import { YTM_INJECTED_CSS } from '../shared/ytm-css';
+import { YTM_INJECTED_CSS, ytmThemeBackground, ytmThemeCss } from '../shared/ytm-css';
 import { accountRequestHeaders, isGoogleAccountsUrl, nativeUserAgent } from '../shared/identity';
 import { chromeUserAgent, paths } from './config';
 import { logError, logInfo, logWarn } from './log';
@@ -462,11 +462,42 @@ export class YtmView {
     }
   }
 
+  private themeCss = '';
+  private themeKey: string | null = null;
+
+  setTheme(theme: string): void {
+    this.themeCss = ytmThemeCss(theme);
+    this.view.setBackgroundColor(ytmThemeBackground(theme));
+    this.applyThemeCss();
+  }
+
+  private applyThemeCss(): void {
+    const wc = this.view.webContents;
+    if (wc.isDestroyed()) {
+      return;
+    }
+    const previous = this.themeKey;
+    this.themeKey = null;
+    const insert = this.themeCss === '' ? Promise.resolve(null) : wc.insertCSS(this.themeCss);
+    insert
+      .then((key) => {
+        this.themeKey = key;
+        if (previous !== null && !wc.isDestroyed()) {
+          return wc.removeInsertedCSS(previous);
+        }
+        return undefined;
+      })
+      .catch((error: unknown) => {
+        logWarn('view', 'Could not apply theme styles', error);
+      });
+  }
+
   private refreshStyles(url: string): void {
     const wc = this.view.webContents;
     if (wc.isDestroyed() || !isSameOrigin(url, this.base)) {
       return;
     }
+    this.applyThemeCss();
     const previous = this.cssKey;
     wc.insertCSS(YTM_INJECTED_CSS)
       .then((key) => {

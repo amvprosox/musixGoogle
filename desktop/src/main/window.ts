@@ -20,7 +20,10 @@ import type { AppStore } from './store';
 
 export const THEME_BACKGROUND: Readonly<Record<ResolvedTheme, string>> = {
   dark: '#0f1420',
-  light: '#f6f7fb',
+  light: '#f5f6fa',
+  graphite: '#121212',
+  slate: '#1e2124',
+  amoled: '#000000',
 };
 
 export interface MainWindowOptions {

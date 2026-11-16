@@ -32,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
@@ -63,7 +64,10 @@ import com.realmadhoney.musix.ui.screens.ShellTopBar
 import com.realmadhoney.musix.ui.screens.SignInScreen
 import com.realmadhoney.musix.ui.screens.WebContent
 import com.realmadhoney.musix.ui.theme.Musix
+import com.realmadhoney.musix.ui.theme.MusixPalette
 import com.realmadhoney.musix.ui.theme.MusixTheme
+import com.realmadhoney.musix.ui.theme.ytmThemeBackground
+import com.realmadhoney.musix.ui.theme.ytmThemeCss
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.merge
@@ -90,7 +94,24 @@ class MainActivity : ComponentActivity() {
             }
         }
         setContent {
-            MusixTheme(dark = true) {
+            val themeId by viewModel.graph.settings.theme
+                .collectAsState(initial = "dark")
+            val palette = MusixPalette.from(themeId)
+            val engineForTheme by viewModel.graph.engine.collectAsState()
+            LaunchedEffect(palette) {
+                val style =
+                    if (palette.isDark) {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                    }
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                window.decorView.setBackgroundColor(palette.colors.bg.toArgb())
+            }
+            LaunchedEffect(palette, engineForTheme) {
+                engineForTheme?.setTheme(ytmThemeCss(palette), ytmThemeBackground(palette))
+            }
+            MusixTheme(palette) {
                 MusixApp(viewModel)
             }
         }
@@ -142,6 +163,8 @@ fun MusixApp(viewModel: MainViewModel) {
     val downloadLogs by viewModel.downloadLogs.collectAsState()
     val detectedLibraries by viewModel.detectedLibraries.collectAsState()
     val savedLibraries by viewModel.savedLibraries.collectAsState()
+    val themeSetting by viewModel.graph.settings.theme
+        .collectAsState(initial = "dark")
     val fetchingLyrics by viewModel.fetchingLyrics.collectAsState()
     val librariesLoading by viewModel.librariesLoading.collectAsState()
     LaunchedEffect(onlineNowPlaying.isPlaying, onlineNowPlaying.mediaId) {
@@ -445,6 +468,8 @@ fun MusixApp(viewModel: MainViewModel) {
                             onSignIn = signIn,
                             onSignOut = { scope.launch { signOut(engine, viewModel) } },
                             onAdSkip = { enabled -> scope.launch { viewModel.graph.settings.setAdSkip(enabled) } },
+                            palette = MusixPalette.from(themeSetting),
+                            onPalette = { picked -> scope.launch { viewModel.graph.settings.setTheme(picked.id) } },
                             onClearCache = {
                                 viewModel.graph.clearCaches()
                                 viewModel.refreshAll()

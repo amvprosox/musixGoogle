@@ -117,8 +117,9 @@ export type PlayerCommand =
 
 export type PlayerCommandType = PlayerCommand['type'];
 
-export type ThemePreference = 'system' | 'light' | 'dark';
-export type ResolvedTheme = 'light' | 'dark';
+export type PaletteName = 'dark' | 'light' | 'graphite' | 'slate' | 'amoled';
+export type ThemePreference = 'system' | PaletteName;
+export type ResolvedTheme = PaletteName;
 
 export interface AppSettings {
   theme: ThemePreference;

@@ -11,7 +11,7 @@ import {
   type ShellSendChannels,
 } from '../shared/channels';
 import { isRecord } from '../shared/guards';
-import { isThemePreference } from '../shared/settings';
+import { isResolvedTheme, isThemePreference } from '../shared/settings';
 import { desktopPlatform, type BootInfo } from '../shared/types';
 
 const INVOKE_CHANNELS: Readonly<Record<ShellInvokeChannel, true>> = {
@@ -60,7 +60,7 @@ function parseBoot(argv: readonly string[]): BootInfo | null {
       return null;
     }
     const { theme, themePreference, sidebarCollapsed, platform } = decoded;
-    if ((theme !== 'light' && theme !== 'dark') || !isThemePreference(themePreference)) {
+    if (!isResolvedTheme(theme) || !isThemePreference(themePreference)) {
       return null;
     }
     return {

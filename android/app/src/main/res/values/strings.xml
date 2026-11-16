@@ -97,7 +97,7 @@
     <string name="settings_about">About</string>
     <string name="settings_version">Musix %1$s</string>
     <string name="settings_blocked">%1$d ad and tracking requests blocked since the player started</string>
-    <string name="settings_disclaimer">Musix is free and open source. It is not affiliated with Google or YouTube, and it never downloads or extracts audio.</string>
+    <string name="settings_disclaimer">Musix is free and open source. It is not affiliated with Google or YouTube.</string>
     <string name="settings_sign_out_done">Signed out</string>
 
     <string name="signin_title">Sign in</string>

@@ -435,7 +435,33 @@ class WebEngine(
         }
     }
 
+    private var themeCss: String = ""
+    private var themeBackground: Int = Color.BLACK
+
+    fun setTheme(
+        css: String,
+        background: Int,
+    ) {
+        checkMain()
+        themeCss = css
+        themeBackground = background
+        webView?.setBackgroundColor(background)
+        applyThemeCss()
+    }
+
+    private fun applyThemeCss() {
+        val view = webView ?: return
+        val json = BridgeCodec.json.encodeToString(String.serializer(), themeCss)
+        val script =
+            "(function(){if(location.hostname!=='music.youtube.com'){return;}var id='musix-theme';var css=$json;" +
+                "var s=document.getElementById(id);if(!css){if(s){s.remove();}return;}" +
+                "if(!s){s=document.createElement('style');s.id=id;(document.head||document.documentElement).appendChild(s);}" +
+                "if(s.textContent!==css){s.textContent=css;}})();"
+        view.evaluateJavascript(script, null)
+    }
+
     private fun onReady() {
+        webView?.post { applyThemeCss() }
         queue.markReady()
         statusFlow.value = EngineStatus.Ready
         scope.launch {
@@ -497,7 +523,7 @@ class WebEngine(
             WebView.setWebContentsDebuggingEnabled(true)
         }
         val view = MusixWebView(wrapper)
-        view.setBackgroundColor(Color.BLACK)
+        view.setBackgroundColor(themeBackground)
         view.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true

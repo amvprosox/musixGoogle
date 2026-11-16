@@ -6,6 +6,7 @@ import {
   isRecord,
   isString,
 } from './guards';
+import { isResolvedTheme } from './settings';
 import { isNavRoute, MAX_QUERY_LENGTH } from './routes';
 import type {
   AccountState,
@@ -239,7 +240,7 @@ export function isOverlayRenderPayload(value: unknown): value is OverlayRenderPa
   if (value.kind === 'clear') {
     return true;
   }
-  const themeOk = value.theme === 'light' || value.theme === 'dark';
+  const themeOk = isResolvedTheme(value.theme);
   if (value.kind === 'tooltip') {
     return themeOk && isBoundedString(value.text, 200);
   }

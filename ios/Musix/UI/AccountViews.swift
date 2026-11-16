@@ -149,6 +149,40 @@ struct SettingsView: View {
                     Text("Account").font(.body(DesignTokens.text14, weight: .semibold))
                 }
                 Section {
+                    ForEach(ThemePalette.allCases) { palette in
+                        Button {
+                            settings.theme = palette
+                        } label: {
+                            HStack(spacing: DesignTokens.space12) {
+                                RoundedRectangle(cornerRadius: DesignTokens.radiusControl)
+                                    .fill(Color(uiColor: UIColor(rgb: palette.values.bg)))
+                                    .frame(width: 28, height: 28)
+                                    .overlay(
+                                        Circle()
+                                            .fill(Color(uiColor: UIColor(rgb: palette.values.accent)))
+                                            .frame(width: 10, height: 10)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: DesignTokens.radiusControl)
+                                            .stroke(Color(uiColor: UIColor(rgb: palette.values.border)), lineWidth: 1)
+                                    )
+                                Text(palette.label)
+                                    .font(.body(DesignTokens.text16))
+                                    .foregroundStyle(settings.theme == palette ? Palette.accent : Palette.text)
+                                Spacer(minLength: DesignTokens.space8)
+                                if settings.theme == palette {
+                                    Icon(name: "check", size: 20).foregroundStyle(Palette.accent)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(settings.theme == palette ? [.isSelected] : [])
+                    }
+                } header: {
+                    Text("Appearance").font(.body(DesignTokens.text14, weight: .semibold))
+                }
+                Section {
                     Toggle(isOn: $settings.adSkip) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Skip ads automatically").font(.body(DesignTokens.text16))
@@ -193,7 +227,7 @@ struct SettingsView: View {
                 }
                 Section {
                     Text("Musix \(Self.version)").font(.body(DesignTokens.text16))
-                    Text("Musix is free and open source. It is not affiliated with Google or YouTube, and it never downloads or extracts audio.")
+                    Text("Musix is free and open source. It is not affiliated with Google or YouTube.")
                         .font(.body(DesignTokens.text14))
                         .foregroundStyle(Palette.textMuted)
                 } header: {
@@ -202,7 +236,9 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Palette.bg)
+            .id(settings.theme)
             .navigationTitle("Settings")
+            .preferredColorScheme(settings.theme.isDark ? .dark : .light)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

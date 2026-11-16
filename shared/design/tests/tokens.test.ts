@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 const root = path.resolve(import.meta.dirname, '..');
 const tokens = JSON.parse(readFileSync(path.join(root, 'tokens.json'), 'utf8')) as {
   type: { scale: number[]; minimum: number };
-  color: Record<'dark' | 'light', Record<string, string>>;
+  color: Record<string, Record<string, string>>;
 };
 
 function luminance(hex: string): number {
@@ -27,13 +27,15 @@ describe('design tokens', () => {
     expect(tokens.type.minimum).toBe(14);
   });
 
-  it('defines the same color names for both themes', () => {
-    expect(Object.keys(tokens.color.dark).sort()).toEqual(Object.keys(tokens.color.light).sort());
+  it('defines the same color names for every theme', () => {
+    for (const palette of Object.values(tokens.color)) {
+      expect(Object.keys(palette).sort()).toEqual(Object.keys(tokens.color.dark ?? {}).sort());
+    }
   });
 
-  for (const theme of ['dark', 'light'] as const) {
+  for (const theme of Object.keys(tokens.color)) {
     it(`${theme} text colors meet WCAG AA`, () => {
-      const palette = tokens.color[theme];
+      const palette = tokens.color[theme] ?? {};
       for (const [fg, bg] of [
         ['text', 'bg'],
         ['text', 'surface'],
@@ -50,7 +52,7 @@ describe('design tokens', () => {
     });
 
     it(`${theme} scrollbar thumb is visible against the surface`, () => {
-      const palette = tokens.color[theme];
+      const palette = tokens.color[theme] ?? {};
       expect(
         contrast(palette.scrollbarThumb ?? '#000000', palette.surface ?? '#000000'),
       ).toBeGreaterThanOrEqual(1.5);

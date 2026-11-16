@@ -10,6 +10,9 @@ const kebab = (name) => name.replace(/([a-z])([A-Z0-9])/g, '$1-$2').toLowerCase(
 const snake = (name) => name.replace(/([a-z])([A-Z0-9])/g, '$1_$2').toLowerCase();
 const isHex = (value) => /^#[0-9a-f]{6}$/i.test(value);
 const rem = (px) => `${px / 16}rem`;
+const pascal = (name) => name.charAt(0).toUpperCase() + name.slice(1);
+const paletteNames = Object.keys(tokens.color);
+const schemeOf = (name) => (name === 'light' ? 'light' : 'dark');
 
 function cssBlock(selector, palette, extra = []) {
   const lines = Object.entries(palette).map(([name, value]) => `  --${kebab(name)}: ${value};`);
@@ -59,8 +62,9 @@ function desktopCss() {
   const dark = Object.entries(tokens.color.dark).map(([name, value]) => `  --${kebab(name)}: ${value};`);
   return [
     `:root {\n${[...base, ...dark, '  color-scheme: dark;'].join('\n')}\n}`,
-    cssBlock(":root[data-theme='dark']", tokens.color.dark, ['  color-scheme: dark;']),
-    cssBlock(":root[data-theme='light']", tokens.color.light, ['  color-scheme: light;']),
+    ...paletteNames.map((name) =>
+      cssBlock(`:root[data-theme='${name}']`, tokens.color[name], [`  color-scheme: ${schemeOf(name)};`]),
+    ),
     '@media (prefers-reduced-motion: reduce) {\n  :root {\n    --dur-hover: 0ms;\n    --dur-drawer: 0ms;\n    --dur-scrollbar-in: 0ms;\n    --dur-scrollbar-out: 0ms;\n  }\n}',
     '',
   ].join('\n\n');
@@ -117,13 +121,7 @@ ${tokens.space.map((px) => `    val Space${px} = ${px}.dp`).join('\n')}
     val BottomNavHeight = ${tokens.size.bottomNav}.dp
     val ScrollbarSize = ${tokens.size.scrollbar}.dp
 
-    object Dark {
-${palette(tokens.color.dark)}
-    }
-
-    object Light {
-${palette(tokens.color.light)}
-    }
+${paletteNames.map((name) => `    object ${pascal(name)} {\n${palette(tokens.color[name])}\n    }`).join('\n\n')}
 }
 `;
 }
@@ -154,13 +152,7 @@ ${tokens.space.map((px) => `    static let space${px}: Double = ${px}`).join('\n
     static let motionScrollbarIn: Double = ${tokens.motion.scrollbarFadeIn / 1000}
     static let motionScrollbarOut: Double = ${tokens.motion.scrollbarFadeOut / 1000}
 
-    enum Dark {
-${palette(tokens.color.dark)}
-    }
-
-    enum Light {
-${palette(tokens.color.light)}
-    }
+${paletteNames.map((name) => `    enum ${pascal(name)} {\n${palette(tokens.color[name])}\n    }`).join('\n\n')}
 }
 `;
 }

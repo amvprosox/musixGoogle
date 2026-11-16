@@ -71,4 +71,67 @@ enum DesignTokens {
         static let scrollbarThumb: UInt32 = 0xC3C9D6
         static let scrollbarThumbHover: UInt32 = 0x9AA3B8
     }
+
+    enum Graphite {
+        static let bg: UInt32 = 0x121212
+        static let surface: UInt32 = 0x1B1B1B
+        static let surface2: UInt32 = 0x242424
+        static let surfaceHover: UInt32 = 0x2C2C2C
+        static let border: UInt32 = 0x333333
+        static let text: UInt32 = 0xECECEC
+        static let textMuted: UInt32 = 0xA8A8A8
+        static let accent: UInt32 = 0x8B90FF
+        static let accentHover: UInt32 = 0xA2A6FF
+        static let accentSoft: UInt32 = 0x2A2B45
+        static let onAccent: UInt32 = 0x0B0F1D
+        static let success: UInt32 = 0x4ADE80
+        static let warning: UInt32 = 0xFBBF24
+        static let danger: UInt32 = 0xF87171
+        static let focusRing: UInt32 = 0xA2A6FF
+        static let skeleton: UInt32 = 0x262626
+        static let scrollbarThumb: UInt32 = 0x3D3D3D
+        static let scrollbarThumbHover: UInt32 = 0x5A5A5A
+    }
+
+    enum Slate {
+        static let bg: UInt32 = 0x1E2124
+        static let surface: UInt32 = 0x26292D
+        static let surface2: UInt32 = 0x2E3237
+        static let surfaceHover: UInt32 = 0x363A40
+        static let border: UInt32 = 0x41464D
+        static let text: UInt32 = 0xECEFF3
+        static let textMuted: UInt32 = 0xB0B6BF
+        static let accent: UInt32 = 0x9CA1FF
+        static let accentHover: UInt32 = 0xB0B4FF
+        static let accentSoft: UInt32 = 0x33365A
+        static let onAccent: UInt32 = 0x0B0F1D
+        static let success: UInt32 = 0x5EE08F
+        static let warning: UInt32 = 0xFBBF24
+        static let danger: UInt32 = 0xFF8A8A
+        static let focusRing: UInt32 = 0xB0B4FF
+        static let skeleton: UInt32 = 0x31353B
+        static let scrollbarThumb: UInt32 = 0x4A5058
+        static let scrollbarThumbHover: UInt32 = 0x67707B
+    }
+
+    enum Amoled {
+        static let bg: UInt32 = 0x000000
+        static let surface: UInt32 = 0x0A0A0A
+        static let surface2: UInt32 = 0x141414
+        static let surfaceHover: UInt32 = 0x1C1C1C
+        static let border: UInt32 = 0x262626
+        static let text: UInt32 = 0xEDEDED
+        static let textMuted: UInt32 = 0xA3A3A3
+        static let accent: UInt32 = 0x8B90FF
+        static let accentHover: UInt32 = 0xA2A6FF
+        static let accentSoft: UInt32 = 0x1D1F3D
+        static let onAccent: UInt32 = 0x0B0F1D
+        static let success: UInt32 = 0x4ADE80
+        static let warning: UInt32 = 0xFBBF24
+        static let danger: UInt32 = 0xF87171
+        static let focusRing: UInt32 = 0xA2A6FF
+        static let skeleton: UInt32 = 0x161616
+        static let scrollbarThumb: UInt32 = 0x333333
+        static let scrollbarThumbHover: UInt32 = 0x4F4F4F
+    }
 }

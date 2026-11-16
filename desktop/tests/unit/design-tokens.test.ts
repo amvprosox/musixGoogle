@@ -56,7 +56,7 @@ const TEXT_PAIRS: [string, string][] = [
 ];
 
 describe('design tokens', () => {
-  for (const theme of ['dark', 'light'] as const) {
+  for (const theme of ['dark', 'light', 'graphite', 'slate', 'amoled'] as const) {
     const values = block(`:root[data-theme='${theme}']`);
     for (const [fg, bg] of TEXT_PAIRS) {
       it(`${theme}: ${fg} on ${bg} meets WCAG AA`, () => {

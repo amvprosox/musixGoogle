@@ -1,3 +1,4 @@
+import { nextPalette, PALETTE_LABELS } from '../../shared/settings';
 import type { AppContext } from '../context';
 import { h, hydrate, icon, iconButton, setAttr, setButtonIcon, setLabel } from '../dom';
 import { attachSuggestions } from './suggest';
@@ -101,7 +102,7 @@ export function mountTopbar(root: HTMLElement, ctx: AppContext): { searchInput: 
     label: 'Switch to dark theme',
     attrs: { id: 'theme-toggle' },
     onClick: () => {
-      const next = store.getState().theme === 'dark' ? 'light' : 'dark';
+      const next = nextPalette(store.getState().theme);
       ctx.api.invoke('settings:set', { theme: next }).catch((error: unknown) => {
         ctx.toasts.show({ variant: 'error', title: 'Could not change theme', message: String(error) });
       });
@@ -194,8 +195,9 @@ export function mountTopbar(root: HTMLElement, ctx: AppContext): { searchInput: 
   store.select(
     (state) => state.theme,
     (theme) => {
-      setButtonIcon(themeToggle, theme === 'dark' ? 'sun' : 'moon');
-      setLabel(themeToggle, theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+      const upcoming = nextPalette(theme);
+      setButtonIcon(themeToggle, upcoming === 'light' ? 'sun' : upcoming === 'dark' ? 'moon' : 'palette');
+      setLabel(themeToggle, `Switch to ${PALETTE_LABELS[upcoming]} theme`);
     },
   );
 

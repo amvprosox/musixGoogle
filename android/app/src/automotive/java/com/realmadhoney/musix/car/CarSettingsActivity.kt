@@ -41,6 +41,7 @@ import com.realmadhoney.musix.service.PlaybackService
 import com.realmadhoney.musix.ui.screens.SettingsScreen
 import com.realmadhoney.musix.ui.screens.SignInScreen
 import com.realmadhoney.musix.ui.theme.Musix
+import com.realmadhoney.musix.ui.theme.MusixPalette
 import com.realmadhoney.musix.ui.theme.MusixTheme
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -57,7 +58,7 @@ class CarSettingsActivity : ComponentActivity() {
         showSignIn = intent?.action == ACTION_SIGN_IN
         val graph = (application as MusixApplication).graph
         setContent {
-            MusixTheme(dark = true) {
+            MusixTheme(MusixPalette.MIDNIGHT) {
                 CarSettings(graph, showSignIn, onShowSignIn = { showSignIn = it })
             }
         }

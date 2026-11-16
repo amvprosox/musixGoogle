@@ -134,7 +134,7 @@ export function initialState(
       lastError: null,
     },
     online: true,
-    systemDark: theme === 'dark',
+    systemDark: theme !== 'light',
     theme,
     breakpoint,
     layout: layoutFor(breakpoint, sidebarCollapsed),

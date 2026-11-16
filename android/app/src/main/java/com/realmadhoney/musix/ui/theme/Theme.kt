@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -89,6 +90,109 @@ val LightColors =
         skeleton = DesignTokens.Light.skeleton,
     )
 
+val GraphiteColors =
+    MusixColors(
+        bg = DesignTokens.Graphite.bg,
+        surface = DesignTokens.Graphite.surface,
+        surface2 = DesignTokens.Graphite.surface2,
+        surfaceHover = DesignTokens.Graphite.surfaceHover,
+        border = DesignTokens.Graphite.border,
+        text = DesignTokens.Graphite.text,
+        textMuted = DesignTokens.Graphite.textMuted,
+        accent = DesignTokens.Graphite.accent,
+        accentSoft = DesignTokens.Graphite.accentSoft,
+        onAccent = DesignTokens.Graphite.onAccent,
+        success = DesignTokens.Graphite.success,
+        warning = DesignTokens.Graphite.warning,
+        danger = DesignTokens.Graphite.danger,
+        skeleton = DesignTokens.Graphite.skeleton,
+    )
+
+val SlateColors =
+    MusixColors(
+        bg = DesignTokens.Slate.bg,
+        surface = DesignTokens.Slate.surface,
+        surface2 = DesignTokens.Slate.surface2,
+        surfaceHover = DesignTokens.Slate.surfaceHover,
+        border = DesignTokens.Slate.border,
+        text = DesignTokens.Slate.text,
+        textMuted = DesignTokens.Slate.textMuted,
+        accent = DesignTokens.Slate.accent,
+        accentSoft = DesignTokens.Slate.accentSoft,
+        onAccent = DesignTokens.Slate.onAccent,
+        success = DesignTokens.Slate.success,
+        warning = DesignTokens.Slate.warning,
+        danger = DesignTokens.Slate.danger,
+        skeleton = DesignTokens.Slate.skeleton,
+    )
+
+val AmoledColors =
+    MusixColors(
+        bg = DesignTokens.Amoled.bg,
+        surface = DesignTokens.Amoled.surface,
+        surface2 = DesignTokens.Amoled.surface2,
+        surfaceHover = DesignTokens.Amoled.surfaceHover,
+        border = DesignTokens.Amoled.border,
+        text = DesignTokens.Amoled.text,
+        textMuted = DesignTokens.Amoled.textMuted,
+        accent = DesignTokens.Amoled.accent,
+        accentSoft = DesignTokens.Amoled.accentSoft,
+        onAccent = DesignTokens.Amoled.onAccent,
+        success = DesignTokens.Amoled.success,
+        warning = DesignTokens.Amoled.warning,
+        danger = DesignTokens.Amoled.danger,
+        skeleton = DesignTokens.Amoled.skeleton,
+    )
+
+enum class MusixPalette(
+    val id: String,
+    val label: String,
+    val isDark: Boolean,
+) {
+    MIDNIGHT("dark", "Midnight", true),
+    GRAPHITE("graphite", "Graphite", true),
+    SLATE("slate", "Slate Grey", true),
+    AMOLED("amoled", "AMOLED Black", true),
+    LIGHT("light", "Light", false),
+    ;
+
+    val colors: MusixColors
+        get() =
+            when (this) {
+                MIDNIGHT -> DarkColors
+                GRAPHITE -> GraphiteColors
+                SLATE -> SlateColors
+                AMOLED -> AmoledColors
+                LIGHT -> LightColors
+            }
+
+    companion object {
+        fun from(id: String?): MusixPalette = entries.firstOrNull { it.id == id } ?: MIDNIGHT
+    }
+}
+
+private fun Color.hex(): String = String.format(java.util.Locale.US, "#%06X", 0xFFFFFF and toArgb())
+
+fun ytmThemeCss(palette: MusixPalette): String {
+    if (!palette.isDark) {
+        return ""
+    }
+    val c = palette.colors
+    val bg = c.bg.hex()
+    val surface = c.surface.hex()
+    val surface2 = c.surface2.hex()
+    return "html,body,ytmusic-app,ytmusic-app-layout,#layout,ytmusic-browse-response,ytmusic-search-page," +
+        "ytmusic-tabbed-search-results-renderer,ytmusic-section-list-renderer{background-color:$bg!important}\n" +
+        "html,ytmusic-app{--ytmusic-general-background-a:$bg!important;--ytmusic-general-background-b:$bg!important;" +
+        "--ytmusic-general-background-c:$bg!important;--ytmusic-brand-background-solid:$bg!important;" +
+        "--yt-spec-base-background:$bg!important;--yt-spec-general-background-a:$bg!important;" +
+        "--yt-spec-general-background-b:$surface!important;--yt-spec-general-background-c:$surface!important;" +
+        "--yt-spec-raised-background:$surface!important;--yt-spec-menu-background:$surface2!important;" +
+        "--paper-dialog-background-color:$surface2!important}"
+}
+
+fun ytmThemeBackground(palette: MusixPalette): Int = if (palette.isDark) palette.colors.bg.toArgb() else android.graphics.Color.BLACK
+
 val LocalMusixColors = staticCompositionLocalOf { DarkColors }
 
 private fun style(
@@ -146,13 +250,13 @@ private fun scheme(
 
 @Composable
 fun MusixTheme(
-    dark: Boolean = isSystemInDarkTheme(),
+    palette: MusixPalette = if (isSystemInDarkTheme()) MusixPalette.MIDNIGHT else MusixPalette.LIGHT,
     content: @Composable () -> Unit,
 ) {
-    val colors = if (dark) DarkColors else LightColors
+    val colors = palette.colors
     androidx.compose.runtime.CompositionLocalProvider(LocalMusixColors provides colors) {
         MaterialTheme(
-            colorScheme = scheme(colors, dark),
+            colorScheme = scheme(colors, palette.isDark),
             typography = MusixTypography,
             shapes =
                 Shapes(

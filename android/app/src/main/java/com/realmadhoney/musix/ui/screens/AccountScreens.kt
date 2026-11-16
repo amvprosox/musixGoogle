@@ -3,6 +3,7 @@ package com.realmadhoney.musix.ui.screens
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.realmadhoney.musix.R
 import com.realmadhoney.musix.engine.AccountState
@@ -46,6 +49,7 @@ import com.realmadhoney.musix.ui.components.SecondaryButton
 import com.realmadhoney.musix.ui.components.StateMessage
 import com.realmadhoney.musix.ui.theme.DesignTokens
 import com.realmadhoney.musix.ui.theme.Musix
+import com.realmadhoney.musix.ui.theme.MusixPalette
 
 @Composable
 fun SignInScreen(
@@ -143,6 +147,8 @@ fun SettingsScreen(
     onAdSkip: (Boolean) -> Unit,
     onClearCache: () -> Unit,
     modifier: Modifier = Modifier,
+    palette: MusixPalette? = null,
+    onPalette: (MusixPalette) -> Unit = {},
 ) {
     val colors = Musix.colors
     Column(modifier = modifier.fillMaxSize().background(colors.bg)) {
@@ -180,6 +186,44 @@ fun SettingsScreen(
                     SecondaryButton(stringResource(R.string.action_sign_out), onSignOut, icon = R.drawable.ic_log_out, danger = true)
                 } else {
                     PrimaryButton(stringResource(R.string.action_sign_in), onSignIn, icon = R.drawable.ic_log_in)
+                }
+            }
+            if (palette != null) {
+                SettingsSection("Appearance") {
+                    MusixPalette.entries.forEach { option ->
+                        val selected = option == palette
+                        Row(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(DesignTokens.RadiusControl))
+                                    .clickable(role = Role.RadioButton) { onPalette(option) }
+                                    .padding(vertical = DesignTokens.Space8),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .size(28.dp)
+                                        .clip(RoundedCornerShape(DesignTokens.RadiusControl))
+                                        .background(option.colors.bg)
+                                        .border(1.dp, option.colors.border, RoundedCornerShape(DesignTokens.RadiusControl)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(option.colors.accent))
+                            }
+                            Spacer(Modifier.width(DesignTokens.Space12))
+                            Text(
+                                option.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (selected) colors.accent else colors.text,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (selected) {
+                                MusixIcon(R.drawable.ic_check, null, tint = colors.accent)
+                            }
+                        }
+                    }
                 }
             }
             SettingsSection(stringResource(R.string.settings_playback)) {

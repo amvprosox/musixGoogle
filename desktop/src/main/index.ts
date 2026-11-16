@@ -27,6 +27,7 @@ import {
 } from './autostart';
 import { isTestRun, userDataOverride, ytmBaseUrl } from './config';
 import { DownloadManager } from './downloads';
+import { nativeThemeSource } from '../shared/settings';
 import { registerIpc, sendToShell } from './ipc';
 import { logError, logInfo, logWarn } from './log';
 import { MprisManager } from './mpris';
@@ -184,7 +185,7 @@ async function start(): Promise<void> {
 
   const store = new AppStore();
   const initialSettings = store.getSettings();
-  nativeTheme.themeSource = initialSettings.theme;
+  nativeTheme.themeSource = nativeThemeSource(initialSettings.theme);
 
   const ytmSession = session.fromPartition(YTM_PARTITION);
   let ytmViewRef: YtmView | null = null;
@@ -244,6 +245,7 @@ async function start(): Promise<void> {
     hardenContents(child.webContents, devMode);
   });
   const overlays = new OverlayLayers(win, () => currentTheme(store), devMode);
+  view.setTheme(currentTheme(store));
   for (const layer of overlays.views()) {
     hardenContents(layer.webContents, devMode);
   }
@@ -654,8 +656,9 @@ async function start(): Promise<void> {
     store.onSettingsChanged((settings: AppSettings, changed) => {
       sendToShell(win, 'settings:changed', settings);
       if (changed.includes('theme')) {
-        nativeTheme.themeSource = settings.theme;
+        nativeTheme.themeSource = nativeThemeSource(settings.theme);
         overlays.refreshTheme();
+        view.setTheme(currentTheme(store));
       }
       if (changed.includes('adblockEnabled')) {
         adblock.setEnabled(settings.adblockEnabled);
@@ -674,6 +677,7 @@ async function start(): Promise<void> {
   const onThemeUpdated = (): void => {
     sendToShell(win, 'theme:system', nativeTheme.shouldUseDarkColors);
     overlays.refreshTheme();
+    view.setTheme(currentTheme(store));
   };
   nativeTheme.on('updated', onThemeUpdated);
   disposers.push(() => {
