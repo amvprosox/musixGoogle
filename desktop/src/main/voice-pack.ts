@@ -84,3 +84,71 @@ export async function installPack(
   await fsp.rename(staging, target);
   onProgress(1);
 }
+
+export const WHISPER_PACK_NAME = 'musix-whisper-pack-1';
+const WHISPER_PACK_URL = `https://github.com/amvprosox/musixGoogle/releases/download/voice-whisper-1/${WHISPER_PACK_NAME}.zip`;
+const WHISPER_PACK_SHA256 = '9f2891a4c61723e407a3f14be5794ec9046ed00238c02987202168a4c875f1bc';
+const WHISPER_PACK_BYTES = 94_129_407;
+const WHISPER_FILES = ['manifest.json', 'encoder.int8.onnx', 'decoder.int8.onnx', 'tokens.txt'] as const;
+
+export function whisperDir(voiceDir: string): string {
+  return path.join(voiceDir, WHISPER_PACK_NAME);
+}
+
+export function isWhisperInstalled(voiceDir: string): boolean {
+  const dir = whisperDir(voiceDir);
+  return WHISPER_FILES.every((file) => existsSync(path.join(dir, file)));
+}
+
+export async function installWhisperPack(
+  voiceDir: string,
+  onProgress: (fraction: number) => void,
+): Promise<void> {
+  const response = await fetch(WHISPER_PACK_URL);
+  if (!response.ok || !response.body) {
+    throw new Error(`Whisper download failed (HTTP ${response.status})`);
+  }
+  const total = Number(response.headers.get('content-length')) || WHISPER_PACK_BYTES;
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  const reader = response.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    chunks.push(value);
+    received += value.byteLength;
+    onProgress(Math.min(0.99, received / total));
+  }
+  const zip = Buffer.concat(chunks);
+  if (createHash('sha256').update(zip).digest('hex') !== WHISPER_PACK_SHA256) {
+    throw new Error('Whisper download checksum did not match.');
+  }
+  const files = unzipSync(new Uint8Array(zip));
+  const target = whisperDir(voiceDir);
+  const staging = `${target}.partial`;
+  await fsp.rm(staging, { recursive: true, force: true });
+  for (const [name, data] of Object.entries(files)) {
+    if (name.endsWith('/')) {
+      continue;
+    }
+    const relative = name.startsWith(`${WHISPER_PACK_NAME}/`)
+      ? name.slice(WHISPER_PACK_NAME.length + 1)
+      : name;
+    if (relative === '' || relative.includes('..')) {
+      continue;
+    }
+    const file = path.join(staging, relative);
+    await fsp.mkdir(path.dirname(file), { recursive: true });
+    await fsp.writeFile(file, data);
+  }
+  for (const file of WHISPER_FILES) {
+    if (!existsSync(path.join(staging, file))) {
+      throw new Error(`Whisper download is missing ${file}`);
+    }
+  }
+  await fsp.rm(target, { recursive: true, force: true });
+  await fsp.rename(staging, target);
+  onProgress(1);
+}

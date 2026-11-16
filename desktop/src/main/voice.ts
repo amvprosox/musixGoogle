@@ -30,9 +30,16 @@ import {
   stripWakeWord,
   type VoiceCommand,
 } from '../shared/voice-intent';
-import { logError, logWarn } from './log';
+import { logError, logInfo, logWarn } from './log';
 import { connectOpenRouter } from './openrouter-connect';
-import { installPack, isPackInstalled, packDir } from './voice-pack';
+import {
+  installPack,
+  installWhisperPack,
+  isPackInstalled,
+  isWhisperInstalled,
+  packDir,
+  whisperDir,
+} from './voice-pack';
 
 const SAMPLE_RATE = 16000;
 const VAD_WINDOW = 512;
@@ -212,6 +219,7 @@ export class VoiceManager {
   private freeModels: FreeModel[] = [];
   private modelsFetchedAt = 0;
   private connecting = false;
+  private whisperDownload: Promise<void> | null = null;
   private lastGoodModel: string | null = null;
   private readonly modelCooldowns = new Map<string, number>();
 
@@ -279,6 +287,7 @@ export class VoiceManager {
       hasAiKey: this.config.aiKey !== '' || BUILTIN_AI_KEY !== '',
       builtinAi: BUILTIN_AI_KEY !== '' && this.config.aiKey === '',
       packInstalled: isPackInstalled(this.voiceDir),
+      whisper: isWhisperInstalled(this.voiceDir),
       freeModels: this.freeModels.length,
     };
   }
@@ -468,16 +477,7 @@ export class VoiceManager {
         });
         const asr = new sherpa.OfflineRecognizer({
           featConfig: { sampleRate: SAMPLE_RATE, featureDim: 80 },
-          modelConfig: {
-            transducer: {
-              encoder: path.join(dir, 'asr/encoder.int8.onnx'),
-              decoder: path.join(dir, 'asr/decoder.int8.onnx'),
-              joiner: path.join(dir, 'asr/joiner.int8.onnx'),
-            },
-            tokens: path.join(dir, 'asr/tokens.txt'),
-            numThreads: 2,
-            provider: 'cpu',
-          },
+          modelConfig: this.recognizerModel(dir),
         });
         const speaker = new sherpa.SpeakerEmbeddingExtractor({
           model: path.join(dir, 'speaker/campplus_en.onnx'),
@@ -509,6 +509,60 @@ export class VoiceManager {
         this.refreshIdleStatus();
       });
     return this.loading;
+  }
+
+  private recognizerModel(dir: string): Record<string, unknown> {
+    if (isWhisperInstalled(this.voiceDir)) {
+      const whisper = whisperDir(this.voiceDir);
+      return {
+        whisper: {
+          encoder: path.join(whisper, 'encoder.int8.onnx'),
+          decoder: path.join(whisper, 'decoder.int8.onnx'),
+          language: 'en',
+          task: 'transcribe',
+        },
+        tokens: path.join(whisper, 'tokens.txt'),
+        numThreads: 2,
+        provider: 'cpu',
+      };
+    }
+    this.fetchWhisper();
+    return {
+      transducer: {
+        encoder: path.join(dir, 'asr/encoder.int8.onnx'),
+        decoder: path.join(dir, 'asr/decoder.int8.onnx'),
+        joiner: path.join(dir, 'asr/joiner.int8.onnx'),
+      },
+      tokens: path.join(dir, 'asr/tokens.txt'),
+      numThreads: 2,
+      provider: 'cpu',
+    };
+  }
+
+  private fetchWhisper(): void {
+    if (this.whisperDownload || !this.options.isOnline() || isWhisperInstalled(this.voiceDir)) {
+      return;
+    }
+    this.whisperDownload = installWhisperPack(this.voiceDir, () => undefined)
+      .then(() => {
+        logInfo('voice', 'Whisper speech recognition installed');
+        const engines = this.engines;
+        if (engines) {
+          const require = createRequire(import.meta.url);
+          const sherpa = require('sherpa-onnx-node') as SherpaModule;
+          engines.asr = new sherpa.OfflineRecognizer({
+            featConfig: { sampleRate: SAMPLE_RATE, featureDim: 80 },
+            modelConfig: this.recognizerModel(packDir(this.voiceDir)),
+          });
+        }
+        this.options.onStatus({ ...this.status });
+      })
+      .catch((error: unknown) => {
+        logWarn('voice', 'Whisper download failed', error);
+      })
+      .finally(() => {
+        this.whisperDownload = null;
+      });
   }
 
   acceptAudio(samples: Float32Array): void {

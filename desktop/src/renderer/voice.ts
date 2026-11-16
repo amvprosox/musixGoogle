@@ -199,6 +199,25 @@ export class VoiceController {
     this.emit();
   }
 
+  private async automaticMic(): Promise<string | null> {
+    const inputs = (await navigator.mediaDevices.enumerateDevices()).filter(
+      (device) => device.kind === 'audioinput',
+    );
+    const wireless = /bluetooth|airpods|beats|hands-?free|headset|buds|bose|sony wh|jabra/i;
+    const fallback = inputs.find((device) => device.deviceId === 'default') ?? inputs[0];
+    if (!fallback || !wireless.test(fallback.label)) {
+      return null;
+    }
+    const builtIn =
+      inputs.find(
+        (device) => device.deviceId !== 'default' && /built-in|macbook|internal/i.test(device.label),
+      ) ??
+      inputs.find(
+        (device) => device.deviceId !== 'default' && device.label !== '' && !wireless.test(device.label),
+      );
+    return builtIn?.deviceId ?? null;
+  }
+
   private async refreshDevices(announce: boolean, followChanges = false): Promise<void> {
     const before = new Set(this.devices.map((device) => device.id));
     const all = await navigator.mediaDevices.enumerateDevices();
@@ -260,6 +279,11 @@ export class VoiceController {
       };
       if (wanted !== 'default' && wanted !== '') {
         constraints.deviceId = { exact: wanted };
+      } else {
+        const safe = await this.automaticMic();
+        if (safe) {
+          constraints.deviceId = { exact: safe };
+        }
       }
       let stream: MediaStream;
       try {

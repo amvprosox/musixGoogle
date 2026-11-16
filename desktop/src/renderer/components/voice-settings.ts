@@ -297,7 +297,12 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
   };
 
   const details = h('div', { className: 'voice-details' }, [
-    row('Microphone', 'Musix follows the microphone you pick, or the system default.', micSelect, micActive),
+    row(
+      'Microphone',
+      'Automatic uses your computer microphone when Bluetooth headphones are connected, so music keeps full quality.',
+      micSelect,
+      micActive,
+    ),
     h('div', { className: 'voice-meter-row' }, [
       h('span', { className: 'setting-desc', text: 'Live input' }),
       meter,
@@ -351,7 +356,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     if (deviceSignature !== renderedDevicesFor) {
       renderedDevicesFor = deviceSignature;
       micSelect.replaceChildren(
-        h('option', { attrs: { value: 'default' }, text: 'System default' }),
+        h('option', { attrs: { value: 'default' }, text: 'Automatic' }),
         ...voice.devices
           .filter((device) => device.id !== 'default')
           .map((device) => h('option', { attrs: { value: device.id }, text: device.label })),

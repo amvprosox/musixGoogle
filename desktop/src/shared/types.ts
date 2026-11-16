@@ -385,6 +385,7 @@ export interface VoiceConfigView {
   hasAiKey: boolean;
   builtinAi: boolean;
   packInstalled: boolean;
+  whisper: boolean;
   freeModels: number;
 }
 
