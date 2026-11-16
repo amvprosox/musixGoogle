@@ -165,7 +165,7 @@ struct RootView: View {
                     }
                 }
                 .padding(.leading, DesignTokens.space12)
-                .frame(height: DesignTokens.controlHeight + 4)
+                .frame(minHeight: DesignTokens.controlHeight + 4)
                 .background(Palette.surface2, in: RoundedRectangle(cornerRadius: DesignTokens.radiusCard))
                 .overlay(RoundedRectangle(cornerRadius: DesignTokens.radiusCard).stroke(Palette.border, lineWidth: 1))
                 .padding(.horizontal, DesignTokens.space12)
@@ -196,7 +196,7 @@ struct RootView: View {
                         }
                         .foregroundStyle(Palette.text)
                         .padding(.horizontal, DesignTokens.space12)
-                        .frame(height: DesignTokens.controlHeight)
+                        .frame(minHeight: DesignTokens.controlHeight)
                         .overlay(RoundedRectangle(cornerRadius: DesignTokens.radiusControl).stroke(Palette.border, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
@@ -204,7 +204,7 @@ struct RootView: View {
                 }
             }
         }
-        .frame(height: 60)
+        .frame(minHeight: 60)
         .background(Palette.surface)
         .overlay(alignment: .bottom) {
             Rectangle().fill(Palette.border).frame(height: 1)
@@ -212,26 +212,33 @@ struct RootView: View {
     }
 
     private var tabBar: some View {
-        HStack(spacing: 0) {
-            ForEach(ShellTab.allCases, id: \.self) { item in
-                Button {
-                    select(item)
-                } label: {
-                    VStack(spacing: DesignTokens.space4) {
-                        Icon(name: item.icon, size: 22)
-                        Text(item.title)
-                            .font(.body(DesignTokens.text14, weight: tab == item ? .semibold : .medium))
-                            .lineLimit(1)
+        GeometryReader { proxy in
+            let showLabels = proxy.size.width / CGFloat(ShellTab.allCases.count) >= 76
+            HStack(spacing: 0) {
+                ForEach(ShellTab.allCases, id: \.self) { item in
+                    Button {
+                        select(item)
+                    } label: {
+                        VStack(spacing: DesignTokens.space4) {
+                            Icon(name: item.icon, size: showLabels ? 22 : 26)
+                            if showLabels {
+                                Text(item.title)
+                                    .font(.body(DesignTokens.text14, weight: tab == item ? .semibold : .medium))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.9)
+                            }
+                        }
+                        .foregroundStyle(tab == item ? Palette.accent : Palette.textMuted)
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .contentShape(Rectangle())
                     }
-                    .foregroundStyle(tab == item ? Palette.accent : Palette.textMuted)
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(item.title)
+                    .accessibilityAddTraits(tab == item ? .isSelected : [])
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(item.title)
-                .accessibilityAddTraits(tab == item ? .isSelected : [])
             }
         }
+        .frame(height: 56)
         .padding(.top, DesignTokens.space4)
         .background(Palette.surface)
     }

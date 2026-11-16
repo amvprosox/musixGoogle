@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -52,6 +53,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -112,7 +114,7 @@ fun ShellTopBar(
     val colors = Musix.colors
     Column(Modifier.fillMaxWidth().background(colors.surface)) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(60.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (searching) {
@@ -181,7 +183,7 @@ private fun SearchField(
             Modifier
                 .padding(horizontal = DesignTokens.Space12)
                 .fillMaxWidth()
-                .height(DesignTokens.ControlHeight + 4.dp)
+                .heightIn(min = DesignTokens.ControlHeight + 4.dp)
                 .background(colors.surface2, shape)
                 .border(1.dp, colors.border, shape)
                 .padding(start = DesignTokens.Space12),
@@ -252,32 +254,40 @@ fun ShellTabBar(
     val colors = Musix.colors
     Column(Modifier.fillMaxWidth().background(colors.surface)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-        Row(Modifier.fillMaxWidth().padding(top = DesignTokens.Space4)) {
-            ShellTab.entries.forEach { tab ->
-                val active = tab == selected
-                val tint = if (active) colors.accent else colors.textMuted
-                Column(
-                    modifier =
-                        Modifier
-                            .weight(1f)
-                            .heightIn(min = 56.dp)
-                            .semantics { this.selected = active }
-                            .clickable(role = Role.Tab) { onSelect(tab) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    MusixIcon(tab.icon, null, tint = tint, size = 22.dp)
-                    Spacer(Modifier.height(DesignTokens.Space4))
-                    Text(
-                        stringResource(tab.label),
-                        style =
-                            MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
-                            ),
-                        color = tint,
-                        maxLines = 1,
-                        overflow = TextOverflow.Clip,
-                    )
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val showLabels = maxWidth / ShellTab.entries.size >= 76.dp
+            Row(Modifier.fillMaxWidth().padding(top = DesignTokens.Space4)) {
+                ShellTab.entries.forEach { tab ->
+                    val active = tab == selected
+                    val tint = if (active) colors.accent else colors.textMuted
+                    val label = stringResource(tab.label)
+                    Column(
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .heightIn(min = 56.dp)
+                                .semantics {
+                                    this.selected = active
+                                    contentDescription = label
+                                }.clickable(role = Role.Tab) { onSelect(tab) },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        MusixIcon(tab.icon, null, tint = tint, size = if (showLabels) 22.dp else 26.dp)
+                        if (showLabels) {
+                            Spacer(Modifier.height(DesignTokens.Space4))
+                            Text(
+                                label,
+                                style =
+                                    MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                                    ),
+                                color = tint,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -414,7 +424,7 @@ private fun DownloadsSearchField(
             Modifier
                 .padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8)
                 .fillMaxWidth()
-                .height(DesignTokens.ControlHeight + 4.dp)
+                .heightIn(min = DesignTokens.ControlHeight + 4.dp)
                 .background(colors.surface2, shape)
                 .border(1.dp, colors.border, shape)
                 .padding(start = DesignTokens.Space12),

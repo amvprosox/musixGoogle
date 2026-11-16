@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -232,7 +233,7 @@ fun PrimaryButton(
     Row(
         modifier =
             modifier
-                .height(48.dp)
+                .heightIn(min = 48.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(if (enabled) colors.accent else colors.surface2)
                 .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
@@ -261,7 +262,7 @@ fun SecondaryButton(
     Row(
         modifier =
             modifier
-                .height(48.dp)
+                .heightIn(min = 48.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .border(1.dp, colors.border, RoundedCornerShape(24.dp))
                 .clickable(role = Role.Button, onClick = onClick)

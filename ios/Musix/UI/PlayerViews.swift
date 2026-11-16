@@ -83,7 +83,7 @@ struct MiniPlayer: View {
                 }
             }
             .padding(.horizontal, DesignTokens.space12)
-            .frame(height: DesignTokens.miniPlayerHeight + 8)
+            .frame(minHeight: DesignTokens.miniPlayerHeight + 8)
         }
         .background(Palette.surface)
     }
@@ -139,13 +139,33 @@ struct NowPlayingView: View {
     }
 
     private func content(_ current: TrackSpec) -> some View {
-        let available = player.availability
-        let duration = current.durationSec ?? 0
-        let canDownload = !current.isAd && BridgeCodec.isValidVideoId(current.videoId)
-        let entry = canDownload ? downloads.item(for: current.videoId) : nil
-        let isDone = entry?.status == .completed
-        let isBusy = entry?.status == .downloading || entry?.status == .queued
-        return VStack(spacing: DesignTokens.space16) {
+        GeometryReader { proxy in
+            let wide = proxy.size.width > proxy.size.height && proxy.size.height < 560
+            let narrow = proxy.size.width < 360
+            Group {
+                if wide {
+                    HStack(spacing: DesignTokens.space24) {
+                        visual(current)
+                            .frame(width: proxy.size.width * 0.42)
+                        ScrollView {
+                            controls(current, narrow: narrow)
+                                .padding(.vertical, DesignTokens.space16)
+                        }
+                    }
+                } else {
+                    VStack(spacing: DesignTokens.space16) {
+                        visual(current)
+                        controls(current, narrow: narrow)
+                    }
+                }
+            }
+            .padding(.horizontal, narrow ? DesignTokens.space16 : DesignTokens.space24)
+            .padding(.bottom, wide ? DesignTokens.space16 : DesignTokens.space32)
+        }
+    }
+
+    @ViewBuilder
+    private func visual(_ current: TrackSpec) -> some View {
             if showLyrics {
                 LyricsPanel(lyrics: lyrics, player: player)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -156,6 +176,16 @@ struct NowPlayingView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
+    }
+
+    private func controls(_ current: TrackSpec, narrow: Bool) -> some View {
+        let available = player.availability
+        let duration = current.durationSec ?? 0
+        let canDownload = !current.isAd && BridgeCodec.isValidVideoId(current.videoId)
+        let entry = canDownload ? downloads.item(for: current.videoId) : nil
+        let isDone = entry?.status == .completed
+        let isBusy = entry?.status == .downloading || entry?.status == .queued
+        return VStack(spacing: DesignTokens.space16) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: DesignTokens.space4) {
                     Text(current.title)
@@ -241,7 +271,7 @@ struct NowPlayingView: View {
                 } label: {
                     Icon(name: player.state.isPlaying ? "pause_filled" : "play_filled", size: 32)
                         .foregroundStyle(Palette.onAccent)
-                        .frame(width: 72, height: 72)
+                        .frame(width: narrow ? 64 : 72, height: narrow ? 64 : 72)
                         .background(Palette.accent, in: Circle())
                 }
                 .buttonStyle(.plain)
@@ -261,8 +291,6 @@ struct NowPlayingView: View {
                 }
             }
         }
-        .padding(.horizontal, DesignTokens.space24)
-        .padding(.bottom, DesignTokens.space32)
     }
 
     private static func repeatLabel(_ mode: RepeatMode) -> String {
@@ -346,6 +374,8 @@ struct DownloadsView: View {
                 }
             }
             .padding(DesignTokens.space16)
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
         .background(Palette.bg)
@@ -392,7 +422,7 @@ struct DownloadsView: View {
             }
         }
         .padding(.leading, DesignTokens.space12)
-        .frame(height: DesignTokens.controlHeight + 4)
+        .frame(minHeight: DesignTokens.controlHeight + 4)
         .background(Palette.surface2, in: RoundedRectangle(cornerRadius: DesignTokens.radiusCard))
         .overlay(RoundedRectangle(cornerRadius: DesignTokens.radiusCard).stroke(Palette.border, lineWidth: 1))
     }
@@ -442,7 +472,7 @@ struct DownloadsView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     Text(downloads.logs.isEmpty ? "No download logs yet." : downloads.logs.suffix(150).joined(separator: "\n"))
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.system(size: DesignTokens.text14, design: .monospaced))
                         .foregroundStyle(Palette.textMuted)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)

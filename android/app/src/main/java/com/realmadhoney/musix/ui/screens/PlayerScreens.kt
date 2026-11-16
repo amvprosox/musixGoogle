@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,8 +18,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -99,7 +102,7 @@ fun MiniPlayer(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(DesignTokens.MiniPlayerHeight + 8.dp)
+                    .heightIn(min = DesignTokens.MiniPlayerHeight + 8.dp)
                     .clickable(enabled = state.hasTrack, role = Role.Button, onClickLabel = openLabel, onClick = onOpen)
                     .padding(horizontal = DesignTokens.Space12),
             verticalAlignment = Alignment.CenterVertically,
@@ -218,132 +221,180 @@ fun NowPlayingScreen(
             }
             return
         }
-        if (showLyrics) {
-            LyricsView(
-                state = lyrics,
-                isPlaying = state.isPlaying,
-                positionMs = positionMs,
-                onSeek = actions::seekTo,
-                onRetry = onRetryLyrics,
-                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = DesignTokens.Space24),
-            )
-        } else {
-            BoxWithConstraints(
-                Modifier.fillMaxWidth().weight(1f).padding(horizontal = DesignTokens.Space24),
-                contentAlignment = Alignment.Center,
-            ) {
-                val side = minOf(maxWidth, maxHeight, 420.dp)
-                Artwork(state.artworkUri, side, corner = DesignTokens.RadiusCard)
-            }
-        }
-        Column(Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space24)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        state.title.ifEmpty { stringResource(R.string.playing_ad) },
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = colors.text,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    val subtitle = listOf(state.artist, state.album).filter { it.isNotEmpty() }.joinToString(" • ")
-                    if (subtitle.isNotEmpty()) {
-                        Text(
-                            subtitle,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = colors.textMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+            val narrow = maxWidth < 360.dp
+            val side = if (narrow) DesignTokens.Space16 else DesignTokens.Space24
+            val wide = maxWidth > maxHeight && maxHeight < 560.dp
+            if (wide) {
+                Row(Modifier.fillMaxSize()) {
+                    Box(Modifier.weight(0.45f).fillMaxHeight().padding(start = side), contentAlignment = Alignment.Center) {
+                        NowPlayingVisual(state, actions, lyrics, showLyrics, positionMs, onRetryLyrics)
+                    }
+                    Column(
+                        Modifier
+                            .weight(0.55f)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = side),
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        NowPlayingControls(state, actions, isDownloaded, narrow)
                     }
                 }
-                IconAction(
-                    if (isDownloaded) R.drawable.ic_check else R.drawable.ic_download,
-                    stringResource(if (isDownloaded) R.string.action_downloaded else R.string.action_download),
-                    actions::downloadTrack,
-                    active = isDownloaded,
-                    enabled = state.canSeek,
-                )
-                IconAction(
-                    R.drawable.ic_queue,
-                    stringResource(R.string.action_save_to_playlist),
-                    actions::saveToPlaylist,
-                    enabled = state.canSeek,
-                )
-                IconAction(
-                    if (state.liked) R.drawable.ic_heart_filled else R.drawable.ic_heart,
-                    stringResource(if (state.liked) R.string.action_unlike else R.string.action_like),
-                    actions::toggleLike,
-                    active = state.liked,
-                    enabled = state.canSeek,
-                )
-            }
-            Spacer(Modifier.height(DesignTokens.Space16))
-            SeekBar(state, actions)
-            Spacer(Modifier.height(DesignTokens.Space8))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconAction(
-                    R.drawable.ic_shuffle,
-                    stringResource(if (state.shuffle) R.string.action_shuffle_on else R.string.action_shuffle_off),
-                    actions::toggleShuffle,
-                    active = state.shuffle,
-                    enabled = state.canSeek,
-                )
-                IconAction(
-                    R.drawable.ic_skip_back,
-                    stringResource(R.string.action_previous),
-                    actions::previous,
-                    enabled = state.canSkip,
-                    iconSize = 28.dp,
-                )
-                val playLabel = stringResource(if (state.isPlaying) R.string.action_pause else R.string.action_play)
-                Box(
-                    modifier =
-                        Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .background(colors.accent)
-                            .clickable(role = Role.Button, onClick = actions::togglePlay)
-                            .semantics { contentDescription = playLabel },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    MusixIcon(
-                        if (state.isPlaying) R.drawable.ic_pause_filled else R.drawable.ic_play_filled,
-                        null,
-                        tint = colors.onAccent,
-                        size = 32.dp,
-                    )
+            } else {
+                Column(Modifier.fillMaxSize()) {
+                    Box(Modifier.fillMaxWidth().weight(1f).padding(horizontal = side), contentAlignment = Alignment.Center) {
+                        NowPlayingVisual(state, actions, lyrics, showLyrics, positionMs, onRetryLyrics)
+                    }
+                    Column(Modifier.fillMaxWidth().padding(horizontal = side)) {
+                        NowPlayingControls(state, actions, isDownloaded, narrow)
+                    }
                 }
-                IconAction(
-                    R.drawable.ic_skip_forward,
-                    stringResource(R.string.action_next),
-                    actions::next,
-                    enabled = state.canSkip,
-                    iconSize = 28.dp,
-                )
-                val repeatLabel =
-                    stringResource(
-                        when (state.repeatMode) {
-                            Player.REPEAT_MODE_ALL -> R.string.action_repeat_all
-                            Player.REPEAT_MODE_ONE -> R.string.action_repeat_one
-                            else -> R.string.action_repeat_off
-                        },
-                    )
-                IconAction(
-                    if (state.repeatMode == Player.REPEAT_MODE_ONE) R.drawable.ic_repeat_one else R.drawable.ic_repeat,
-                    repeatLabel,
-                    actions::cycleRepeat,
-                    active = state.repeatMode != Player.REPEAT_MODE_OFF,
-                    enabled = state.canSeek,
-                )
             }
-            Spacer(Modifier.height(DesignTokens.Space32))
         }
     }
+}
+
+@Composable
+private fun NowPlayingVisual(
+    state: NowPlaying,
+    actions: PlayerActions,
+    lyrics: LyricsState,
+    showLyrics: Boolean,
+    positionMs: () -> Long,
+    onRetryLyrics: () -> Unit,
+) {
+    if (showLyrics) {
+        LyricsView(
+            state = lyrics,
+            isPlaying = state.isPlaying,
+            positionMs = positionMs,
+            onSeek = actions::seekTo,
+            onRetry = onRetryLyrics,
+            modifier = Modifier.fillMaxSize(),
+        )
+    } else {
+        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            val side = minOf(maxWidth, maxHeight, 420.dp)
+            Artwork(state.artworkUri, side, corner = DesignTokens.RadiusCard)
+        }
+    }
+}
+
+@Composable
+private fun NowPlayingControls(
+    state: NowPlaying,
+    actions: PlayerActions,
+    isDownloaded: Boolean,
+    narrow: Boolean,
+) {
+    val colors = Musix.colors
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                state.title.ifEmpty { stringResource(R.string.playing_ad) },
+                style = MaterialTheme.typography.headlineSmall,
+                color = colors.text,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val subtitle = listOf(state.artist, state.album).filter { it.isNotEmpty() }.joinToString(" • ")
+            if (subtitle.isNotEmpty()) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.textMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        IconAction(
+            if (isDownloaded) R.drawable.ic_check else R.drawable.ic_download,
+            stringResource(if (isDownloaded) R.string.action_downloaded else R.string.action_download),
+            actions::downloadTrack,
+            active = isDownloaded,
+            enabled = state.canSeek,
+        )
+        IconAction(
+            R.drawable.ic_queue,
+            stringResource(R.string.action_save_to_playlist),
+            actions::saveToPlaylist,
+            enabled = state.canSeek,
+        )
+        IconAction(
+            if (state.liked) R.drawable.ic_heart_filled else R.drawable.ic_heart,
+            stringResource(if (state.liked) R.string.action_unlike else R.string.action_like),
+            actions::toggleLike,
+            active = state.liked,
+            enabled = state.canSeek,
+        )
+    }
+    Spacer(Modifier.height(DesignTokens.Space16))
+    SeekBar(state, actions)
+    Spacer(Modifier.height(DesignTokens.Space8))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconAction(
+            R.drawable.ic_shuffle,
+            stringResource(if (state.shuffle) R.string.action_shuffle_on else R.string.action_shuffle_off),
+            actions::toggleShuffle,
+            active = state.shuffle,
+            enabled = state.canSeek,
+        )
+        IconAction(
+            R.drawable.ic_skip_back,
+            stringResource(R.string.action_previous),
+            actions::previous,
+            enabled = state.canSkip,
+            iconSize = 28.dp,
+        )
+        val playLabel = stringResource(if (state.isPlaying) R.string.action_pause else R.string.action_play)
+        Box(
+            modifier =
+                Modifier
+                    .size(if (narrow) 64.dp else 72.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent)
+                    .clickable(role = Role.Button, onClick = actions::togglePlay)
+                    .semantics { contentDescription = playLabel },
+            contentAlignment = Alignment.Center,
+        ) {
+            MusixIcon(
+                if (state.isPlaying) R.drawable.ic_pause_filled else R.drawable.ic_play_filled,
+                null,
+                tint = colors.onAccent,
+                size = 32.dp,
+            )
+        }
+        IconAction(
+            R.drawable.ic_skip_forward,
+            stringResource(R.string.action_next),
+            actions::next,
+            enabled = state.canSkip,
+            iconSize = 28.dp,
+        )
+        val repeatLabel =
+            stringResource(
+                when (state.repeatMode) {
+                    Player.REPEAT_MODE_ALL -> R.string.action_repeat_all
+                    Player.REPEAT_MODE_ONE -> R.string.action_repeat_one
+                    else -> R.string.action_repeat_off
+                },
+            )
+        IconAction(
+            if (state.repeatMode == Player.REPEAT_MODE_ONE) R.drawable.ic_repeat_one else R.drawable.ic_repeat,
+            repeatLabel,
+            actions::cycleRepeat,
+            active = state.repeatMode != Player.REPEAT_MODE_OFF,
+            enabled = state.canSeek,
+        )
+    }
+    Spacer(Modifier.height(DesignTokens.Space32))
 }
 
 @Composable
