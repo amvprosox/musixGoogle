@@ -10,7 +10,6 @@ import type {
   SavedLibrary,
   VoiceCommandEvent,
   VoiceConfigPatch,
-  SpeechAudio,
   VoiceConfigView,
   VoicePlayRequest,
   VoiceStatus,
@@ -67,8 +66,6 @@ export interface ShellInvokeChannels {
   'voice:enroll': { request: Float32Array[]; response: { ok: boolean; threshold: number; message: string } };
   'voice:test': { request: Float32Array; response: number | null };
   'voice:forget': { request: null; response: VoiceConfigView };
-  'voice:speak': { request: string; response: SpeechAudio | null };
-  'voice:download-natural': { request: null; response: VoiceConfigView };
   'voice:play-search': { request: VoicePlayRequest; response: string | null };
 }
 

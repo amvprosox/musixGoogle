@@ -119,6 +119,20 @@ export function configureAssetProtocol(ses: Session, downloadsDir?: string): voi
           },
         });
       }
+      const replyMatch = /^\/replies\/([a-z-]{2,20})\.wav$/.exec(url.pathname);
+      if (url.hostname === 'voice' && replyMatch?.[1]) {
+        try {
+          const data = await fs.readFile(
+            path.join(path.dirname(paths.fontsDir), 'voice', 'replies', `${replyMatch[1]}.wav`),
+          );
+          return new Response(new Uint8Array(data), {
+            status: 200,
+            headers: { 'content-type': 'audio/wav', 'cache-control': 'max-age=31536000' },
+          });
+        } catch {
+          return new Response(null, { status: 404 });
+        }
+      }
       if (url.hostname === 'voice' && name === 'yes.wav') {
         const data = await fs.readFile(path.join(path.dirname(paths.fontsDir), 'voice', 'yes.wav'));
         return new Response(new Uint8Array(data), {

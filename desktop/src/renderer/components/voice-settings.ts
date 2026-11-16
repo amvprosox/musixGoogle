@@ -64,29 +64,6 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     icon('download'),
     h('span', { text: 'Download voice pack (56 MB)' }),
   ]);
-  const naturalButton = h('button', { className: 'btn', attrs: { type: 'button' } }, [
-    icon('download'),
-    h('span', { text: 'Download (117 MB)' }),
-  ]);
-  const naturalLabel = naturalButton.querySelector('span');
-  naturalButton.addEventListener('click', () => {
-    naturalButton.disabled = true;
-    setText(naturalLabel, 'Downloading...');
-    voice
-      .downloadNaturalVoice()
-      .then(() => {
-        toasts.show({
-          variant: 'success',
-          title: 'Natural voice ready',
-          message: 'Musix now answers in its new voice.',
-        });
-      })
-      .catch(fail('Natural voice not installed'))
-      .finally(() => {
-        naturalButton.disabled = false;
-        setText(naturalLabel, 'Download (117 MB)');
-      });
-  });
   downloadButton.addEventListener('click', () => {
     downloadButton.disabled = true;
     voice
@@ -325,11 +302,6 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
       h('span', { className: 'setting-desc', text: 'Live input' }),
       meter,
     ]),
-    row(
-      'Natural voice',
-      'Musix answers in a soft, natural voice that runs on this computer. One-time download.',
-      naturalButton,
-    ),
     row('Only my voice', 'Ignore "Prosecs" from anyone whose voice does not match yours.', speakerSwitch),
     h('div', { className: 'voice-actions' }, [
       h('div', { className: 'button-row' }, [enrollButton, testButton, forgetButton]),
@@ -402,7 +374,6 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     testButton.hidden = !config?.hasVoiceprint;
     sensitivity.value = String(config?.sensitivity ?? 0.5);
     setChecked(aiSwitch, config?.aiEnabled ?? true);
-    naturalButton.hidden = config?.naturalVoiceInstalled ?? false;
     const connected = config?.hasAiKey ?? false;
     connectRow.hidden = connected;
     keyRow.hidden = connected;

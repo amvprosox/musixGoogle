@@ -523,24 +523,6 @@ export function registerIpc(ctx: IpcContext): () => void {
       },
     ],
     [
-      'voice:speak',
-      (event, payload) => {
-        if (!fromShell(event) || !isBoundedString(payload, 400)) {
-          return Promise.reject(new Error('Invalid speech'));
-        }
-        return ctx.voice.speak(payload);
-      },
-    ],
-    [
-      'voice:download-natural',
-      (event) => {
-        if (!fromShell(event)) {
-          return Promise.reject(new Error('Unauthorized sender'));
-        }
-        return ctx.voice.downloadNaturalVoice();
-      },
-    ],
-    [
       'voice:play-search',
       (event, payload) => {
         if (!fromShell(event) || !isVoicePlayRequest(payload)) {

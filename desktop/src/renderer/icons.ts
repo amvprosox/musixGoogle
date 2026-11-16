@@ -5,6 +5,7 @@ import {
   Ban,
   Bell,
   ChevronDown,
+  ChevronUp,
   Check,
   CircleAlert,
   CircleCheck,
@@ -66,6 +67,7 @@ export const ICONS = {
   Ban,
   Bell,
   ChevronDown,
+  ChevronUp,
   Check,
   CircleAlert,
   CircleCheck,
@@ -126,6 +128,7 @@ export type IconName =
   | 'ban'
   | 'bell'
   | 'chevron-down'
+  | 'chevron-up'
   | 'check'
   | 'circle-alert'
   | 'circle-check'

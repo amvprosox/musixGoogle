@@ -315,21 +315,25 @@ function renderSavedLibraryCard(
     'button',
     {
       className: selected ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm',
-      attrs: { type: 'button', 'aria-pressed': selected ? 'true' : 'false' },
+      attrs: { type: 'button', 'aria-expanded': selected ? 'true' : 'false' },
       on: {
         click: () => {
           onSelect(selected ? null : saved.id);
         },
       },
     },
-    [icon('list-music'), h('span', { text: selected ? 'Showing' : 'Songs' })],
+    [icon(selected ? 'chevron-up' : 'chevron-down'), h('span', { text: selected ? 'Hide songs' : 'Songs' })],
   );
 
   return h(
     'div',
     {
       className: 'download-card download-lib-card',
-      dataset: { current: scopeActive ? 'true' : 'false', status: 'completed' },
+      dataset: {
+        current: scopeActive ? 'true' : 'false',
+        selected: selected ? 'true' : 'false',
+        status: 'completed',
+      },
     },
     [
       h('div', { className: 'download-thumb-wrap' }, [thumbImg, thumbFallback]),
@@ -338,6 +342,91 @@ function renderSavedLibraryCard(
         h('div', {
           className: 'download-desc truncate',
           text: `${saved.kind} • ${playable.length}/${saved.videoIds.length} songs offline`,
+        }),
+      ]),
+      h('div', { className: 'download-actions' }, [playBtn, shuffleBtn, openBtn]),
+    ],
+  );
+}
+
+const ALL_SONGS = '__all__';
+
+function renderAllSongsCard(
+  downloads: DownloadItem[],
+  ctx: AppContext,
+  selected: boolean,
+  onSelect: (id: string | null) => void,
+): HTMLElement {
+  const { actions } = ctx;
+  const playable = downloads.filter((item) => item.status === 'completed' && item.audioUrl !== '');
+  const art = playable.filter((item) => item.artworkUrl !== '').slice(0, 4);
+  const collage = h(
+    'div',
+    { className: 'download-thumb download-collage', attrs: { 'aria-hidden': 'true' } },
+    art.length === 4
+      ? art.map((item) =>
+          h('img', {
+            attrs: {
+              src: item.artworkUrl,
+              alt: '',
+              loading: 'lazy',
+              decoding: 'async',
+              referrerpolicy: 'no-referrer',
+            },
+          }),
+        )
+      : [h('span', { className: 'download-collage-icon' }, [icon('music')])],
+  );
+  const scope = playable.map((item) => item.videoId);
+  const playBtn = iconButton({
+    icon: 'play',
+    label: 'Play all downloaded songs',
+    placement: 'top',
+    className: 'icon-btn download-play-btn',
+    onClick: () => {
+      const first = playable[0];
+      if (first) {
+        actions.playDownloaded(first, scope, false);
+      }
+    },
+  });
+  const shuffleBtn = iconButton({
+    icon: 'shuffle',
+    label: 'Shuffle all downloaded songs',
+    placement: 'top',
+    onClick: () => {
+      const pick = playable[Math.floor(Math.random() * playable.length)];
+      if (pick) {
+        actions.playDownloaded(pick, scope, true);
+      }
+    },
+  });
+  const openBtn = h(
+    'button',
+    {
+      className: selected ? 'btn btn-secondary btn-sm' : 'btn btn-ghost btn-sm',
+      attrs: { type: 'button', 'aria-expanded': selected ? 'true' : 'false' },
+      on: {
+        click: () => {
+          onSelect(selected ? null : ALL_SONGS);
+        },
+      },
+    },
+    [icon(selected ? 'chevron-up' : 'chevron-down'), h('span', { text: selected ? 'Hide songs' : 'Songs' })],
+  );
+  return h(
+    'div',
+    {
+      className: 'download-card download-lib-card download-all-card',
+      dataset: { selected: selected ? 'true' : 'false', status: 'completed' },
+    },
+    [
+      h('div', { className: 'download-thumb-wrap' }, [collage]),
+      h('div', { className: 'download-info' }, [
+        h('div', { className: 'download-title truncate', text: 'All Songs' }),
+        h('div', {
+          className: 'download-desc truncate',
+          text: `${playable.length} ${playable.length === 1 ? 'song' : 'songs'} downloaded`,
         }),
       ]),
       h('div', { className: 'download-actions' }, [playBtn, shuffleBtn, openBtn]),
@@ -369,7 +458,9 @@ function reconcile(container: HTMLElement, entries: { key: string; el: HTMLEleme
     }
     return el;
   });
-  const current = Array.from(container.children);
+  const current = Array.from(container.children).filter(
+    (child) => child instanceof HTMLElement && child.dataset.key !== undefined,
+  );
   if (current.length !== next.length || current.some((child, index) => child !== next[index])) {
     container.replaceChildren(...next);
     changed = true;
@@ -545,7 +636,7 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
   const { store, router, api, toasts } = ctx;
 
   let searchQuery = '';
-  let selectedLibraryId: string | null = null;
+  let selectedLibraryId: string | null = ALL_SONGS;
   let savedLibraries: SavedLibrary[] = [];
   let logsOpen = false;
   let logsList: string[] = [];
@@ -844,8 +935,8 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
     searchBar,
     logsPanel,
     savedSection,
-    librariesSection,
     tracksSection,
+    librariesSection,
   ]);
 
   root.replaceChildren(inner);
@@ -937,14 +1028,23 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
           item.album.toLowerCase().includes(searchQuery),
       );
     });
-    savedSection.hidden = visible.length === 0;
-    reconcile(
-      savedListContainer,
-      visible.map((saved) => ({
+    savedSection.hidden = downloads.length === 0;
+    const allCard =
+      completed.size > 0
+        ? [
+            {
+              key: 'all-songs',
+              el: renderAllSongsCard(downloads, ctx, selectedLibraryId === ALL_SONGS, selectLibrary),
+            },
+          ]
+        : [];
+    reconcile(savedListContainer, [
+      ...allCard,
+      ...visible.map((saved) => ({
         key: `saved:${saved.id}`,
         el: renderSavedLibraryCard(saved, downloads, ctx, saved.id === selectedLibraryId, selectLibrary),
       })),
-    );
+    ]);
   }
 
   api
@@ -1017,14 +1117,14 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
     renderSaved(downloads);
 
     const selected = savedLibraries.find((saved) => saved.id === selectedLibraryId) ?? null;
-    if (selectedLibraryId !== null && !selected) {
-      selectedLibraryId = null;
+    if (selectedLibraryId !== null && selectedLibraryId !== ALL_SONGS && !selected) {
+      selectedLibraryId = ALL_SONGS;
     }
     const baseList = selected ? savedLibraryItems(selected, downloads) : downloads;
     const scope = selected
       ? baseList.filter((item) => item.status === 'completed').map((item) => item.videoId)
       : undefined;
-    showAllBtn.hidden = selected === null;
+    showAllBtn.hidden = true;
 
     const filteredDownloads = baseList.filter((item) => {
       if (searchQuery === '') {
@@ -1037,7 +1137,7 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
       );
     });
 
-    const sectionName = selected ? selected.title : 'Downloaded Tracks';
+    const sectionName = selected ? selected.title : 'All Songs';
     setText(
       tracksSectionTitle,
       searchQuery !== ''
@@ -1058,6 +1158,7 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
       ]);
       listContainer.replaceChildren(empty);
       hydrate(listContainer);
+      placeTracks(downloads.length > 0);
       return;
     }
 
@@ -1068,6 +1169,32 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
         el: renderDownloadRow(item, currentVideoId, playing, ctx, scope),
       })),
     );
+    placeTracks(true);
+  }
+
+  function placeTracks(hasDownloads: boolean): void {
+    const key =
+      selectedLibraryId === null
+        ? null
+        : selectedLibraryId === ALL_SONGS
+          ? 'all-songs'
+          : `saved:${selectedLibraryId}`;
+    const anchor =
+      key === null
+        ? null
+        : Array.from(savedListContainer.children).find(
+            (child) => child instanceof HTMLElement && child.dataset.key === key,
+          );
+    tracksSection.hidden = hasDownloads && key === null;
+    if (anchor) {
+      if (anchor.nextElementSibling !== tracksSection) {
+        anchor.after(tracksSection);
+      }
+      tracksSection.classList.add('downloads-tracks-inline');
+    } else if (tracksSection.previousElementSibling !== savedSection) {
+      savedSection.after(tracksSection);
+      tracksSection.classList.remove('downloads-tracks-inline');
+    }
   }
 
   store.select(

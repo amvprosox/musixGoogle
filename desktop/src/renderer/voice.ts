@@ -69,6 +69,38 @@ function paletteFromSpeech(query: string): PaletteName | null {
   return bestScore >= 0.6 && best && isResolvedTheme(best) ? best : null;
 }
 
+type ReplyKey =
+  | 'okay'
+  | 'sorry'
+  | 'scope'
+  | 'nothing'
+  | 'not-found'
+  | 'no-downloads'
+  | 'no-playlist'
+  | 'play-first'
+  | 'not-you'
+  | 'now-playing'
+  | 'online'
+  | 'downloaded';
+
+const REPLY_PATTERNS: [RegExp, ReplyKey][] = [
+  [/did not catch|didn't catch|not understand/i, 'sorry'],
+  [/only control musix|only help with your music/i, 'scope'],
+  [/nothing is playing/i, 'nothing'],
+  [/find that playlist/i, 'no-playlist'],
+  [/could not find|couldn't find/i, 'not-found'],
+  [/no downloads/i, 'no-downloads'],
+  [/play a song first/i, 'play-first'],
+  [/sound like/i, 'not-you'],
+  [/^this is |what's playing|what is playing/i, 'now-playing'],
+  [/online|connection/i, 'online'],
+  [/already downloaded/i, 'downloaded'],
+];
+
+function replyKey(text: string): ReplyKey {
+  return REPLY_PATTERNS.find(([pattern]) => pattern.test(text))?.[1] ?? 'okay';
+}
+
 export class VoiceController {
   config: VoiceConfigView | null = null;
   status: VoiceStatus = { state: 'off', progress: 0, message: '', heard: '' };
@@ -84,9 +116,7 @@ export class VoiceController {
   private pending: number[] = [];
   private recording: number[] | null = null;
   private yes: HTMLAudioElement | null = null;
-  private speechContext: AudioContext | null = null;
-  private speechSource: AudioBufferSourceNode | null = null;
-  private speechToken = 0;
+  private replyAudio: HTMLAudioElement | null = null;
 
   constructor(private readonly ctx: AppContext) {
     const { api } = ctx;
@@ -336,70 +366,24 @@ export class VoiceController {
   }
 
   private say(text: string): void {
-    const trimmed = text.trim();
-    if (trimmed === '') {
-      return;
-    }
-    const token = ++this.speechToken;
-    this.ctx.api
-      .invoke('voice:speak', trimmed)
-      .then((audio) => {
-        if (token !== this.speechToken) {
-          return;
-        }
-        if (audio && audio.samples.length > 0) {
-          this.playSpeech(audio.samples, audio.sampleRate);
-        } else {
-          this.systemSay(trimmed);
-        }
-      })
-      .catch(() => {
-        this.systemSay(trimmed);
-      });
+    this.reply(replyKey(text));
   }
 
-  private playSpeech(samples: Float32Array, sampleRate: number): void {
-    this.speechSource?.stop();
-    this.speechContext ??= new AudioContext();
-    const context = this.speechContext;
-    const buffer = context.createBuffer(1, samples.length, sampleRate);
-    buffer.copyToChannel(Float32Array.from(samples), 0);
-    const source = context.createBufferSource();
-    source.buffer = buffer;
-    source.connect(context.destination);
+  private reply(key: ReplyKey): void {
+    this.replyAudio?.pause();
+    const audio = new Audio(`musix-asset://voice/replies/${key}.wav`);
+    audio.volume = 1;
+    this.replyAudio = audio;
     this.ctx.actions.duckOffline(true);
-    source.addEventListener('ended', () => {
-      if (this.speechSource === source) {
-        this.speechSource = null;
+    const done = (): void => {
+      if (this.replyAudio === audio) {
+        this.replyAudio = null;
         this.ctx.actions.duckOffline(false);
       }
-    });
-    this.speechSource = source;
-    void context.resume().then(() => {
-      source.start();
-    });
-  }
-
-  private systemSay(text: string): void {
-    if (!('speechSynthesis' in window)) {
-      return;
-    }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    const voices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.startsWith('en'));
-    const preferred = voices.find((voice) =>
-      /samantha|ava|allison|zoe|susan|serena|female/i.test(voice.name),
-    );
-    if (preferred ?? voices[0]) {
-      utterance.voice = preferred ?? voices[0] ?? null;
-    }
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  }
-
-  async downloadNaturalVoice(): Promise<void> {
-    this.config = await this.ctx.api.invoke('voice:download-natural', null);
-    this.emit();
+    };
+    audio.addEventListener('ended', done, { once: true });
+    audio.addEventListener('error', done, { once: true });
+    audio.play().catch(done);
   }
 
   private notify(title: string, message: string): void {
@@ -439,6 +423,7 @@ export class VoiceController {
         this.say(command.reply);
       } else if (command.source === 'rejected') {
         this.notify('Voice assistant', 'That did not sound like your voice.');
+        this.reply('not-you');
       } else if (command.source === 'empty') {
         this.notify('Voice assistant', 'I did not hear a command.');
       } else {
