@@ -82,6 +82,50 @@ function startVoice(api: NonNullable<Window['musixOverlay']>): void {
   wave.append(bars, label, note);
   document.body.append(stage);
   let part = '';
+  // Bars glide toward their targets every frame, so they never freeze or jump:
+  // live mic level while listening, a travelling wave while thinking, and a soft
+  // breathing wave while the heard command is on screen and fading out.
+  let mode: 'listening' | 'thinking' | 'done' | 'idle' = 'idle';
+  const current: number[] = heights.map(() => 0.08);
+  let frame = 0;
+  let idleSince = 0;
+  const middle = (WAVE_BARS - 1) / 2;
+  const tick = (now: number): void => {
+    let moving = false;
+    for (const [index, bar] of barNodes.entries()) {
+      const shape = 1 - Math.abs(index - middle) / (middle + 2);
+      let target: number;
+      if (mode === 'listening') {
+        const value = heights[index] ?? 0;
+        target = (0.15 + value * 3.2) * (0.45 + shape * 0.55);
+      } else if (mode === 'thinking') {
+        target = 0.22 + 0.32 * shape * (0.5 + 0.5 * Math.sin(now / 170 - index * 0.45));
+      } else if (mode === 'done') {
+        target = 0.12 + 0.14 * shape * (0.5 + 0.5 * Math.sin(now / 320 - index * 0.3));
+      } else {
+        target = 0.08;
+      }
+      target = Math.max(0.08, Math.min(1, target));
+      const prev = current[index] ?? 0.08;
+      const next = prev + (target - prev) * 0.18;
+      current[index] = next;
+      if (Math.abs(target - next) > 0.002) {
+        moving = true;
+      }
+      bar.style.transform = `scaleY(${next.toFixed(3)})`;
+    }
+    if (mode === 'idle' && !moving) {
+      idleSince = idleSince === 0 ? now : idleSince;
+    } else {
+      idleSince = 0;
+    }
+    frame = mode === 'idle' && idleSince !== 0 && now - idleSince > 600 ? 0 : requestAnimationFrame(tick);
+  };
+  const wake = (): void => {
+    if (frame === 0) {
+      frame = requestAnimationFrame(tick);
+    }
+  };
   api.onRender((payload: OverlayRenderPayload) => {
     if (payload.kind !== 'voice') {
       return;
@@ -102,17 +146,18 @@ function startVoice(api: NonNullable<Window['musixOverlay']>): void {
     if (voice.part === 'wave') {
       heights.shift();
       heights.push(voice.active ? voice.level : 0);
-      const middle = (WAVE_BARS - 1) / 2;
-      barNodes.forEach((bar, index) => {
-        const shape = 1 - Math.abs(index - middle) / (middle + 2);
-        const value = heights[index] ?? 0;
-        const scale = Math.max(0.08, Math.min(1, (0.15 + value * 3.2) * (0.45 + shape * 0.55)));
-        bar.style.transform = `scaleY(${scale.toFixed(3)})`;
-      });
+      mode = voice.thinking
+        ? 'thinking'
+        : voice.active
+          ? 'listening'
+          : voice.caption !== ''
+            ? 'done'
+            : 'idle';
+      wake();
       if (voice.caption !== '') {
         label.textContent = `\u201c${voice.caption}\u201d`;
         note.textContent = voice.thinking ? 'Thinking\u2026' : voice.note;
-      } else {
+      } else if (voice.active || voice.thinking) {
         label.textContent = voice.thinking ? 'Thinking\u2026' : 'Listening\u2026';
         note.textContent = '';
       }

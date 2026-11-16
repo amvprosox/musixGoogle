@@ -220,7 +220,7 @@ body {
   position: fixed;
   inset: 0;
   opacity: 0;
-  transition: opacity 320ms ease;
+  transition: opacity 460ms cubic-bezier(0.22, 1, 0.36, 1);
   --voice-level: 0;
 }
 
@@ -304,6 +304,18 @@ body {
   background: rgb(10 10 14 / 86%);
   border: 1px solid rgb(255 255 255 / 12%);
   box-shadow: 0 8px 28px rgb(0 0 0 / 45%);
+  transform: translateY(10px) scale(0.96);
+  transition: transform 460ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.voice-stage[data-active='true'] .voice-wave,
+.voice-stage[data-caption='true'] .voice-wave {
+  transform: none;
+}
+
+.voice-label,
+.voice-note {
+  transition: opacity 240ms ease;
 }
 
 .voice-bars {
@@ -319,7 +331,7 @@ body {
   border-radius: 2px;
   background: linear-gradient(180deg, #ff4fa3, #a855f7 45%, #22d3ee);
   transform: scaleY(0.08);
-  transition: transform 90ms linear;
+  will-change: transform;
 }
 
 .voice-label {
