@@ -60,6 +60,8 @@ final class PlayerController: ObservableObject {
     private var offlineTicker: Task<Void, Never>?
     private var offlineTracks: [OfflineTrackEntry] = []
     private var offlineIndex = 0
+    private var offlineSession: OfflineSession?
+    private(set) var offlineScope: [String]?
 
     init(engine: WebEngine, settings: AppSettings) {
         self.engine = engine
@@ -111,13 +113,21 @@ final class PlayerController: ObservableObject {
         PlaybackModel.availability(state: state, timeline: timeline, signedIn: !offlineActive && engine.account == .signedIn)
     }
 
-    func playOffline(item: DownloadItem, downloads: DownloadController) {
+    func playOffline(item: DownloadItem, downloads: DownloadController, scope: [String]? = nil) {
         guard let targetAudio = downloads.audioURL(for: item.videoId) else {
             message = "Downloaded audio file could not be found."
             return
         }
         var list: [OfflineTrackEntry] = []
-        for entry in downloads.items where entry.status == .completed {
+        let completed = downloads.items.filter { $0.status == .completed }
+        let ordered: [DownloadItem]
+        if let scope {
+            let byId = Dictionary(completed.map { ($0.videoId, $0) }, uniquingKeysWith: { first, _ in first })
+            ordered = scope.compactMap { byId[$0] }
+        } else {
+            ordered = completed
+        }
+        for entry in ordered {
             if let url = downloads.audioURL(for: entry.videoId) {
                 list.append(
                     OfflineTrackEntry(
@@ -152,8 +162,18 @@ final class PlayerController: ObservableObject {
         }
         offlineTracks = list
         offlineIndex = index
+        offlineScope = scope
+        offlineSession = OfflineSession(queue: list.map(\.videoId), startId: item.videoId, shuffle: state.shuffle)
         offlineActive = true
         startOfflineTrack(at: index)
+    }
+
+    private func startOfflineTrack(videoId: String?) -> Bool {
+        guard let videoId, let index = offlineTracks.firstIndex(where: { $0.videoId == videoId }) else {
+            return false
+        }
+        startOfflineTrack(at: index)
+        return true
     }
 
     func stopOfflineIfPlaying(videoId: String) {
@@ -237,15 +257,22 @@ final class PlayerController: ObservableObject {
             isAd: false,
             isSignedIn: engine.account == .signedIn
         )
-        let queue = offlineTracks.enumerated().map { idx, entry in
+        let byId = Dictionary(offlineTracks.map { ($0.videoId, $0) }, uniquingKeysWith: { first, _ in first })
+        var displayIds: [String] = []
+        if let last = offlineSession?.lastPlayed, last != track.videoId {
+            displayIds.append(last)
+        }
+        displayIds.append(track.videoId)
+        displayIds.append(contentsOf: offlineSession?.upcoming ?? [])
+        let queue = displayIds.compactMap { byId[$0] }.enumerated().map { idx, entry in
             QueueEntry(
                 index: idx,
                 videoId: entry.videoId,
                 title: entry.title,
                 artist: entry.artist,
                 artworkUrl: entry.artworkUrl,
-                durationSec: idx == offlineIndex ? dur : entry.durationSec,
-                isCurrent: idx == offlineIndex
+                durationSec: entry.videoId == track.videoId ? dur : entry.durationSec,
+                isCurrent: entry.videoId == track.videoId
             )
         }
         stateAt = Date()
@@ -268,19 +295,8 @@ final class PlayerController: ObservableObject {
             startOfflineTrack(at: offlineIndex)
             return
         }
-        if state.shuffle, offlineTracks.count > 1 {
-            let candidates = offlineTracks.indices.filter { $0 != offlineIndex }
-            if let nextIdx = candidates.randomElement() {
-                startOfflineTrack(at: nextIdx)
-                return
-            }
-        }
-        let nextIdx = offlineIndex + 1
-        if offlineTracks.indices.contains(nextIdx) {
-            startOfflineTrack(at: nextIdx)
-        } else if state.repeatMode == .all {
-            startOfflineTrack(at: 0)
-        } else {
+        let nextId = offlineSession?.next(repeatAll: state.repeatMode == .all)
+        if !startOfflineTrack(videoId: nextId) {
             offlineTicker?.cancel()
             offlinePlayer?.currentTime = 0
             syncOfflineState()
@@ -298,6 +314,8 @@ final class PlayerController: ObservableObject {
         offlinePlayer = nil
         offlineTracks = []
         offlineIndex = 0
+        offlineSession = nil
+        offlineScope = nil
     }
 
     func play() {
@@ -369,15 +387,7 @@ final class PlayerController: ObservableObject {
             guard !offlineTracks.isEmpty else {
                 return
             }
-            if state.shuffle, offlineTracks.count > 1 {
-                let candidates = offlineTracks.indices.filter { $0 != offlineIndex }
-                if let nextIdx = candidates.randomElement() {
-                    startOfflineTrack(at: nextIdx)
-                    return
-                }
-            }
-            let nextIdx = (offlineIndex + 1) % offlineTracks.count
-            startOfflineTrack(at: nextIdx)
+            _ = startOfflineTrack(videoId: offlineSession?.next(repeatAll: true))
             return
         }
         perform(.next)
@@ -392,8 +402,9 @@ final class PlayerController: ObservableObject {
                 seek(to: 0)
                 return
             }
-            let prevIdx = (offlineIndex - 1 + offlineTracks.count) % offlineTracks.count
-            startOfflineTrack(at: prevIdx)
+            if !startOfflineTrack(videoId: offlineSession?.previous(repeatAll: true)) {
+                seek(to: 0)
+            }
             return
         }
         switch PlaybackModel.previousAction(positionSec: positionSec) {
@@ -428,7 +439,9 @@ final class PlayerController: ObservableObject {
         if offlineActive {
             var nextState = state
             nextState.shuffle = !state.shuffle
+            offlineSession?.setShuffle(nextState.shuffle)
             state = nextState
+            syncOfflineState()
             refreshRemoteAvailability()
             return
         }

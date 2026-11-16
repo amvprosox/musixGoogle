@@ -582,8 +582,11 @@ class MainViewModel(
         )
     }
 
-    fun playDownloaded(item: DownloadItem) {
-        graph.downloads.playOffline(item) { connection.pause() }
+    fun playDownloaded(
+        item: DownloadItem,
+        scope: List<String>? = null,
+    ) {
+        graph.downloads.playOffline(item, pauseOnline = { connection.pause() }, scope = scope)
     }
 
     fun deleteDownload(videoId: String) {

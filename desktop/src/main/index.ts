@@ -44,6 +44,16 @@ import { createMainWindow, currentTheme, showWindow, toggleWindow, WindowChrome 
 const LYRICS_TIMEOUT_MS = 30_000;
 const SUGGEST_TIMEOUT_MS = 5_000;
 const BROWSE_TIMEOUT_MS = 12_000;
+const OFFLINE_REMOTE_COMMANDS: ReadonlySet<PlayerCommand['type']> = new Set([
+  'play',
+  'pause',
+  'togglePlay',
+  'next',
+  'previous',
+  'seekTo',
+  'toggleShuffle',
+  'cycleRepeat',
+]);
 const LIBRARY_MAX_TRACKS = 5000;
 const LIBRARY_MAX_CONTINUATIONS = 60;
 const LIBRARY_MAX_PLAYLISTS = 25;
@@ -250,7 +260,12 @@ async function start(): Promise<void> {
     return { x: bounds.x, y: bounds.y };
   };
 
+  let offlineActive = false;
   const command = (cmd: PlayerCommand): void => {
+    if (offlineActive && OFFLINE_REMOTE_COMMANDS.has(cmd.type) && !win.isDestroyed()) {
+      sendToShell(win, 'player:remote', cmd);
+      return;
+    }
     view.command(cmd);
   };
 
@@ -492,6 +507,9 @@ async function start(): Promise<void> {
       lyrics,
       suggest,
       detectLibraries,
+      setOfflineActive: (active: boolean) => {
+        offlineActive = active;
+      },
       openShellMenu: (request) => {
         if (request.target.kind === 'shellText') {
           menus.open({ kind: 'shellText' }, request.x, request.y, {

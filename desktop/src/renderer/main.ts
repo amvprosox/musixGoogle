@@ -276,6 +276,9 @@ function bootstrap(): void {
       })
       .catch(() => undefined);
   });
+  api.on('player:remote', (command) => {
+    actions.handleRemote(command);
+  });
   api.on('app:command', (command) => {
     if (command === 'open-settings') {
       router.openSettings();

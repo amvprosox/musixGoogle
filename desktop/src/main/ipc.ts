@@ -64,6 +64,7 @@ export interface IpcContext {
   lyrics: () => Promise<LyricsResponse>;
   suggest: (query: string) => Promise<SuggestResponse>;
   detectLibraries: () => Promise<DetectedLibrary[]>;
+  setOfflineActive: (active: boolean) => void;
 }
 
 type AnyEvent = IpcMainEvent | IpcMainInvokeEvent;
@@ -143,6 +144,16 @@ export function registerIpc(ctx: IpcContext): () => void {
           return;
         }
         ctx.view.command(payload);
+      },
+    ],
+    [
+      'offline:active',
+      (event, payload) => {
+        if (!fromShell(event) || !isBoolean(payload)) {
+          reject('offline:active');
+          return;
+        }
+        ctx.setOfflineActive(payload);
       },
     ],
     [

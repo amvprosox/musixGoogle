@@ -1,5 +1,6 @@
 import type { ShellApi } from '../shared/channels';
 import { OPTIMISTIC_TIMEOUT_MS, SEEK_STEP_SEC, VOLUME_STEP } from '../shared/constants';
+import { OfflineSession } from '../shared/offline-session';
 import { clampVolume, seekBy, stepVolume } from '../shared/player-math';
 import type { DownloadItem, PlayerCommand, PlayerState, RepeatMode } from '../shared/types';
 import { displayedPlaying, type Store } from './state';
@@ -8,6 +9,8 @@ export class PlayerActions {
   private optimisticTimer: number | null = null;
   private offlineAudio: HTMLAudioElement | null = null;
   private offlineVideoId: string | null = null;
+  private offlineSession: OfflineSession | null = null;
+  private offlineScope: string[] | null = null;
 
   constructor(
     private readonly store: Store,
@@ -24,15 +27,82 @@ export class PlayerActions {
       this.offlineAudio.removeAttribute('src');
       this.offlineAudio.load();
     }
+    if (this.offlineVideoId !== null) {
+      this.api.send('offline:active', false);
+    }
     this.offlineVideoId = null;
+    this.offlineSession = null;
+    this.offlineScope = null;
   }
 
-  playDownloaded(item: DownloadItem): void {
+  handleRemote(command: PlayerCommand): void {
+    if (!this.isOfflineActive() || !this.offlineAudio) {
+      this.command(command);
+      return;
+    }
+    switch (command.type) {
+      case 'play':
+        this.offlineAudio.play().catch(() => {
+          this.syncOfflineState(false);
+        });
+        return;
+      case 'pause':
+        this.offlineAudio.pause();
+        return;
+      case 'togglePlay':
+        this.togglePlay();
+        return;
+      case 'next':
+        this.next();
+        return;
+      case 'previous':
+        this.previous();
+        return;
+      case 'seekTo':
+        this.seekTo(command.seconds);
+        return;
+      case 'toggleShuffle':
+        this.toggleShuffle();
+        return;
+      case 'cycleRepeat':
+        this.cycleRepeat();
+        return;
+      default:
+        this.command(command);
+    }
+  }
+
+  offlineScopeIds(): readonly string[] | null {
+    return this.offlineScope;
+  }
+
+  playDownloaded(item: DownloadItem, scope?: readonly string[]): void {
     if (item.status !== 'completed' || item.audioUrl === '') {
       return;
     }
+    const prev = this.store.getState().player;
+    this.offlineScope = scope ? [...scope] : null;
+    this.offlineSession = new OfflineSession(this.playableIds(), item.videoId, prev ? prev.shuffle : false);
+    this.loadOfflineItem(item);
+  }
+
+  private playableIds(): string[] {
+    const completed = this.store
+      .getState()
+      .downloads.filter((entry) => entry.status === 'completed' && entry.audioUrl !== '');
+    if (this.offlineScope === null) {
+      return completed.map((entry) => entry.videoId);
+    }
+    const available = new Set(completed.map((entry) => entry.videoId));
+    return this.offlineScope.filter((id) => available.has(id));
+  }
+
+  private loadOfflineItem(item: DownloadItem): void {
     this.api.send('view:command', { type: 'pause' });
     const audio = this.ensureOfflineAudio();
+    if (this.offlineVideoId === null) {
+      this.api.send('offline:active', true);
+    }
     this.offlineVideoId = item.videoId;
     audio.src = item.audioUrl;
     const prev = this.store.getState().player;
@@ -50,7 +120,7 @@ export class PlayerActions {
       volume: audio.volume,
       isMuted: audio.muted,
       likeStatus: 'INDIFFERENT',
-      shuffle: prev ? prev.shuffle : false,
+      shuffle: this.offlineSession ? this.offlineSession.shuffle : prev ? prev.shuffle : false,
       repeatMode: prev ? prev.repeatMode : 'NONE',
       videoId: item.videoId,
       isAd: false,
@@ -101,6 +171,7 @@ export class PlayerActions {
         return;
       }
       if (!this.stepOfflineTrack(1, current ? current.repeatMode === 'ALL' : false)) {
+        audio.currentTime = 0;
         this.syncOfflineState(false);
       }
     });
@@ -131,32 +202,28 @@ export class PlayerActions {
   }
 
   private stepOfflineTrack(direction: 1 | -1, wrap: boolean): boolean {
-    const completed = this.store
-      .getState()
-      .downloads.filter((item) => item.status === 'completed' && item.audioUrl !== '');
-    if (completed.length === 0) {
+    const session = this.offlineSession;
+    if (!session) {
       return false;
     }
-    const idx = completed.findIndex((item) => item.videoId === this.offlineVideoId);
-    if (idx === -1) {
+    const ids = this.playableIds();
+    if (ids.length === 0) {
       return false;
     }
-    const nextIdx = idx + direction;
-    if (nextIdx >= 0 && nextIdx < completed.length) {
-      const target = completed[nextIdx];
-      if (target) {
-        this.playDownloaded(target);
-        return true;
-      }
+    session.syncQueue(ids);
+    const byId = new Map(
+      this.store
+        .getState()
+        .downloads.filter((entry) => entry.status === 'completed' && entry.audioUrl !== '')
+        .map((entry) => [entry.videoId, entry]),
+    );
+    const targetId = direction > 0 ? session.next(wrap) : session.previous(wrap);
+    const target = targetId !== null ? byId.get(targetId) : undefined;
+    if (!target) {
+      return false;
     }
-    if (wrap && completed.length > 0) {
-      const wrapped = completed[direction > 0 ? 0 : completed.length - 1];
-      if (wrapped) {
-        this.playDownloaded(wrapped);
-        return true;
-      }
-    }
-    return false;
+    this.loadOfflineItem(target);
+    return true;
   }
 
   command(command: PlayerCommand): void {
@@ -214,7 +281,10 @@ export class PlayerActions {
         this.syncOfflineState(!this.offlineAudio.paused);
         return;
       }
-      this.stepOfflineTrack(-1, true);
+      if (!this.stepOfflineTrack(-1, true) && this.offlineAudio) {
+        this.offlineAudio.currentTime = 0;
+        this.syncOfflineState(!this.offlineAudio.paused);
+      }
       return;
     }
     this.command({ type: 'previous' });
@@ -287,9 +357,11 @@ export class PlayerActions {
     if (this.isOfflineActive()) {
       const current = this.store.getState().player;
       if (current) {
+        const nextShuffle = !current.shuffle;
+        this.offlineSession?.setShuffle(nextShuffle);
         this.store.dispatch({
           type: 'player',
-          player: { ...current, shuffle: !current.shuffle },
+          player: { ...current, shuffle: nextShuffle },
         });
       }
       return;

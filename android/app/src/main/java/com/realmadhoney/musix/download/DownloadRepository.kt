@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.media3.common.Player
 import com.realmadhoney.musix.core.bridge.BridgeCodec
+import com.realmadhoney.musix.core.offline.OfflineSession
 import com.realmadhoney.musix.ui.NowPlaying
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -114,6 +115,8 @@ class DownloadRepository(
 
     private var mediaPlayer: MediaPlayer? = null
     private var offlineVideoId: String? = null
+    private var offlineSession: OfflineSession? = null
+    private var offlineScope: List<String>? = null
     private var tickerJob: Job? = null
     private var cachedVisitorData: String = ""
     private var logFileLines = 0
@@ -368,6 +371,30 @@ class DownloadRepository(
     fun playOffline(
         item: DownloadItem,
         pauseOnline: () -> Unit,
+        scope: List<String>? = null,
+    ) {
+        if (item.status != DownloadStatus.COMPLETED || !File(item.audioPath).isFile) {
+            onMessage("Downloaded file is not available.")
+            return
+        }
+        offlineScope = scope
+        offlineSession = OfflineSession(playableItems().map { it.videoId }, item.videoId, offlinePlayingFlow.value?.shuffle ?: false)
+        loadOffline(item, pauseOnline)
+    }
+
+    private fun playableItems(): List<DownloadItem> {
+        val completed =
+            itemsFlow.value.filter {
+                it.status == DownloadStatus.COMPLETED && it.audioPath.isNotEmpty() && File(it.audioPath).isFile
+            }
+        val scope = offlineScope ?: return completed
+        val byId = completed.associateBy { it.videoId }
+        return scope.mapNotNull { byId[it] }
+    }
+
+    private fun loadOffline(
+        item: DownloadItem,
+        pauseOnline: () -> Unit,
     ) {
         val audioFile = File(item.audioPath)
         if (item.status != DownloadStatus.COMPLETED || !audioFile.isFile) {
@@ -384,7 +411,7 @@ class DownloadRepository(
             player.prepare()
             val prev = offlinePlayingFlow.value
             val repeatMode = prev?.repeatMode ?: Player.REPEAT_MODE_OFF
-            val shuffle = prev?.shuffle ?: false
+            val shuffle = offlineSession?.shuffle ?: prev?.shuffle ?: false
             player.setOnCompletionListener {
                 val active = offlinePlayingFlow.value
                 if (active != null && active.repeatMode == Player.REPEAT_MODE_ONE) {
@@ -435,6 +462,8 @@ class DownloadRepository(
         tickerJob = null
         stopMediaPlayer()
         offlineVideoId = null
+        offlineSession = null
+        offlineScope = null
         offlinePlayingFlow.value = null
     }
 
@@ -466,18 +495,18 @@ class DownloadRepository(
 
     fun previousOffline(pauseOnline: () -> Unit): Boolean {
         val player = mediaPlayer ?: return false
-        if (player.currentPosition > 3_000) {
+        if (player.currentPosition > 3_000 || !stepOffline(-1, wrap = true, pauseOnline = pauseOnline)) {
             player.seekTo(0)
             syncOfflineState()
-            return true
         }
-        stepOffline(-1, wrap = true, pauseOnline = pauseOnline)
         return true
     }
 
     fun toggleOfflineShuffle(): Boolean {
         val current = offlinePlayingFlow.value ?: return false
-        offlinePlayingFlow.value = current.copy(shuffle = !current.shuffle)
+        val next = !current.shuffle
+        offlineSession?.setShuffle(next)
+        offlinePlayingFlow.value = current.copy(shuffle = next)
         return true
     }
 
@@ -507,28 +536,16 @@ class DownloadRepository(
         wrap: Boolean,
         pauseOnline: () -> Unit,
     ): Boolean {
-        val completed =
-            itemsFlow.value.filter {
-                it.status == DownloadStatus.COMPLETED && it.audioPath.isNotEmpty() && File(it.audioPath).isFile
-            }
-        if (completed.isEmpty()) {
+        val session = offlineSession ?: return false
+        val playable = playableItems()
+        if (playable.isEmpty()) {
             return false
         }
-        val idx = completed.indexOfFirst { it.videoId == offlineVideoId }
-        if (idx < 0) {
-            return false
-        }
-        val nextIdx = idx + direction
-        if (nextIdx in completed.indices) {
-            playOffline(completed[nextIdx], pauseOnline)
-            return true
-        }
-        if (wrap) {
-            val wrapped = if (direction > 0) completed.first() else completed.last()
-            playOffline(wrapped, pauseOnline)
-            return true
-        }
-        return false
+        session.syncQueue(playable.map { it.videoId })
+        val targetId = if (direction > 0) session.next(wrap) else session.previous(wrap)
+        val target = playable.firstOrNull { it.videoId == targetId } ?: return false
+        loadOffline(target, pauseOnline)
+        return true
     }
 
     private fun startOfflineTicker() {

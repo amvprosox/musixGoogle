@@ -14,33 +14,38 @@ import { isRecord } from '../shared/guards';
 import { isThemePreference } from '../shared/settings';
 import { desktopPlatform, type BootInfo } from '../shared/types';
 
-const INVOKE_CHANNELS: readonly ShellInvokeChannel[] = [
-  'app:get-initial',
-  'view:freeze',
-  'settings:set',
-  'settings:reset',
-  'adblock:update-now',
-  'data:clear-cache',
-  'data:sign-out',
-  'lyrics:get',
-  'search:suggest',
-  'downloads:list',
-  'downloads:start',
-  'downloads:delete',
-];
+const INVOKE_CHANNELS: Readonly<Record<ShellInvokeChannel, true>> = {
+  'app:get-initial': true,
+  'view:freeze': true,
+  'settings:set': true,
+  'settings:reset': true,
+  'adblock:update-now': true,
+  'data:clear-cache': true,
+  'data:sign-out': true,
+  'lyrics:get': true,
+  'search:suggest': true,
+  'downloads:list': true,
+  'downloads:start': true,
+  'downloads:batch': true,
+  'downloads:delete': true,
+  'downloads:logs': true,
+  'downloads:logs-clear': true,
+  'downloads:libraries': true,
+};
 
-const SEND_CHANNELS: readonly ShellSendChannel[] = [
-  'view:layout',
-  'view:command',
-  'view:history',
-  'view:reload',
-  'window:sidebar-collapsed',
-  'app:quit',
-  'overlay:tooltip',
-  'overlay:toasts',
-  'window:control',
-  'menu:open',
-];
+const SEND_CHANNELS: Readonly<Record<ShellSendChannel, true>> = {
+  'view:layout': true,
+  'view:command': true,
+  'view:history': true,
+  'view:reload': true,
+  'window:sidebar-collapsed': true,
+  'app:quit': true,
+  'overlay:tooltip': true,
+  'overlay:toasts': true,
+  'window:control': true,
+  'menu:open': true,
+  'offline:active': true,
+};
 
 function parseBoot(argv: readonly string[]): BootInfo | null {
   const arg = argv.find((value) => value.startsWith(BOOT_ARG_PREFIX));
@@ -73,13 +78,13 @@ const api: ShellApi = {
     channel: C,
     payload: ShellInvokeChannels[C]['request'],
   ): Promise<ShellInvokeChannels[C]['response']> {
-    if (!INVOKE_CHANNELS.includes(channel)) {
+    if (!Object.hasOwn(INVOKE_CHANNELS, channel)) {
       return Promise.reject(new Error(`Channel not allowed: ${channel}`));
     }
     return ipcRenderer.invoke(channel, payload) as Promise<ShellInvokeChannels[C]['response']>;
   },
   send<C extends ShellSendChannel>(channel: C, payload: ShellSendChannels[C]): void {
-    if (!SEND_CHANNELS.includes(channel)) {
+    if (!Object.hasOwn(SEND_CHANNELS, channel)) {
       return;
     }
     ipcRenderer.send(channel, payload);

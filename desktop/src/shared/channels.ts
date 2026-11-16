@@ -63,6 +63,7 @@ export interface ShellSendChannels {
   'overlay:toasts': ToastLayerRequest;
   'window:control': WindowControl;
   'menu:open': ShellMenuRequest;
+  'offline:active': boolean;
 }
 
 export interface ShellEventChannels {
@@ -83,6 +84,7 @@ export interface ShellEventChannels {
   'dialog:show': ShellDialog;
   'downloads:changed': DownloadItem[];
   'downloads:logs-changed': string[];
+  'player:remote': PlayerCommand;
 }
 
 export interface YtmSendChannels {
@@ -131,6 +133,7 @@ export const SHELL_EVENT_CHANNELS: readonly ShellEventChannel[] = [
   'dialog:show',
   'downloads:changed',
   'downloads:logs-changed',
+  'player:remote',
 ];
 
 export interface ShellApi {
