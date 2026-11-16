@@ -279,6 +279,16 @@ async function start(): Promise<void> {
       if (!win.isDestroyed()) {
         sendToShell(win, 'voice:status', status);
       }
+      if (status.state === 'awake' && !win.isDestroyed()) {
+        if (win.isMinimized()) {
+          win.restore();
+        }
+        win.show();
+        win.focus();
+        if (process.platform === 'darwin') {
+          app.focus({ steal: true });
+        }
+      }
       voiceGlow.setState(
         status.state === 'awake' || status.state === 'thinking',
         status.state === 'thinking',

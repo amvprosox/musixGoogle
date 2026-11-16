@@ -41,6 +41,8 @@ const INVOKE_CHANNELS: Readonly<Record<ShellInvokeChannel, true>> = {
   'voice:enroll': true,
   'voice:test': true,
   'voice:forget': true,
+  'voice:speak': true,
+  'voice:download-natural': true,
   'voice:play-search': true,
 };
 

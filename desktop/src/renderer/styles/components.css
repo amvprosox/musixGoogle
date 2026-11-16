@@ -1747,11 +1747,44 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--surface);
-  transition: background-color var(--dur-hover) var(--ease);
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 220ms ease,
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
 }
 
 .download-card:hover {
   background: var(--surface-hover);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: 0 6px 18px rgb(0 0 0 / 22%);
+  transform: translateY(-1px);
+}
+
+.download-card:active {
+  transform: translateY(0);
+  transition-duration: 80ms;
+}
+
+.download-card .download-thumb {
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.download-card:hover .download-thumb {
+  transform: scale(1.04);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .download-card,
+  .download-card .download-thumb {
+    transition: background-color 180ms ease;
+  }
+
+  .download-card:hover,
+  .download-card:hover .download-thumb {
+    transform: none;
+  }
 }
 
 .download-card[data-current='true'] {

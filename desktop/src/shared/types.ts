@@ -366,6 +366,11 @@ export type HistoryDirection = 'back' | 'forward';
 export type VoiceState =
   'off' | 'no-pack' | 'downloading' | 'loading' | 'listening' | 'awake' | 'thinking' | 'error';
 
+export interface SpeechAudio {
+  samples: Float32Array;
+  sampleRate: number;
+}
+
 export interface VoiceStatus {
   state: VoiceState;
   progress: number;
@@ -385,6 +390,7 @@ export interface VoiceConfigView {
   hasAiKey: boolean;
   builtinAi: boolean;
   packInstalled: boolean;
+  naturalVoiceInstalled: boolean;
   freeModels: number;
 }
 

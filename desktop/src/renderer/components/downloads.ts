@@ -345,6 +345,40 @@ function renderSavedLibraryCard(
   );
 }
 
+const builtHtml = new WeakMap<Element, string>();
+
+function reconcile(container: HTMLElement, entries: { key: string; el: HTMLElement }[]): void {
+  const existing = new Map<string, HTMLElement>();
+  for (const child of Array.from(container.children)) {
+    if (child instanceof HTMLElement && child.dataset.key !== undefined) {
+      existing.set(child.dataset.key, child);
+    }
+  }
+  let changed = false;
+  const next = entries.map(({ key, el }) => {
+    el.dataset.key = key;
+    const html = el.outerHTML;
+    const old = existing.get(key);
+    if (old && builtHtml.get(old) === html) {
+      return old;
+    }
+    builtHtml.set(el, html);
+    changed = true;
+    if (old) {
+      old.replaceWith(el);
+    }
+    return el;
+  });
+  const current = Array.from(container.children);
+  if (current.length !== next.length || current.some((child, index) => child !== next[index])) {
+    container.replaceChildren(...next);
+    changed = true;
+  }
+  if (changed) {
+    hydrate(container);
+  }
+}
+
 function renderDownloadRow(
   item: DownloadItem,
   currentVideoId: string,
@@ -873,9 +907,10 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
       return;
     }
 
-    const cards = filteredLibs.map((lib) => renderLibraryCard(lib, downloads, ctx));
-    librariesListContainer.replaceChildren(...cards);
-    hydrate(librariesListContainer);
+    reconcile(
+      librariesListContainer,
+      filteredLibs.map((lib) => ({ key: `lib:${lib.id}`, el: renderLibraryCard(lib, downloads, ctx) })),
+    );
   }
 
   function selectLibrary(id: string | null): void {
@@ -903,11 +938,13 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
       );
     });
     savedSection.hidden = visible.length === 0;
-    const cards = visible.map((saved) =>
-      renderSavedLibraryCard(saved, downloads, ctx, saved.id === selectedLibraryId, selectLibrary),
+    reconcile(
+      savedListContainer,
+      visible.map((saved) => ({
+        key: `saved:${saved.id}`,
+        el: renderSavedLibraryCard(saved, downloads, ctx, saved.id === selectedLibraryId, selectLibrary),
+      })),
     );
-    savedListContainer.replaceChildren(...cards);
-    hydrate(savedListContainer);
   }
 
   api
@@ -1024,11 +1061,13 @@ export function mountDownloads(root: HTMLElement, ctx: AppContext): void {
       return;
     }
 
-    const rows = filteredDownloads.map((item) =>
-      renderDownloadRow(item, currentVideoId, playing, ctx, scope),
+    reconcile(
+      listContainer,
+      filteredDownloads.map((item) => ({
+        key: `track:${item.videoId}:${selectedLibraryId ?? ''}`,
+        el: renderDownloadRow(item, currentVideoId, playing, ctx, scope),
+      })),
     );
-    listContainer.replaceChildren(...rows);
-    hydrate(listContainer);
   }
 
   store.select(

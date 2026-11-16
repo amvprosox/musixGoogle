@@ -84,6 +84,9 @@ export class VoiceController {
   private pending: number[] = [];
   private recording: number[] | null = null;
   private yes: HTMLAudioElement | null = null;
+  private speechContext: AudioContext | null = null;
+  private speechSource: AudioBufferSourceNode | null = null;
+  private speechToken = 0;
 
   constructor(private readonly ctx: AppContext) {
     const { api } = ctx;
@@ -221,8 +224,8 @@ export class VoiceController {
     try {
       const constraints: MediaTrackConstraints = {
         channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
+        echoCancellation: false,
+        noiseSuppression: false,
         autoGainControl: true,
       };
       if (wanted !== 'default' && wanted !== '') {
@@ -333,21 +336,70 @@ export class VoiceController {
   }
 
   private say(text: string): void {
-    if (!('speechSynthesis' in window) || text.trim() === '') {
+    const trimmed = text.trim();
+    if (trimmed === '') {
+      return;
+    }
+    const token = ++this.speechToken;
+    this.ctx.api
+      .invoke('voice:speak', trimmed)
+      .then((audio) => {
+        if (token !== this.speechToken) {
+          return;
+        }
+        if (audio && audio.samples.length > 0) {
+          this.playSpeech(audio.samples, audio.sampleRate);
+        } else {
+          this.systemSay(trimmed);
+        }
+      })
+      .catch(() => {
+        this.systemSay(trimmed);
+      });
+  }
+
+  private playSpeech(samples: Float32Array, sampleRate: number): void {
+    this.speechSource?.stop();
+    this.speechContext ??= new AudioContext();
+    const context = this.speechContext;
+    const buffer = context.createBuffer(1, samples.length, sampleRate);
+    buffer.copyToChannel(Float32Array.from(samples), 0);
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(context.destination);
+    this.ctx.actions.duckOffline(true);
+    source.addEventListener('ended', () => {
+      if (this.speechSource === source) {
+        this.speechSource = null;
+        this.ctx.actions.duckOffline(false);
+      }
+    });
+    this.speechSource = source;
+    void context.resume().then(() => {
+      source.start();
+    });
+  }
+
+  private systemSay(text: string): void {
+    if (!('speechSynthesis' in window)) {
       return;
     }
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1;
-    utterance.pitch = 0.85;
     const voices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.startsWith('en'));
     const preferred = voices.find((voice) =>
-      /daniel|alex|fred|aaron|arthur|male|guy|david/i.test(voice.name),
+      /samantha|ava|allison|zoe|susan|serena|female/i.test(voice.name),
     );
     if (preferred ?? voices[0]) {
       utterance.voice = preferred ?? voices[0] ?? null;
     }
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
+  }
+
+  async downloadNaturalVoice(): Promise<void> {
+    this.config = await this.ctx.api.invoke('voice:download-natural', null);
+    this.emit();
   }
 
   private notify(title: string, message: string): void {

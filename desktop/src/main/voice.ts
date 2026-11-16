@@ -20,7 +20,13 @@ import {
 
 declare const __MUSIX_AI__: string | undefined;
 const BUILTIN_AI_KEY = revealBuiltinKey(typeof __MUSIX_AI__ === 'string' ? __MUSIX_AI__ : '');
-import type { VoiceCommandEvent, VoiceConfigPatch, VoiceConfigView, VoiceStatus } from '../shared/types';
+import type {
+  SpeechAudio,
+  VoiceCommandEvent,
+  VoiceConfigPatch,
+  VoiceConfigView,
+  VoiceStatus,
+} from '../shared/types';
 import {
   isOutOfScope,
   matchIntent,
@@ -32,6 +38,7 @@ import {
 } from '../shared/voice-intent';
 import { logError, logWarn } from './log';
 import { connectOpenRouter } from './openrouter-connect';
+import { NaturalVoice } from './voice-tts';
 import { installPack, isPackInstalled, packDir } from './voice-pack';
 
 const SAMPLE_RATE = 16000;
@@ -192,6 +199,7 @@ export interface VoiceManagerOptions {
   isOnline: () => boolean;
   openExternal: (url: string) => Promise<void>;
   onLevel?: (level: number) => void;
+  onNaturalProgress?: (fraction: number) => void;
 }
 
 export class VoiceManager {
@@ -212,12 +220,15 @@ export class VoiceManager {
   private freeModels: FreeModel[] = [];
   private modelsFetchedAt = 0;
   private connecting = false;
+  private readonly naturalVoice: NaturalVoice;
+  private naturalDownload: Promise<VoiceConfigView> | null = null;
   private lastGoodModel: string | null = null;
   private readonly modelCooldowns = new Map<string, number>();
 
   constructor(private readonly options: VoiceManagerOptions) {
     this.voiceDir = path.join(options.userDataDir, 'voice');
     this.configPath = path.join(this.voiceDir, 'voice.json');
+    this.naturalVoice = new NaturalVoice(this.voiceDir);
     this.config = this.loadConfig();
     this.refreshIdleStatus();
     if (this.config.enabled && isPackInstalled(this.voiceDir)) {
@@ -279,6 +290,7 @@ export class VoiceManager {
       hasAiKey: this.config.aiKey !== '' || BUILTIN_AI_KEY !== '',
       builtinAi: BUILTIN_AI_KEY !== '' && this.config.aiKey === '',
       packInstalled: isPackInstalled(this.voiceDir),
+      naturalVoiceInstalled: this.naturalVoice.installed(),
       freeModels: this.freeModels.length,
     };
   }
@@ -362,6 +374,25 @@ export class VoiceManager {
     this.modelCooldowns.clear();
     this.saveConfig();
     return this.view();
+  }
+
+  speak(text: string): Promise<SpeechAudio | null> {
+    return this.naturalVoice.speak(text);
+  }
+
+  downloadNaturalVoice(): Promise<VoiceConfigView> {
+    this.naturalDownload ??= this.naturalVoice
+      .install((fraction) => {
+        this.options.onNaturalProgress?.(fraction);
+      })
+      .then(async () => {
+        await this.naturalVoice.warm();
+        return this.view();
+      })
+      .finally(() => {
+        this.naturalDownload = null;
+      });
+    return this.naturalDownload;
   }
 
   async connectAi(): Promise<VoiceConfigView> {
