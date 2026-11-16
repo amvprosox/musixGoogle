@@ -13,6 +13,7 @@ final class AppModel {
     let library: LibraryService
     let lyrics: LyricsController
     let suggester: SearchSuggester
+    let voice: VoiceController
 
     private init() {
         let settings = AppSettings()
@@ -24,6 +25,7 @@ final class AppModel {
         self.library = LibraryService(queue: engine.commandQueue, settings: settings)
         self.lyrics = LyricsController(engine: engine, player: player, downloads: downloads)
         self.suggester = SearchSuggester(queue: engine.commandQueue)
+        self.voice = VoiceController(player: player, engine: engine, downloads: downloads, library: library, settings: settings)
         PlaybackLog.shared.add("Musix \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "")) started")
         engine.start()
     }

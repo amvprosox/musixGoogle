@@ -35,6 +35,15 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Download the voice engine framework
+        working-directory: ios
+        run: |
+          mkdir -p Frameworks
+          curl -fsSL -o "$RUNNER_TEMP/sherpa.zip" https://github.com/k2-fsa/sherpa-onnx/releases/download/xcframework/sherpa-onnx-v2.0.1-ios-shared-onnxruntime-static.xcframework.zip
+          echo "fc4c665e694322ced5393aafafaae6bb3e0a7449d98d5db60bc220ac7ac4cbc9  $RUNNER_TEMP/sherpa.zip" | shasum -a 256 -c
+          unzip -q "$RUNNER_TEMP/sherpa.zip" -d Frameworks
+          ls Frameworks
+
       - name: Generate the Xcode project
         working-directory: ios
         run: xcodegen generate

@@ -27,6 +27,8 @@ targets:
           - "Resources/Logo.svg"
     dependencies:
       - package: MusixCore
+      - framework: Frameworks/SherpaOnnxC.xcframework
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.realmadhoney.musix
@@ -67,6 +69,7 @@ targets:
         INSupportedMediaCategories:
           - INMediaCategoryMusic
         NSSiriUsageDescription: Ask Siri to play music in Musix.
+        NSMicrophoneUsageDescription: Musix listens for "prosox" so you can control music with your voice.
         NSUserActivityTypes:
           - INPlayMediaIntent
     entitlements:

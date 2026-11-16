@@ -24,3 +24,4 @@ desktop/soak-report.json
 ios/**/.swiftpm
 ios/release
 android/release
+ios/Frameworks

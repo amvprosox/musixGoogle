@@ -183,6 +183,20 @@ struct SettingsView: View {
                     Text("Appearance").font(.body(DesignTokens.text14, weight: .semibold))
                 }
                 Section {
+                    NavigationLink {
+                        VoiceSettingsView(voice: AppModel.shared.voice)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Voice assistant").font(.body(DesignTokens.text16))
+                            Text("Say \"prosox\" to control Musix with your voice")
+                                .font(.body(DesignTokens.text14))
+                                .foregroundStyle(Palette.textMuted)
+                        }
+                    }
+                } header: {
+                    Text("Voice").font(.body(DesignTokens.text14, weight: .semibold))
+                }
+                Section {
                     Toggle(isOn: $settings.adSkip) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Skip ads automatically").font(.body(DesignTokens.text16))

@@ -120,6 +120,26 @@ struct RootView: View {
         .onChange(of: settings.theme) { palette in
             engine.setTheme(palette)
         }
+        .onReceive(AppModel.shared.voice.shellRequests) { request in
+            switch request {
+            case let .tab(item):
+                showSettings = false
+                showPlayer = false
+                select(item)
+            case .settings:
+                showPlayer = false
+                showSettings = true
+            case let .player(visible):
+                showSettings = false
+                showPlayer = visible
+            case let .search(text):
+                showSettings = false
+                showPlayer = false
+                tab = .search
+                query = text
+                runSearch()
+            }
+        }
         .onChange(of: settings.adSkip) { enabled in
             Task { await player.send(.configure(adSkip: enabled)) }
         }

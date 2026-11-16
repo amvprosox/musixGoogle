@@ -467,6 +467,74 @@ final class PlayerController: ObservableObject {
         perform(.setRepeat(state.repeatMode.next))
     }
 
+    func setShuffle(_ on: Bool) {
+        if state.shuffle != on {
+            toggleShuffle()
+        }
+    }
+
+    func setRepeat(_ mode: RepeatMode) {
+        if offlineActive {
+            var nextState = state
+            nextState.repeatMode = mode
+            state = nextState
+            refreshRemoteAvailability()
+            return
+        }
+        perform(.setRepeat(mode))
+    }
+
+    func adjustVolume(by delta: Double) {
+        if offlineActive, let player = offlinePlayer {
+            player.volume = Float(max(0, min(1, Double(player.volume) + delta)))
+            return
+        }
+        perform(.setVolume(max(0, min(1, state.volume + delta))))
+    }
+
+    func setMuted(_ muted: Bool) {
+        if offlineActive, let player = offlinePlayer {
+            player.volume = muted ? 0 : 1
+            return
+        }
+        if state.isMuted != muted {
+            perform(.toggleMute)
+        }
+    }
+
+    func dislike() {
+        guard !offlineActive, state.likeStatus != .dislike else {
+            return
+        }
+        perform(.toggleDislike)
+    }
+
+    private var duckedVolume: Float?
+
+    func duck(_ ducked: Bool) {
+        if offlineActive, let player = offlinePlayer {
+            if ducked, duckedVolume == nil {
+                duckedVolume = player.volume
+                player.volume = min(player.volume, 0.2)
+            } else if !ducked, let previous = duckedVolume {
+                player.volume = previous
+                duckedVolume = nil
+            }
+            return
+        }
+        duckedVolume = nil
+        perform(.duck(level: ducked ? 0.2 : 1))
+    }
+
+    var voiceCaptureEnabled = false {
+        didSet {
+            guard oldValue != voiceCaptureEnabled else {
+                return
+            }
+            configureAudioSession()
+        }
+    }
+
     func play(mediaId: String) {
         guard let ref = MediaIds.parse(mediaId) else {
             message = "This item cannot be played."
@@ -682,7 +750,16 @@ final class PlayerController: ObservableObject {
 
     private func configureAudioSession() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, policy: .longFormAudio)
+            if voiceCaptureEnabled {
+                try AVAudioSession.sharedInstance().setCategory(
+                    .playAndRecord,
+                    mode: .default,
+                    options: [.allowBluetoothA2DP, .defaultToSpeaker, .allowAirPlay]
+                )
+            } else {
+                try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, policy: .longFormAudio)
+            }
+            PlaybackLog.shared.add("Audio session set to \(voiceCaptureEnabled ? "play and record (voice on)" : "playback")")
         } catch {
             NSLog("Musix could not configure the audio session: %@", error.localizedDescription)
         }
