@@ -1162,7 +1162,7 @@
   color: var(--accent);
 }
 
-.bottom-nav-item span {
+.bottom-nav-item > span:not(.icon) {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2311,7 +2311,7 @@
 }
 
 @media (max-width: 600px) {
-  .bottom-nav-item span {
+  .bottom-nav-item > span:not(.icon) {
     display: none;
   }
 
@@ -2319,4 +2319,34 @@
     width: 24px;
     height: 24px;
   }
+}
+
+@media (max-width: 600px) {
+  .downloads-libraries-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-12);
+  }
+
+  .downloads-libraries-list > .download-card {
+    padding: var(--sp-12);
+    gap: var(--sp-8);
+  }
+
+  .downloads-libraries-list > .download-card .download-actions {
+    gap: var(--sp-4);
+  }
+
+  .downloads-libraries-list > .download-card .download-actions .btn {
+    white-space: normal;
+    text-align: center;
+    padding-inline: var(--sp-12);
+  }
+
+  .downloads-libraries-list > .download-lib-card .download-actions .btn-sm {
+    display: none;
+  }
+}
+
+.downloads-libraries-list > .downloads-lib-empty {
+  grid-column: 1 / -1;
 }
