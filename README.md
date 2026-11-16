@@ -4,6 +4,16 @@ A custom music YouTube app with a built-in ad blocker to play what music you wan
 
 **New in 1.0.7: you can now download music and listen offline.** Save any song as an MP3, or download a whole playlist, album, or your Liked Music from the Downloads tab, then play it without internet on every platform.
 
+**Testing in 1.0.8 alpha (pre-release): voice control and a better offline mode.**
+
+- **Say "prosox"** and Musix answers "Yes", then does what you ask: play a song or playlist, next, previous, shuffle, repeat, like, volume, lyrics, search, open a tab, change the theme, and more. It works offline. Turn it on in Settings, Voice assistant, and download the voice pack once (56 MB).
+- **Only your voice.** Teach Musix your voice in a few seconds, and it ignores other people in the room.
+- **Pick your microphone.** Musix shows which microphone it is listening with and follows headsets as you plug them in.
+- **Edit the commands.** Change the phrases for any action.
+- **Free AI for other requests (optional).** Paste your own OpenRouter key, and Musix uses only free models, so it never costs money. Questions that are not about Musix music get a polite no.
+- **Offline mode upgrades.** Shuffle plays every song once and Previous goes back to the song you actually heard. Downloads are grouped by playlist, and you can play just one downloaded playlist. Lyrics are saved with each download, so they show offline.
+- **New themes.** Midnight, Graphite, Slate Grey, AMOLED Black, and Light.
+
 ## Download
 
 Get the files from the [latest release](https://github.com/amvprosox/musixGoogle/releases/latest):
