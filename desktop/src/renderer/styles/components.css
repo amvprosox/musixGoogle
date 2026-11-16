@@ -2375,3 +2375,23 @@
   text-decoration: none;
   color: var(--text);
 }
+
+/* Online-only tabs while offline: dimmed, and tapping explains where offline music is. */
+.nav-item[data-offline='true'],
+.bottom-nav-item[data-offline='true'] {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.nav-item[data-offline='true']:hover,
+.bottom-nav-item[data-offline='true']:hover {
+  background: transparent;
+  color: inherit;
+}
+
+.state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-12);
+}

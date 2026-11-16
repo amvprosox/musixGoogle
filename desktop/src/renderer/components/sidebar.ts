@@ -115,10 +115,14 @@ export function mountSidebar(root: HTMLElement, ctx: AppContext): void {
       mode: state.layout.sidebarMode,
       collapsed: state.sidebarCollapsed,
       canCollapse: state.layout.canCollapseSidebar,
+      online: state.online,
     }),
-    ({ route, mode, collapsed, canCollapse }) => {
+    ({ route, mode, collapsed, canCollapse, online }) => {
       for (const [key, button] of buttons) {
         setAttr(button, 'aria-current', key === route ? 'page' : null);
+        const unavailable = !online && key !== 'downloads' && key !== 'settings';
+        setAttr(button, 'data-offline', unavailable ? 'true' : null);
+        setAttr(button, 'aria-disabled', unavailable ? 'true' : null);
         const label = button.getAttribute('aria-label') ?? '';
         if (mode === 'rail') {
           setAttr(button, 'data-tooltip', label);

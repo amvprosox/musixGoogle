@@ -80,6 +80,18 @@ function bootstrap(): void {
     const nav = bottomNav.getBoundingClientRect().height;
     return bar + nav;
   });
+  let lastOfflineNotice = 0;
+  router.offlineNotice = () => {
+    if (Date.now() - lastOfflineNotice < 2500) {
+      return;
+    }
+    lastOfflineNotice = Date.now();
+    toasts.show({
+      variant: 'info',
+      title: "You're offline",
+      message: 'Open Downloads to play your offline music.',
+    });
+  };
 
   let searchInput: HTMLInputElement | null = null;
   const focusSearch = (): void => {

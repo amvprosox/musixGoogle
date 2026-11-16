@@ -38,12 +38,24 @@ function stateCard(options: {
   title: string;
   message: string;
   action?: { label: string; onClick: () => void };
+  primary?: { label: string; iconName: IconName; onClick: () => void };
 }): HTMLElement {
-  const button = options.action
+  const primary = options.primary
     ? h(
         'button',
         {
           className: 'btn btn-primary',
+          attrs: { type: 'button', id: `${options.id}-primary` },
+          on: { click: options.primary.onClick },
+        },
+        [icon(options.primary.iconName), h('span', { text: options.primary.label })],
+      )
+    : null;
+  const button = options.action
+    ? h(
+        'button',
+        {
+          className: primary ? 'btn' : 'btn btn-primary',
           attrs: { type: 'button', id: `${options.id}-retry` },
           on: { click: options.action.onClick },
         },
@@ -57,7 +69,7 @@ function stateCard(options: {
       ]),
       h('h2', { text: options.title }),
       h('p', { text: options.message }),
-      button,
+      primary || button ? h('div', { className: 'state-actions' }, [primary, button]) : null,
     ]),
   ]);
 }
@@ -106,7 +118,14 @@ export function mountViewState(root: HTMLElement, ctx: AppContext): void {
               tone: 'warning',
               title: 'You are offline',
               message:
-                'Musix needs an internet connection to stream YouTube Music. It reconnects automatically when your network is back.',
+                'You can still play your downloaded music. Musix reconnects automatically when your network is back.',
+              primary: {
+                label: 'Open Downloads',
+                iconName: 'download',
+                onClick: () => {
+                  ctx.router.openDownloads();
+                },
+              },
               action: { label: 'Retry', onClick: retry },
             }),
           );

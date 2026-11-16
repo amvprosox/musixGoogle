@@ -6,6 +6,8 @@ import type { Store } from './state';
 
 export class Router {
   private readonly backHandlers: (() => boolean)[] = [];
+  /** Called instead of navigating when an online-only page is opened while offline. */
+  offlineNotice: (() => void) | null = null;
 
   registerBack(handler: () => boolean): () => void {
     this.backHandlers.push(handler);
@@ -25,6 +27,10 @@ export class Router {
 
   go(route: NavRoute): void {
     const state = this.store.getState();
+    if (!state.online) {
+      this.offlineNotice?.();
+      return;
+    }
     if (state.lyricsOpen) {
       this.store.dispatch({ type: 'lyrics-open', open: false });
     }

@@ -42,6 +42,10 @@ export function mountBottomNav(root: HTMLElement, ctx: AppContext): void {
                 return;
               }
               if (entry.id === 'search') {
+                if (!store.getState().online) {
+                  router.offlineNotice?.();
+                  return;
+                }
                 overlays.open('search', button).catch((error: unknown) => {
                   console.warn('[bottomnav] could not open search', error);
                 });
@@ -64,10 +68,13 @@ export function mountBottomNav(root: HTMLElement, ctx: AppContext): void {
   hydrate(root);
 
   store.select(
-    (state) => activeRoute(state),
-    (route) => {
+    (state) => ({ route: activeRoute(state), online: state.online }),
+    ({ route, online }) => {
       for (const [key, button] of buttons) {
         setAttr(button, 'aria-current', key === route ? 'page' : null);
+        const unavailable = !online && key !== 'downloads' && key !== 'settings';
+        setAttr(button, 'data-offline', unavailable ? 'true' : null);
+        setAttr(button, 'aria-disabled', unavailable ? 'true' : null);
       }
     },
   );
