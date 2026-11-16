@@ -1162,6 +1162,28 @@
   color: var(--accent);
 }
 
+.bottom-nav {
+  container-type: inline-size;
+}
+
+.bottom-nav-item span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container (max-width: 600px) {
+  .bottom-nav-item span {
+    display: none;
+  }
+
+  .bottom-nav-item svg {
+    width: 24px;
+    height: 24px;
+  }
+}
+
 .compact-player {
   display: none;
 }
@@ -2199,4 +2221,33 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.settings-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-16) var(--sp-24);
+}
+
+.settings-header > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.settings-title {
+  margin: 0;
+}
+
+.settings-subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-16);
+}
+
+.downloads-header-actions {
+  flex-wrap: wrap;
 }
