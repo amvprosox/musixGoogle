@@ -1,3 +1,4 @@
+import { VoiceController } from './voice';
 import { errorMessage } from '../shared/guards';
 import { PlayerActions } from './actions';
 import { getShellApi } from './api';
@@ -120,7 +121,8 @@ function bootstrap(): void {
   searchInput = mountTopbar(topbarEl, ctx).searchInput;
   mountWindowControls(topbarEl, ctx);
   mountViewState(required('view-state', HTMLDivElement), ctx);
-  mountSettings(required('settings-page', HTMLElement), ctx);
+  const voice = new VoiceController(ctx);
+  mountSettings(required('settings-page', HTMLElement), ctx, voice);
   mountDownloads(required('downloads-page', HTMLElement), ctx);
   mountQueue(required('queue-panel', HTMLElement), ctx);
   mountPlayerBar(playerbar, ctx);

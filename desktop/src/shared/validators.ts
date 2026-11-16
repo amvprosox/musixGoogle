@@ -9,6 +9,8 @@ import {
 import { isResolvedTheme } from './settings';
 import { isNavRoute, MAX_QUERY_LENGTH } from './routes';
 import type {
+  VoiceConfigPatch,
+  VoicePlayRequest,
   AccountState,
   DesktopViewEvent,
   DownloadBatchRequest,
@@ -368,5 +370,69 @@ export function isDownloadBatchRequest(value: unknown): value is DownloadBatchRe
     (value.libraryId === undefined || isBoundedString(value.libraryId, MAX_TEXT)) &&
     (value.kind === undefined || isBoundedString(value.kind, 40)) &&
     (value.artworkUrl === undefined || isBoundedString(value.artworkUrl, MAX_URL))
+  );
+}
+
+const MAX_CLIP_SAMPLES = 16000 * 12;
+
+export function isAudioChunk(value: unknown): value is Float32Array {
+  return value instanceof Float32Array && value.length > 0 && value.length <= 16000;
+}
+
+export function isVoiceClip(value: unknown): value is Float32Array {
+  return value instanceof Float32Array && value.length > 0 && value.length <= MAX_CLIP_SAMPLES;
+}
+
+export function isVoiceClipList(value: unknown): value is Float32Array[] {
+  return Array.isArray(value) && value.length > 0 && value.length <= 8 && value.every(isVoiceClip);
+}
+
+export function isVoiceConfigPatch(value: unknown): value is VoiceConfigPatch {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const keys = Object.keys(value);
+  if (keys.length === 0) {
+    return false;
+  }
+  for (const key of keys) {
+    const v = value[key];
+    switch (key) {
+      case 'enabled':
+      case 'speakerCheck':
+      case 'aiEnabled':
+        if (typeof v !== 'boolean') {
+          return false;
+        }
+        break;
+      case 'mic':
+        if (!isBoundedString(v, 300)) {
+          return false;
+        }
+        break;
+      case 'speakerThreshold':
+      case 'sensitivity':
+        if (!isFiniteNumber(v) || v < 0 || v > 1) {
+          return false;
+        }
+        break;
+      case 'commands':
+        if (!Array.isArray(v) || v.length > 60) {
+          return false;
+        }
+        break;
+      default:
+        return false;
+    }
+  }
+  return true;
+}
+
+export function isVoicePlayRequest(value: unknown): value is VoicePlayRequest {
+  return (
+    isRecord(value) &&
+    isBoundedString(value.query, 200) &&
+    value.query.trim() !== '' &&
+    (value.kind === 'any' || value.kind === 'song' || value.kind === 'playlist' || value.kind === 'album')
   );
 }

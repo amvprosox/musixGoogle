@@ -72,6 +72,23 @@ export class PlayerActions {
     }
   }
 
+  private duckedFrom: number | null = null;
+
+  duckOffline(ducked: boolean): void {
+    const audio = this.offlineAudio;
+    if (!audio || this.offlineVideoId === null) {
+      this.duckedFrom = null;
+      return;
+    }
+    if (ducked && this.duckedFrom === null) {
+      this.duckedFrom = audio.volume;
+      audio.volume = Math.min(audio.volume, 0.2);
+    } else if (!ducked && this.duckedFrom !== null) {
+      audio.volume = this.duckedFrom;
+      this.duckedFrom = null;
+    }
+  }
+
   offlineScopeIds(): readonly string[] | null {
     return this.offlineScope;
   }

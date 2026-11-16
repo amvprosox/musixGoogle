@@ -1,4 +1,5 @@
 import type { Lyrics, SearchSuggestions } from '@musix/bridge/contract';
+import type { VoiceAction, VoiceCommand } from './voice-intent';
 
 export type { Lyrics, LyricLine, SearchSuggestions } from '@musix/bridge/contract';
 
@@ -345,3 +346,47 @@ export type SuggestResponse = SearchSuggestions | null;
 export type AppCommand = 'open-settings' | 'focus-search' | 'toggle-queue';
 
 export type HistoryDirection = 'back' | 'forward';
+
+export type VoiceState =
+  'off' | 'no-pack' | 'downloading' | 'loading' | 'listening' | 'awake' | 'thinking' | 'error';
+
+export interface VoiceStatus {
+  state: VoiceState;
+  progress: number;
+  message: string;
+  heard: string;
+}
+
+export interface VoiceConfigView {
+  enabled: boolean;
+  mic: string;
+  commands: VoiceCommand[];
+  speakerCheck: boolean;
+  speakerThreshold: number;
+  sensitivity: number;
+  hasVoiceprint: boolean;
+  aiEnabled: boolean;
+  hasAiKey: boolean;
+  packInstalled: boolean;
+  freeModels: number;
+}
+
+export type VoiceConfigPatch = Partial<
+  Pick<
+    VoiceConfigView,
+    'enabled' | 'mic' | 'commands' | 'speakerCheck' | 'speakerThreshold' | 'sensitivity' | 'aiEnabled'
+  >
+>;
+
+export interface VoiceCommandEvent {
+  action: VoiceAction | 'none';
+  query: string;
+  reply: string;
+  transcript: string;
+  source: 'local' | 'ai' | 'rejected' | 'empty' | 'unknown' | 'blocked';
+}
+
+export interface VoicePlayRequest {
+  query: string;
+  kind: 'any' | 'song' | 'playlist' | 'album';
+}

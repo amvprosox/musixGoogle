@@ -18,6 +18,8 @@ files:
   - '!**/node_modules/**/*.{md,markdown,ts,map}'
   - '**/node_modules/**/*.d.ts'
 asar: true
+asarUnpack:
+  - '**/node_modules/sherpa-onnx-*/**'
 npmRebuild: false
 nodeGypRebuild: false
 buildDependenciesFromSource: false
@@ -107,6 +109,9 @@ mac:
   gatekeeperAssess: false
   darkModeSupport: true
   minimumSystemVersion: '12.0'
+  x64ArchFiles: '**/node_modules/sherpa-onnx-darwin-*/**'
+  extendInfo:
+    NSMicrophoneUsageDescription: Musix listens for "prosox" so you can control music with your voice.
 dmg:
   artifactName: Musix-${version}-mac.${ext}
   title: Musix

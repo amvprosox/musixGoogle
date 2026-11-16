@@ -214,6 +214,13 @@ jobs:
           npm run typecheck -w musix
           npm test -w musix
 
+      - name: Add the Intel voice engine for the universal app
+        run: |
+          npm pack sherpa-onnx-darwin-x64@2.0.1 --silent
+          mkdir -p node_modules/sherpa-onnx-darwin-x64
+          tar xzf sherpa-onnx-darwin-x64-2.0.1.tgz -C node_modules/sherpa-onnx-darwin-x64 --strip-components=1
+          rm sherpa-onnx-darwin-x64-2.0.1.tgz
+
       - name: Build the app
         run: npm run dist:mac -w musix
         env:

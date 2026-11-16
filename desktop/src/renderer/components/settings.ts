@@ -6,6 +6,8 @@ import type { AdblockStatus, AppSettings, ThemePreference } from '../../shared/t
 import type { AppContext } from '../context';
 import { h, hydrate, icon, setAttr, setButtonIcon, setText } from '../dom';
 import type { IconName } from '../icons';
+import type { VoiceController } from '../voice';
+import { voiceCard } from './voice-settings';
 
 type BooleanKey = Exclude<keyof AppSettings, 'theme'>;
 
@@ -72,7 +74,7 @@ function setButtonState(
   setText(button.querySelector('.btn-label'), label);
 }
 
-export function mountSettings(root: HTMLElement, ctx: AppContext): void {
+export function mountSettings(root: HTMLElement, ctx: AppContext, voice?: VoiceController): void {
   const { store, api, toasts } = ctx;
   const switches = new Map<BooleanKey, HTMLButtonElement>();
 
@@ -380,6 +382,7 @@ export function mountSettings(root: HTMLElement, ctx: AppContext): void {
         'Dock the queue panel automatically on windows 1440 pixels and wider.',
       ),
     ]),
+    voice ? voiceCard(ctx, voice) : null,
     card('settings-system', 'monitor', 'System', [
       toggleRow(
         'closeToTray',

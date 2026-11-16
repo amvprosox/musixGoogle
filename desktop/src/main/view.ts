@@ -30,6 +30,28 @@ import { logError, logInfo, logWarn } from './log';
 
 export const ASSET_SCHEME = 'musix-asset';
 
+const MIC_WORKLET_SOURCE = [
+  'class MusixMic extends AudioWorkletProcessor {',
+  '  constructor() { super(); this.buffer = new Float32Array(1600); this.fill = 0; }',
+  '  process(inputs) {',
+  '    const channel = inputs[0] && inputs[0][0];',
+  '    if (channel) {',
+  '      for (let i = 0; i < channel.length; i += 1) {',
+  '        this.buffer[this.fill] = channel[i];',
+  '        this.fill += 1;',
+  '        if (this.fill === this.buffer.length) {',
+  '          this.port.postMessage(this.buffer);',
+  '          this.buffer = new Float32Array(1600);',
+  '          this.fill = 0;',
+  '        }',
+  '      }',
+  '    }',
+  '    return true;',
+  '  }',
+  '}',
+  "registerProcessor('musix-mic', MusixMic);",
+].join('\n');
+
 const FONT_FILE_PATTERN = /^[a-z0-9-]+\.woff2$/;
 
 function resolveDownloadAssetPath(downloadsDir: string, pathname: string): string | null {
@@ -85,6 +107,23 @@ export function configureAssetProtocol(ses: Session, downloadsDir?: string): voi
             'access-control-allow-origin': '*',
             'cache-control': 'max-age=31536000',
           },
+        });
+      }
+      if (url.hostname === 'voice' && name === 'mic-worklet.js') {
+        return new Response(MIC_WORKLET_SOURCE, {
+          status: 200,
+          headers: {
+            'content-type': 'text/javascript',
+            'access-control-allow-origin': '*',
+            'cache-control': 'no-cache',
+          },
+        });
+      }
+      if (url.hostname === 'voice' && name === 'yes.wav') {
+        const data = await fs.readFile(path.join(path.dirname(paths.fontsDir), 'voice', 'yes.wav'));
+        return new Response(new Uint8Array(data), {
+          status: 200,
+          headers: { 'content-type': 'audio/wav', 'cache-control': 'max-age=31536000' },
         });
       }
       if (url.hostname === 'downloads' && downloadsDir) {

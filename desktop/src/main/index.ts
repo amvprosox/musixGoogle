@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, nativeTheme, protocol, session } from 'electron';
+import { app, BrowserWindow, Menu, nativeTheme, net, protocol, session, systemPreferences } from 'electron';
 import {
   ADBLOCK_FIRST_FETCH_TIMEOUT_MS,
   APP_DESKTOP_NAME,
@@ -12,6 +12,7 @@ import type {
   AppSettings,
   DetectedLibrary,
   DownloadTrackRequest,
+  VoicePlayRequest,
   LyricsResponse,
   PlayerCommand,
   PlayerState,
@@ -28,6 +29,7 @@ import {
 import { isTestRun, userDataOverride, ytmBaseUrl } from './config';
 import { DownloadManager } from './downloads';
 import { nativeThemeSource } from '../shared/settings';
+import { VoiceManager } from './voice';
 import { registerIpc, sendToShell } from './ipc';
 import { logError, logInfo, logWarn } from './log';
 import { MprisManager } from './mpris';
@@ -178,10 +180,21 @@ function applicationMenu(): Menu | null {
 
 async function start(): Promise<void> {
   Menu.setApplicationMenu(applicationMenu());
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => {
-    callback(false);
+  let shellContentsId = -1;
+  let micAllowed = false;
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
+    const mediaTypes = 'mediaTypes' in details && Array.isArray(details.mediaTypes) ? details.mediaTypes : [];
+    callback(
+      micAllowed &&
+        permission === 'media' &&
+        wc.id === shellContentsId &&
+        mediaTypes.length > 0 &&
+        mediaTypes.every((type) => type === 'audio'),
+    );
   });
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  session.defaultSession.setPermissionCheckHandler(
+    (wc, permission) => micAllowed && permission === 'media' && wc !== null && wc.id === shellContentsId,
+  );
 
   const store = new AppStore();
   const initialSettings = store.getSettings();
@@ -203,6 +216,7 @@ async function start(): Promise<void> {
   const startHidden = process.argv.includes('--hidden') && initialSettings.closeToTray;
   const devMode = process.argv.includes('--dev') || isTestRun();
   const win = createMainWindow({ store, startHidden, isQuitting: () => quitting, devTools: devMode });
+  shellContentsId = win.webContents.id;
   mainWindow = win;
   hardenContents(win.webContents, devMode);
   const chrome = new WindowChrome(win, (state) => {
@@ -246,6 +260,31 @@ async function start(): Promise<void> {
   });
   const overlays = new OverlayLayers(win, () => currentTheme(store), devMode);
   view.setTheme(currentTheme(store));
+
+  const voice = new VoiceManager({
+    userDataDir: app.getPath('userData'),
+    onStatus: (status) => {
+      if (!win.isDestroyed()) {
+        sendToShell(win, 'voice:status', status);
+      }
+    },
+    onCommand: (event) => {
+      if (!win.isDestroyed()) {
+        sendToShell(win, 'voice:command', event);
+      }
+    },
+    onDuck: (ducked) => {
+      view.sendBridge({ v: 1, type: 'duck', requestId: view.nextRequestId(), level: ducked ? 0.2 : 1 });
+    },
+    isOnline: () => net.isOnline(),
+  });
+  const applyMicAccess = (enabled: boolean): void => {
+    micAllowed = enabled;
+    if (enabled && process.platform === 'darwin') {
+      systemPreferences.askForMediaAccess('microphone').catch(() => false);
+    }
+  };
+  applyMicAccess(voice.view().enabled);
   for (const layer of overlays.views()) {
     hardenContents(layer.webContents, devMode);
   }
@@ -374,6 +413,42 @@ async function start(): Promise<void> {
       token = event.page.continuation !== token ? event.page.continuation : null;
     }
     return { ...first, items, continuation: null };
+  };
+  const voicePlaySearch = async (request: VoicePlayRequest): Promise<string | null> => {
+    const filter = request.kind === 'playlist' ? 'playlists' : request.kind === 'album' ? 'albums' : 'songs';
+    const event = await requestBridge(
+      { v: 1, type: 'search', requestId: view.nextRequestId(), query: request.query, filter },
+      BROWSE_TIMEOUT_MS,
+    );
+    if (!event || event.type !== 'searchResult') {
+      return null;
+    }
+    const items = [...event.page.items, ...event.page.sections.flatMap((section) => section.items)];
+    if (filter === 'songs') {
+      const song = items.find((item) => item.videoId);
+      if (!song?.videoId) {
+        return null;
+      }
+      command({ type: 'playVideo', videoId: song.videoId, playlistId: song.playlistId ?? null });
+      return song.title;
+    }
+    const collection = items.find((item) => item.browseId || item.playlistId);
+    if (!collection) {
+      return null;
+    }
+    const page = collection.browseId ? await browseNode(collection.browseId) : null;
+    const first = page
+      ? [...page.items, ...page.sections.flatMap((s) => s.items)].find((item) => item.videoId)
+      : null;
+    if (!first?.videoId) {
+      return null;
+    }
+    command({
+      type: 'playVideo',
+      videoId: first.videoId,
+      playlistId: first.playlistId ?? collection.playlistId ?? null,
+    });
+    return collection.title;
   };
   const detectLibraries = async (): Promise<DetectedLibrary[]> => {
     const libraries: DetectedLibrary[] = [];
@@ -530,6 +605,9 @@ async function start(): Promise<void> {
       setOfflineActive: (active: boolean) => {
         offlineActive = active;
       },
+      voice,
+      voicePlaySearch,
+      voiceEnabledChanged: applyMicAccess,
       openShellMenu: (request) => {
         if (request.target.kind === 'shellText') {
           menus.open({ kind: 'shellText' }, request.x, request.y, {

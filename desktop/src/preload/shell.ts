@@ -33,6 +33,14 @@ const INVOKE_CHANNELS: Readonly<Record<ShellInvokeChannel, true>> = {
   'downloads:libraries': true,
   'downloads:saved-libraries': true,
   'downloads:get-lyrics': true,
+  'voice:get': true,
+  'voice:set': true,
+  'voice:set-ai-key': true,
+  'voice:download-pack': true,
+  'voice:enroll': true,
+  'voice:test': true,
+  'voice:forget': true,
+  'voice:play-search': true,
 };
 
 const SEND_CHANNELS: Readonly<Record<ShellSendChannel, true>> = {
@@ -47,6 +55,7 @@ const SEND_CHANNELS: Readonly<Record<ShellSendChannel, true>> = {
   'window:control': true,
   'menu:open': true,
   'offline:active': true,
+  'voice:audio': true,
 };
 
 function parseBoot(argv: readonly string[]): BootInfo | null {

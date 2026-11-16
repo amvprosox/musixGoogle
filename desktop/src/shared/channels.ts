@@ -8,6 +8,11 @@ import type {
   DownloadItem,
   DownloadTrackRequest,
   SavedLibrary,
+  VoiceCommandEvent,
+  VoiceConfigPatch,
+  VoiceConfigView,
+  VoicePlayRequest,
+  VoiceStatus,
   AdblockStatus,
   AppCommand,
   AppSettings,
@@ -53,6 +58,14 @@ export interface ShellInvokeChannels {
   'downloads:libraries': { request: null; response: DetectedLibrary[] };
   'downloads:saved-libraries': { request: null; response: SavedLibrary[] };
   'downloads:get-lyrics': { request: null; response: { saved: number; missing: number } };
+  'voice:get': { request: null; response: { config: VoiceConfigView; status: VoiceStatus } };
+  'voice:set': { request: VoiceConfigPatch; response: VoiceConfigView };
+  'voice:set-ai-key': { request: string | null; response: VoiceConfigView };
+  'voice:download-pack': { request: null; response: boolean };
+  'voice:enroll': { request: Float32Array[]; response: { ok: boolean; threshold: number; message: string } };
+  'voice:test': { request: Float32Array; response: number | null };
+  'voice:forget': { request: null; response: VoiceConfigView };
+  'voice:play-search': { request: VoicePlayRequest; response: string | null };
 }
 
 export interface ShellSendChannels {
@@ -67,6 +80,7 @@ export interface ShellSendChannels {
   'window:control': WindowControl;
   'menu:open': ShellMenuRequest;
   'offline:active': boolean;
+  'voice:audio': Float32Array;
 }
 
 export interface ShellEventChannels {
@@ -89,6 +103,8 @@ export interface ShellEventChannels {
   'downloads:logs-changed': string[];
   'player:remote': PlayerCommand;
   'downloads:saved-libraries-changed': SavedLibrary[];
+  'voice:status': VoiceStatus;
+  'voice:command': VoiceCommandEvent;
 }
 
 export interface YtmSendChannels {
@@ -139,6 +155,8 @@ export const SHELL_EVENT_CHANNELS: readonly ShellEventChannel[] = [
   'downloads:logs-changed',
   'player:remote',
   'downloads:saved-libraries-changed',
+  'voice:status',
+  'voice:command',
 ];
 
 export interface ShellApi {

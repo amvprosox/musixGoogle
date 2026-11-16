@@ -7,6 +7,11 @@ import {
   isDesktopViewEvent,
   isDownloadBatchRequest,
   isDownloadTrackRequest,
+  isAudioChunk,
+  isVoiceClip,
+  isVoiceClipList,
+  isVoiceConfigPatch,
+  isVoicePlayRequest,
   isHistoryDirection,
   isKeyPayload,
   isMenuAction,
@@ -23,6 +28,7 @@ import { parseBridgeEvent } from '@musix/bridge/validate';
 import type { BridgeEvent } from '@musix/bridge/contract';
 import { isInViewAllowedUrl, isSameOrigin } from '../shared/routes';
 import { isBoundedString } from '../shared/guards';
+import type { VoicePlayRequest } from '../shared/types';
 import type {
   AccountState,
   AppSettings,
@@ -38,6 +44,7 @@ import type {
 import type { AdblockManager } from './adblock';
 import { paths } from './config';
 import type { DownloadManager } from './downloads';
+import type { VoiceManager } from './voice';
 import { logWarn } from './log';
 import type { OverlayLayers } from './overlay';
 import type { AppStore } from './store';
@@ -65,6 +72,9 @@ export interface IpcContext {
   suggest: (query: string) => Promise<SuggestResponse>;
   detectLibraries: () => Promise<DetectedLibrary[]>;
   setOfflineActive: (active: boolean) => void;
+  voice: VoiceManager;
+  voicePlaySearch: (request: VoicePlayRequest) => Promise<string | null>;
+  voiceEnabledChanged: (enabled: boolean) => void;
 }
 
 type AnyEvent = IpcMainEvent | IpcMainInvokeEvent;
@@ -144,6 +154,15 @@ export function registerIpc(ctx: IpcContext): () => void {
           return;
         }
         ctx.view.command(payload);
+      },
+    ],
+    [
+      'voice:audio',
+      (event, payload) => {
+        if (!fromShell(event) || !isAudioChunk(payload)) {
+          return;
+        }
+        ctx.voice.acceptAudio(payload);
       },
     ],
     [
@@ -422,6 +441,82 @@ export function registerIpc(ctx: IpcContext): () => void {
           return Promise.reject(new Error('Unauthorized sender'));
         }
         return ctx.detectLibraries();
+      },
+    ],
+    [
+      'voice:get',
+      (event) => {
+        if (!fromShell(event)) {
+          return Promise.reject(new Error('Unauthorized sender'));
+        }
+        return Promise.resolve({ config: ctx.voice.view(), status: ctx.voice.currentStatus() });
+      },
+    ],
+    [
+      'voice:set',
+      (event, payload) => {
+        if (!fromShell(event) || !isVoiceConfigPatch(payload)) {
+          return Promise.reject(new Error('Invalid voice settings'));
+        }
+        const view = ctx.voice.update(payload);
+        if (payload.enabled !== undefined) {
+          ctx.voiceEnabledChanged(payload.enabled);
+        }
+        return Promise.resolve(view);
+      },
+    ],
+    [
+      'voice:set-ai-key',
+      (event, payload) => {
+        if (!fromShell(event) || (payload !== null && !isBoundedString(payload, 400))) {
+          return Promise.reject(new Error('Invalid key'));
+        }
+        return Promise.resolve(ctx.voice.setAiKey(payload));
+      },
+    ],
+    [
+      'voice:download-pack',
+      (event) => {
+        if (!fromShell(event)) {
+          return Promise.reject(new Error('Unauthorized sender'));
+        }
+        return ctx.voice.downloadPack().then(() => ctx.voice.view().packInstalled);
+      },
+    ],
+    [
+      'voice:enroll',
+      (event, payload) => {
+        if (!fromShell(event) || !isVoiceClipList(payload)) {
+          return Promise.reject(new Error('Invalid recording'));
+        }
+        return ctx.voice.enroll(payload);
+      },
+    ],
+    [
+      'voice:test',
+      (event, payload) => {
+        if (!fromShell(event) || !isVoiceClip(payload)) {
+          return Promise.reject(new Error('Invalid recording'));
+        }
+        return ctx.voice.testVoice(payload);
+      },
+    ],
+    [
+      'voice:forget',
+      (event) => {
+        if (!fromShell(event)) {
+          return Promise.reject(new Error('Unauthorized sender'));
+        }
+        return Promise.resolve(ctx.voice.forgetVoice());
+      },
+    ],
+    [
+      'voice:play-search',
+      (event, payload) => {
+        if (!fromShell(event) || !isVoicePlayRequest(payload)) {
+          return Promise.reject(new Error('Invalid request'));
+        }
+        return ctx.voicePlaySearch(payload);
       },
     ],
     [
