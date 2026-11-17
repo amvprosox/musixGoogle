@@ -1153,11 +1153,6 @@
   font-weight: 600;
 }
 
-.bottom-nav-item svg {
-  width: 20px;
-  height: 20px;
-}
-
 .bottom-nav-item[aria-current='page'] {
   color: var(--accent);
 }
@@ -2310,14 +2305,21 @@
   animation: downloads-expand 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-@media (max-width: 600px) {
+/* Same rule as the iPhone and Android apps: tab labels show only when every tab has at
+   least 96px (6 tabs = 576px); without labels the icons grow from 22px to 26px. */
+.bottom-nav-item svg {
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 575px) {
   .bottom-nav-item > span:not(.icon) {
     display: none;
   }
 
   .bottom-nav-item svg {
-    width: 24px;
-    height: 24px;
+    width: 26px;
+    height: 26px;
   }
 }
 

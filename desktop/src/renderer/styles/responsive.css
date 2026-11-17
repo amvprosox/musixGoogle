@@ -110,6 +110,24 @@
   flex-basis: 28px;
 }
 
+/* Phone width matches the iPhone and Android apps: logo and the Musix name on the left,
+   search and sign in on the right, theme choice lives in Settings. */
+.app[data-bp='xs'] .topbar-brand .brand-name {
+  display: inline;
+  font-size: var(--fs-20);
+  font-weight: 700;
+}
+
+.app[data-bp='xs'] .topbar-brand .brand-mark {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+}
+
+.app[data-bp='xs'] #theme-toggle {
+  display: none;
+}
+
 .app[data-bp='xs'] .settings-inner,
 .app[data-bp='sm'] .settings-inner {
   padding: var(--sp-16);
@@ -133,17 +151,6 @@
   .app[data-bp='xs'] .topbar-inner {
     padding: 0 var(--sp-8);
     gap: var(--sp-4);
-  }
-
-  .app[data-bp='xs'] .topbar-brand .brand-name,
-  .app[data-bp='xs'] .sign-in-label {
-    display: none;
-  }
-
-  .app[data-bp='xs'] #sign-in-button {
-    width: 40px;
-    padding: 0;
-    justify-content: center;
   }
 
   .setting-row {

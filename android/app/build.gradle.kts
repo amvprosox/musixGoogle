@@ -46,7 +46,7 @@ android {
         applicationId = "com.realmadhoney.musix"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
+        versionCode = 20
         versionName = "1.0.8"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "BUILTIN_AI", "\"$builtinAi\"")
