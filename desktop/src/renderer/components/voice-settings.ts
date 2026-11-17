@@ -2,7 +2,7 @@ import { errorMessage } from '../../shared/guards';
 import { VOICE_LANGUAGES, VOICE_ACTION_LABELS, type VoiceCommand } from '../../shared/voice-intent';
 import type { AppContext } from '../context';
 import { h, hydrate, icon, setText } from '../dom';
-import { isAvoidedMic, type VoiceController } from '../voice';
+import type { VoiceController } from '../voice';
 
 const ENROLL_PHRASES = [
   'Veru, play my favorite songs.',
@@ -334,7 +334,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
   const details = h('div', { className: 'voice-details' }, [
     row(
       'Microphone',
-      'Like Siri on a Mac, Musix listens with your computer or wired microphone. Bluetooth earbud mics are not used because they switch your earbuds to call mode.',
+      'Musix listens for Veru with your computer or wired mic, so earbuds keep full-quality music. Pick AirPods or other Bluetooth earbuds to use them for the command after Veru, like Siri.',
       micSelect,
       micActive,
     ),
@@ -411,13 +411,11 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
       micSelect.replaceChildren(
         h('option', { attrs: { value: 'default' }, text: 'Automatic' }),
         ...voice.devices
-          .filter((device) => device.id !== 'default' && !isAvoidedMic(device.label))
+          .filter((device) => device.id !== 'default')
           .map((device) => h('option', { attrs: { value: device.id }, text: device.label })),
       );
     }
-    const selected = voice.devices.some((device) => device.id === wanted && !isAvoidedMic(device.label))
-      ? wanted
-      : 'default';
+    const selected = voice.devices.some((device) => device.id === wanted) ? wanted : 'default';
     if (micSelect.value !== selected && document.activeElement !== micSelect) {
       micSelect.value = selected;
     }
