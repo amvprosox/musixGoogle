@@ -56,9 +56,14 @@ Voice assistant ("Veru")
   - Mic boost (1-12x), GTCRN noise reduction, Automatic mic avoids Bluetooth mics (keeps music quality).
   - Like Siri: music dips to 12% while you speak a command after "Veru", then comes back.
   - The mic is never played to the speakers (silent internal sink). Echo cancellation is OFF on purpose:
-    on macOS it switches audio into voice-call mode (owner hated it). Choosing a Bluetooth earbud mic puts
-    the earbuds into call mode (low quality + hearing yourself), so Bluetooth mics are labelled
-    "(lowers music quality)" and Automatic always avoids them.
+    on macOS it switches audio into voice-call mode (owner hated it).
+  - OWNER'S MIC RULE (do not change without asking): the chosen mic is always used, EXCEPT that with
+    Bluetooth earbuds (AirPods, FreeBuds, ...) Musix switches to the Mac mic while Musix is playing music,
+    so music never drops to hands-free; ~2.5 s after music pauses it goes back to the earbud mic.
+    Bluetooth earbuds cannot do mic + full-quality music at once (Apple/Bluetooth limit, same for Siri).
+  - Microphone picker and all voice settings are always visible, even when voice is off.
+  - Unverified: owner reported mic feedback with WIRED headsets too; not reproduced yet (no wired
+    headset tested). Check this first in 1.0.9.
   - Waits until you finish speaking (~1.5 s of silence), ignores chatter before "Veru".
   - On-screen popup card showing the heard command, with smooth animated bars.
   - Choosing a mic (or Automatic) switches immediately.
