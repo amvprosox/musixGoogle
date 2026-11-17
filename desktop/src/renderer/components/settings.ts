@@ -575,7 +575,12 @@ function updatesCard(ctx: AppContext): HTMLElement {
   checkButton.addEventListener('click', () => {
     setText(status, 'Checking for updates...');
     ctx.api.invoke('updates:check', null).then(show, (error: unknown) => {
-      setText(status, `Could not check for updates: ${errorMessage(error)}`);
+      setText(
+        status,
+        /HTTP 404/.test(errorMessage(error))
+          ? 'No update information published yet.'
+          : 'Could not check for updates. Check your connection.',
+      );
     });
   });
   downloadButton.addEventListener('click', () => {
@@ -590,8 +595,8 @@ function updatesCard(ctx: AppContext): HTMLElement {
         actions.hidden = true;
         downloadButton.disabled = false;
       },
-      (error: unknown) => {
-        setText(status, `Download failed: ${errorMessage(error)}`);
+      () => {
+        setText(status, 'Download failed. Check your connection and try again.');
         downloadButton.disabled = false;
       },
     );
