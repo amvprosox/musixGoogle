@@ -391,11 +391,13 @@ export class VoiceController {
           this.onAudio(event.data);
         }
       };
+      // The mic is only analysed, never played: the graph ends in a silent stream
+      // instead of the speakers, so nothing the mic hears can come out of the output.
       const sink = context.createGain();
       sink.gain.value = 0;
       source.connect(processor);
       processor.connect(sink);
-      sink.connect(context.destination);
+      sink.connect(context.createMediaStreamDestination());
       this.stream = stream;
       this.context = context;
       this.processor = processor;
