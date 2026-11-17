@@ -437,3 +437,12 @@ export interface VoicePlayRequest {
   query: string;
   kind: 'any' | 'song' | 'playlist' | 'album';
 }
+
+export interface UpdateInfo {
+  available: boolean;
+  version: string;
+  currentVersion: string;
+  /** Installer for this computer on the latest release, empty when there is none. */
+  fileName: string;
+  releaseUrl: string;
+}

@@ -23,6 +23,7 @@ import com.realmadhoney.musix.engine.InjectedScripts
 import com.realmadhoney.musix.engine.WebEngine
 import com.realmadhoney.musix.net.Connectivity
 import com.realmadhoney.musix.player.MediaItemFactory
+import com.realmadhoney.musix.update.UpdateChecker
 import com.realmadhoney.musix.voice.VoiceActions
 import com.realmadhoney.musix.voice.VoiceController
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +42,7 @@ class AppGraph(
     private val context: Context,
 ) {
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val updates = UpdateChecker()
 
     val settings = SettingsRepository(context, ioScope)
 

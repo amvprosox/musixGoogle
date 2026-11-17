@@ -8,6 +8,7 @@ import type {
   DownloadItem,
   DownloadTrackRequest,
   SavedLibrary,
+  UpdateInfo,
   VoiceCommandEvent,
   VoiceConfigPatch,
   VoiceConfigView,
@@ -58,6 +59,8 @@ export interface ShellInvokeChannels {
   'downloads:libraries': { request: null; response: DetectedLibrary[] };
   'downloads:saved-libraries': { request: null; response: SavedLibrary[] };
   'downloads:get-lyrics': { request: null; response: { saved: number; missing: number } };
+  'updates:check': { request: null; response: UpdateInfo };
+  'updates:download': { request: string; response: string };
   'voice:get': { request: null; response: { config: VoiceConfigView; status: VoiceStatus } };
   'voice:set': { request: VoiceConfigPatch; response: VoiceConfigView };
   'voice:set-ai-key': { request: string | null; response: VoiceConfigView };

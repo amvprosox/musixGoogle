@@ -53,6 +53,7 @@ struct RootView: View {
 
     @State private var tab: ShellTab = .home
     @StateObject private var network = NetworkMonitor()
+    @ObservedObject private var updates = UpdateChecker.shared
     @State private var showPlayer = false
     @State private var showSettings = false
     @State private var query = ""
@@ -110,6 +111,21 @@ struct RootView: View {
         }
         .fullScreenCover(isPresented: signInBinding) {
             SignInView(engine: engine)
+        }
+        .task {
+            // Online apps pick up new releases by themselves: at launch, then every 6 hours.
+            while !Task.isCancelled {
+                if network.online {
+                    await updates.autoCheck()
+                }
+                try? await Task.sleep(nanoseconds: 6 * 3600 * 1_000_000_000)
+            }
+        }
+        .alert("Update available", isPresented: $updates.showPrompt) {
+            Button("Download") { openURL(UpdateChecker.releaseURL) }
+            Button("Later", role: .cancel) {}
+        } message: {
+            Text(updates.status)
         }
         .alert("Musix", isPresented: messageBinding) {
             Button("OK", role: .cancel) { player.message = nil }

@@ -115,6 +115,8 @@ struct SettingsView: View {
     let library: LibraryService
     let onSignIn: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    @ObservedObject private var updates = UpdateChecker.shared
     @State private var notice: String?
 
     var body: some View {
@@ -240,6 +242,21 @@ struct SettingsView: View {
                     Text("Troubleshooting").font(.body(DesignTokens.text14, weight: .semibold))
                 }
                 Section {
+                    Text(updates.status)
+                        .font(.body(DesignTokens.text14))
+                        .foregroundStyle(Palette.textMuted)
+                    Button("Check for updates") {
+                        Task { await updates.check(manual: true) }
+                    }
+                    if updates.available != nil {
+                        Button("Download") {
+                            openURL(UpdateChecker.releaseURL)
+                        }
+                    }
+                } header: {
+                    Text("Updates").font(.body(DesignTokens.text14, weight: .semibold))
+                }
+                Section {
                     Text("Musix \(Self.version)").font(.body(DesignTokens.text16))
                     Text("Musix is free and open source. It is not affiliated with Google or YouTube. Built with love by amvprosox.")
                         .font(.body(DesignTokens.text14))
@@ -277,5 +294,58 @@ struct SettingsView: View {
 
     private static var version: String {
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? ""
+    }
+}
+
+/// Checks the latest GitHub release for a newer iPhone build: when the app opens and
+/// every few hours while online. Sideloaded apps cannot install updates themselves, so
+/// Download opens the release page to install the new .ipa from a computer.
+@MainActor
+final class UpdateChecker: ObservableObject {
+    static let shared = UpdateChecker()
+    static let releaseURL = URL(string: "https://github.com/amvprosox/musixGoogle/releases/latest")!
+    private static let latestFile = URL(string: "https://github.com/amvprosox/musixGoogle/releases/latest/download/latest.json")!
+
+    @Published private(set) var available: String?
+    @Published private(set) var status = "Musix checks for updates when it opens and every few hours."
+    @Published var showPrompt = false
+    private var lastCheck: Date?
+
+    func check(manual: Bool) async {
+        lastCheck = Date()
+        if manual {
+            status = "Checking for updates..."
+        }
+        do {
+            let (data, response) = try await URLSession.shared.data(from: Self.latestFile)
+            guard (response as? HTTPURLResponse)?.statusCode == 200,
+                  let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw URLError(.badServerResponse)
+            }
+            let version = json["version"] as? String ?? ""
+            let latestBuild = json["iosBuild"] as? Int ?? 0
+            let currentBuild = Int(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "") ?? 0
+            if latestBuild > currentBuild {
+                available = version
+                status = "Musix \(version) (build \(latestBuild)) is available. Install the new .ipa with Impactor from your computer."
+                if !manual {
+                    showPrompt = true
+                }
+            } else {
+                available = nil
+                status = "You have the latest Musix (\(version.isEmpty ? "build \(currentBuild)" : version))."
+            }
+        } catch {
+            if manual {
+                status = "Could not check for updates. Check your connection."
+            }
+        }
+    }
+
+    func autoCheck() async {
+        if let lastCheck, Date().timeIntervalSince(lastCheck) < 6 * 3600 {
+            return
+        }
+        await check(manual: false)
     }
 }

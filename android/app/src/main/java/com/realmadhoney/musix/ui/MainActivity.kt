@@ -19,8 +19,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -71,7 +74,9 @@ import com.realmadhoney.musix.ui.theme.MusixPalette
 import com.realmadhoney.musix.ui.theme.MusixTheme
 import com.realmadhoney.musix.ui.theme.ytmThemeBackground
 import com.realmadhoney.musix.ui.theme.ytmThemeCss
+import com.realmadhoney.musix.update.UpdateChecker
 import com.realmadhoney.musix.voice.VoiceUiRequest
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.merge
@@ -209,6 +214,45 @@ fun MusixApp(viewModel: MainViewModel) {
     }
     val online by viewModel.graph.connectivity.isOnline
         .collectAsState()
+    val updateStatus by viewModel.graph.updates.status
+        .collectAsState()
+    val availableUpdate by viewModel.graph.updates.update
+        .collectAsState()
+    var updatePrompt by remember { mutableStateOf(false) }
+    val openUpdate: () -> Unit = {
+        availableUpdate?.let { found ->
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, found.apkUrl.toUri())) }
+        }
+    }
+    LaunchedEffect(online) {
+        // Online apps pick up new releases by themselves: at launch, then every 6 hours.
+        while (online) {
+            if (viewModel.graph.updates.autoCheck() != null) {
+                updatePrompt = true
+            }
+            delay(UpdateChecker.AUTO_INTERVAL_MS)
+        }
+    }
+    if (updatePrompt) {
+        AlertDialog(
+            onDismissRequest = { updatePrompt = false },
+            title = { Text("Update available") },
+            text = { Text(updateStatus) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        updatePrompt = false
+                        openUpdate()
+                    },
+                ) {
+                    Text("Download")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { updatePrompt = false }) { Text("Later") }
+            },
+        )
+    }
     var shellTab by rememberSaveable { mutableStateOf(ShellTab.Home) }
     var webQuery by rememberSaveable { mutableStateOf("") }
     var suggesting by rememberSaveable { mutableStateOf(false) }
@@ -562,6 +606,9 @@ fun MusixApp(viewModel: MainViewModel) {
                             onPalette = { picked -> scope.launch { viewModel.graph.settings.setTheme(picked.id) } },
                             voiceStatus = if (voiceState.enabled) voiceState.stateText else null,
                             onVoice = { viewModel.navigate(Route.Voice) },
+                            updateStatus = updateStatus,
+                            onCheckUpdates = { scope.launch { viewModel.graph.updates.check(manual = true) } },
+                            onDownloadUpdate = if (availableUpdate != null) openUpdate else null,
                             onClearCache = {
                                 viewModel.graph.clearCaches()
                                 viewModel.refreshAll()

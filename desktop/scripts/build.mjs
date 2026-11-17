@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import * as esbuild from 'esbuild';
 import { copyFile, mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -64,6 +65,15 @@ async function copyFonts() {
   await copyFile(path.join(packageDir('@fontsource/sora'), 'LICENSE'), path.join(target, 'Sora-OFL.txt'));
 }
 
+/** Build stamp used by the in-app update check: the commit time of the code being built. */
+function buildStamp() {
+  try {
+    return Number(execSync('git log -1 --format=%ct', { encoding: 'utf8' }).trim()) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 function builtinAi() {
   const key = Buffer.from(process.env.MUSIX_OPENROUTER_KEY ?? '', 'utf8');
   const mask = Buffer.from('musix-voice', 'utf8');
@@ -79,7 +89,7 @@ async function build() {
     esbuild.build({
       ...shared,
       entryPoints: { index: 'src/main/index.ts' },
-      define: { __MUSIX_AI__: JSON.stringify(builtinAi()) },
+      define: { __MUSIX_AI__: JSON.stringify(builtinAi()), __MUSIX_BUILD__: JSON.stringify(buildStamp()) },
       outdir: 'dist/main',
       outExtension: { '.js': '.mjs' },
       platform: 'node',

@@ -2,7 +2,7 @@ import { columnsFor } from '../../shared/breakpoints';
 import { formatCount, formatTimestamp } from '../../shared/format';
 import { errorMessage } from '../../shared/guards';
 import { SHORTCUT_LIST } from '../../shared/shortcuts';
-import type { AdblockStatus, AppSettings, ThemePreference } from '../../shared/types';
+import type { AdblockStatus, AppSettings, ThemePreference, UpdateInfo } from '../../shared/types';
 import type { AppContext } from '../context';
 import { h, hydrate, icon, setAttr, setButtonIcon, setText } from '../dom';
 import type { IconName } from '../icons';
@@ -419,6 +419,7 @@ export function mountSettings(root: HTMLElement, ctx: AppContext, voice?: VoiceC
       ],
       'span-2',
     ),
+    updatesCard(ctx),
     card('settings-about', 'info', 'About', [
       h('div', { className: 'stat' }, [h('span', { className: 'stat-label', text: 'Version' }), versionText]),
       h('p', {
@@ -539,4 +540,90 @@ export function mountSettings(root: HTMLElement, ctx: AppContext, voice?: VoiceC
   window.setInterval(() => {
     setText(updatedValue, formatTimestamp(store.getState().adblock.lastUpdated));
   }, 60000);
+}
+
+/** Settings, Updates: check GitHub for a newer Musix and download the installer. */
+function updatesCard(ctx: AppContext): HTMLElement {
+  const status = h('p', {
+    className: 'setting-desc',
+    text: 'Musix checks for updates when it starts and every few hours.',
+  });
+  const checkButton = h('button', { className: 'btn', attrs: { type: 'button' } }, [
+    icon('refresh-cw'),
+    h('span', { text: 'Check for updates' }),
+  ]);
+  const downloadButton = h('button', { className: 'btn btn-primary', attrs: { type: 'button' } }, [
+    icon('download'),
+    h('span', { text: 'Download' }),
+  ]);
+  const laterButton = h('button', { className: 'btn', attrs: { type: 'button' } }, [
+    h('span', { text: 'Later' }),
+  ]);
+  const actions = h('div', { className: 'button-row' }, [downloadButton, laterButton]);
+  actions.hidden = true;
+  let found: UpdateInfo | null = null;
+  const show = (info: UpdateInfo): void => {
+    found = info;
+    if (info.available) {
+      setText(status, `Musix ${info.version} is available. Download it now or later.`);
+      actions.hidden = info.fileName === '';
+    } else {
+      setText(status, `You have the latest Musix (${info.currentVersion}).`);
+      actions.hidden = true;
+    }
+  };
+  checkButton.addEventListener('click', () => {
+    setText(status, 'Checking for updates...');
+    ctx.api.invoke('updates:check', null).then(show, (error: unknown) => {
+      setText(status, `Could not check for updates: ${errorMessage(error)}`);
+    });
+  });
+  downloadButton.addEventListener('click', () => {
+    if (!found || found.fileName === '') {
+      return;
+    }
+    downloadButton.disabled = true;
+    setText(status, `Downloading ${found.fileName}...`);
+    ctx.api.invoke('updates:download', found.fileName).then(
+      () => {
+        setText(status, 'Downloaded to your Downloads folder and opened. Install it to update Musix.');
+        actions.hidden = true;
+        downloadButton.disabled = false;
+      },
+      (error: unknown) => {
+        setText(status, `Download failed: ${errorMessage(error)}`);
+        downloadButton.disabled = false;
+      },
+    );
+  });
+  laterButton.addEventListener('click', () => {
+    actions.hidden = true;
+    setText(status, 'Okay, you can update any time from here.');
+  });
+  // Online apps pick up new releases by themselves: shortly after start, then every 6 hours.
+  const autoCheck = (): void => {
+    if (!navigator.onLine) {
+      return;
+    }
+    ctx.api.invoke('updates:check', null).then(
+      (info) => {
+        show(info);
+        if (info.available) {
+          ctx.toasts.show({
+            variant: 'info',
+            title: `Musix ${info.version} is available`,
+            message: 'Open Settings, Updates to download it.',
+          });
+        }
+      },
+      () => undefined,
+    );
+  };
+  window.setTimeout(autoCheck, 8000);
+  window.setInterval(autoCheck, 6 * 60 * 60 * 1000);
+  return card('settings-updates', 'download', 'Updates', [
+    status,
+    h('div', { className: 'button-row' }, [checkButton]),
+    actions,
+  ]);
 }
