@@ -158,13 +158,11 @@ function renderLibraryCard(lib: DetectedLibrary, downloads: DownloadItem[], ctx:
     thumbImg.hidden = true;
   }
 
-  let btnText = 'Download All';
+  let btnText = 'Download';
   if (allCompleted) {
     btnText = 'Downloaded';
   } else if (downloadingCount > 0) {
     btnText = `Downloading (${completedCount}/${total})`;
-  } else {
-    btnText = 'Download';
   }
 
   const actionBtn = h(
