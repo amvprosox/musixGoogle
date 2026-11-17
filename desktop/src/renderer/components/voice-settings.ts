@@ -405,7 +405,6 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     const progress = status.state === 'downloading' ? ` ${Math.round(status.progress * 100)}%` : '';
     setText(statusText, config?.enabled ? `${status.message || 'Ready'}${progress}` : 'Off');
     setText(heardText, status.heard !== '' ? `Last heard: "${status.heard}"` : '');
-    details.hidden = !config?.enabled;
     const wanted = config?.mic ?? 'default';
     const deviceSignature = JSON.stringify(voice.devices);
     if (deviceSignature !== renderedDevicesFor) {
