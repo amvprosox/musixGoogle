@@ -4,15 +4,24 @@ A custom music YouTube app with a built-in ad blocker to play what music you wan
 
 **New in 1.0.7: you can now download music and listen offline.** Save any song as an MP3, or download a whole playlist, album, or your Liked Music from the Downloads tab, then play it without internet on every platform.
 
-**Testing in 1.0.8 alpha (pre-release): voice control and a better offline mode.**
+**New in 1.0.8 (alpha, [pre-release](https://github.com/amvprosox/musixGoogle/releases/tag/v1.0.8)):**
 
-- **Say "Veru"** (Pro-secs) and Musix answers "Yes", then does what you ask: play a song or playlist, next, previous, shuffle, repeat, like, volume, lyrics, search, open a tab, change the theme, and more. It works offline. Turn it on in Settings, Voice assistant, and download the voice pack once (56 MB).
-- **Only your voice.** Teach Musix your voice in a few seconds, and it ignores other people in the room.
-- **Pick your microphone.** Musix shows which microphone it is listening with and follows headsets as you plug them in.
-- **Edit the commands.** Change the phrases for any action.
-- **Free AI for other requests (optional).** Paste your own OpenRouter key, and Musix uses only free models, so it never costs money. Questions that are not about Musix music get a polite no.
-- **Offline mode upgrades.** Shuffle plays every song once and Previous goes back to the song you actually heard. Downloads are grouped by playlist, and you can play just one downloaded playlist. Lyrics are saved with each download, so they show offline.
-- **New themes.** Midnight, Graphite, Slate Grey, AMOLED Black, and Light.
+- **Veru voice assistant.** Say "Veru", then play, pause, next, shuffle, repeat, like, lyrics, search, open a tab or change the theme. Works offline.
+- **Exact voice control.** "Set volume to 50%", "forward to 1:00", "rewind 30 seconds".
+- **Several commands at once.** "Play Timeless and turn on shuffle". Veru asks back when unclear.
+- **Lauren's voice** answers every command.
+- **38 languages**, including Tagalog and Taglish.
+- **On-screen popup** shows what Veru heard.
+- **Music dips while you talk**, then fades back.
+- **Your microphone.** Musix uses the mic you pick; Automatic picks the best one.
+- **Free AI** for unusual requests, free models only.
+- **Offline fixes.** Shuffle plays every song once, Previous goes back correctly.
+- **Downloads by playlist**, with offline lyrics and a new Downloads page.
+- **Offline mode** dims online-only tabs and links to Downloads.
+- **Themes.** Midnight, Graphite (default), Slate Grey, AMOLED Black, Light.
+- **Better small screens** and creator info in About.
+
+Desktop (macOS, Windows, Ubuntu) has everything. iPhone and Android have the offline upgrades, themes, layout and basic Veru; the rest comes in 1.0.9.
 
 ## Download
 
@@ -94,19 +103,31 @@ MIT. See [LICENSE](LICENSE).
 
 ## Screenshots
 
-### Desktop (Ubuntu, Windows)
+### Desktop (macOS, Windows, Ubuntu)
 
-![Musix playing on desktop](docs/screenshots/desktop/playing-dark.png)
+![Musix home on desktop](docs/screenshots/macos/home.png)
 
-![Musix home on desktop, light theme](docs/screenshots/desktop/xl-1440-light.png)
+![Musix Downloads on desktop](docs/screenshots/desktop/downloads.png)
 
-![Musix settings on desktop](docs/screenshots/desktop/settings-dark.png)
+![A downloaded playlist on desktop](docs/screenshots/desktop/downloaded-playlist.png)
 
-### Small window
+![Voice assistant settings on desktop](docs/screenshots/desktop/voice-settings.png)
+
+![Offline mode on desktop](docs/screenshots/desktop/offline.png)
+
+### Tablet size
 
 <p>
-  <img src="docs/screenshots/desktop/xs-360-dark.png" alt="Musix home in a small window" width="270" />
-  <img src="docs/screenshots/desktop/playing-mobile-dark.png" alt="Musix playing in a small window" width="270" />
+  <img src="docs/screenshots/tablet/home.png" alt="Musix home at tablet size" width="400" />
+  <img src="docs/screenshots/tablet/downloads.png" alt="Musix Downloads at tablet size" width="400" />
+</p>
+
+### Phone size
+
+<p>
+  <img src="docs/screenshots/phone/home.png" alt="Musix home at phone size" width="270" />
+  <img src="docs/screenshots/phone/downloads.png" alt="Musix Downloads at phone size" width="270" />
+  <img src="docs/screenshots/phone/voice-settings.png" alt="Voice assistant settings at phone size" width="270" />
 </p>
 
 ### Android
@@ -116,10 +137,6 @@ MIT. See [LICENSE](LICENSE).
   <img src="docs/screenshots/android/playing.png" alt="Musix playing on Android" width="270" />
   <img src="docs/screenshots/android/nowplaying.png" alt="Musix now playing on Android" width="270" />
 </p>
-
-### macOS
-
-![Musix on macOS](docs/screenshots/macos/home.png)
 
 ### iPhone
 
