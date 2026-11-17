@@ -12,6 +12,19 @@ import type {
 import { normalizeSpeech, similarity, type VoiceAction } from '../shared/voice-intent';
 import type { AppContext } from './context';
 
+/**
+ * Bluetooth earbud mics switch the earbuds into call mode (low-quality music and the mic
+ * heard in your ears), and virtual inputs carry the computer's own sound. Like Siri on a
+ * Mac, Musix always listens with a real wired or built-in microphone instead.
+ */
+const WIRELESS_MIC = /\(bluetooth\)|bluetooth|airpods|beats|hands-?free|buds|bose|sony wh|jabra/i;
+const LOOPBACK_MIC =
+  /blackhole|loopback|soundflower|aggregate|multi-output|background music|eqmac|vb-audio|cable output|stereo mix|what u hear|monitor of|zoomaudio|teams audio|virtual/i;
+
+export function isAvoidedMic(label: string): boolean {
+  return WIRELESS_MIC.test(label) || LOOPBACK_MIC.test(label);
+}
+
 const SAMPLE_RATE = 16000;
 const CHUNK = 1600;
 const YES_URL = 'musix-asset://voice/yes.wav';
@@ -281,20 +294,17 @@ export class VoiceController {
     const inputs = (await navigator.mediaDevices.enumerateDevices()).filter(
       (device) => device.kind === 'audioinput',
     );
-    const wireless = /bluetooth|airpods|beats|hands-?free|headset|buds|bose|sony wh|jabra/i;
-    // Virtual inputs that carry the computer's own sound instead of a real microphone.
-    const loopback =
-      /blackhole|loopback|soundflower|aggregate|multi-output|background music|eqmac|vb-audio|cable output|stereo mix|what u hear|monitor of|zoomaudio|teams audio|virtual/i;
-    const avoid = (label: string): boolean => wireless.test(label) || loopback.test(label);
     const fallback = inputs.find((device) => device.deviceId === 'default') ?? inputs[0];
-    if (!fallback || !avoid(fallback.label)) {
+    if (!fallback || !isAvoidedMic(fallback.label)) {
       return null;
     }
     const builtIn =
       inputs.find(
         (device) => device.deviceId !== 'default' && /built-in|macbook|internal/i.test(device.label),
       ) ??
-      inputs.find((device) => device.deviceId !== 'default' && device.label !== '' && !avoid(device.label));
+      inputs.find(
+        (device) => device.deviceId !== 'default' && device.label !== '' && !isAvoidedMic(device.label),
+      );
     return builtIn?.deviceId ?? null;
   }
 
@@ -360,7 +370,12 @@ export class VoiceController {
         noiseSuppression: false,
         autoGainControl: true,
       };
-      if (wanted !== 'default' && wanted !== '') {
+      const wantedLabel =
+        wanted === 'default' || wanted === ''
+          ? ''
+          : ((await navigator.mediaDevices.enumerateDevices()).find((device) => device.deviceId === wanted)
+              ?.label ?? '');
+      if (wanted !== 'default' && wanted !== '' && !isAvoidedMic(wantedLabel)) {
         constraints.deviceId = { exact: wanted };
       } else {
         const safe = await this.automaticMic();
