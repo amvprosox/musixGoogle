@@ -126,7 +126,6 @@ function renderLibraryCard(lib: DetectedLibrary, downloads: DownloadItem[], ctx:
     }
   }
   const allCompleted = total > 0 && completedCount === total;
-  const remaining = Math.max(0, total - completedCount);
 
   const thumbImg = h('img', {
     className: 'download-thumb',
@@ -164,8 +163,8 @@ function renderLibraryCard(lib: DetectedLibrary, downloads: DownloadItem[], ctx:
     btnText = 'Downloaded';
   } else if (downloadingCount > 0) {
     btnText = `Downloading (${completedCount}/${total})`;
-  } else if (completedCount > 0) {
-    btnText = `Download (${remaining} left)`;
+  } else {
+    btnText = 'Download';
   }
 
   const actionBtn = h(

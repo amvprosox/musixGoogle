@@ -329,6 +329,9 @@ struct DownloadsView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DesignTokens.space8) {
                 header
+                if !inDetail {
+                    toolbar
+                }
                 searchField
                 if inDetail {
                     HStack(spacing: DesignTokens.space8) {
@@ -345,7 +348,6 @@ struct DownloadsView: View {
                     .padding(.top, DesignTokens.space8)
                     trackList(tracks, scope: scope, needle: needle)
                 } else {
-                    toolbar
                     if showLogs {
                         logsPanel
                     }
@@ -364,15 +366,30 @@ struct DownloadsView: View {
                             savedTile(library)
                         }
                     }
-                    sectionTitle(downloads.detectingLibraries && downloads.libraries.isEmpty ? "Libraries (detecting...)" : "Libraries")
+                    sectionTitle("Auto-Detected Libraries")
+                    HStack(spacing: DesignTokens.space8) {
+                        pill(downloads.detectingLibraries ? "Detecting..." : "Refresh", icon: "refresh", enabled: !downloads.detectingLibraries) {
+                            Task { await downloads.detectLibraries(force: true) }
+                        }
+                        if !downloads.libraries.isEmpty {
+                            pill("Download All Libraries", icon: "download") {
+                                downloads.downloadAllLibraries(downloads.libraries)
+                            }
+                        }
+                    }
                     if libs.isEmpty {
                         Text(librariesEmptyText(needle))
                             .font(.body(DesignTokens.text14))
                             .foregroundStyle(Palette.textMuted)
                             .padding(.vertical, DesignTokens.space8)
                     } else {
-                        ForEach(libs) { lib in
-                            libraryRow(lib, completedIds: completedIds)
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: DesignTokens.space12)],
+                            spacing: DesignTokens.space12
+                        ) {
+                            ForEach(libs) { lib in
+                                libraryTile(lib, completedIds: completedIds)
+                            }
                         }
                     }
                     if !needle.isEmpty {
@@ -500,17 +517,14 @@ struct DownloadsView: View {
     }
 
     private var header: some View {
-        HStack(spacing: DesignTokens.space12) {
+        let completedCount = downloads.items.filter { $0.status == .completed }.count
+        return VStack(alignment: .leading, spacing: DesignTokens.space4) {
             Text("Downloads")
-                .font(.heading(DesignTokens.text24, weight: .bold))
+                .font(.heading(DesignTokens.text30, weight: .bold))
                 .foregroundStyle(Palette.text)
-            let completedCount = downloads.items.filter { $0.status == .completed }.count
-            Text("\(completedCount) \(completedCount == 1 ? "track" : "tracks")")
-                .font(.body(DesignTokens.text14, weight: .medium))
+            Text("\(completedCount) MP3 \(completedCount == 1 ? "track" : "tracks") saved for offline playback.")
+                .font(.body(DesignTokens.text14))
                 .foregroundStyle(Palette.textMuted)
-                .padding(.horizontal, DesignTokens.space12)
-                .padding(.vertical, DesignTokens.space4)
-                .background(Palette.surface2, in: Capsule())
         }
     }
 
@@ -548,17 +562,9 @@ struct DownloadsView: View {
                 pill(showLogs ? "Hide Logs" : "Logs", icon: "lyrics", highlighted: showLogs) {
                     showLogs.toggle()
                 }
-                pill(downloads.detectingLibraries ? "Detecting..." : "Refresh", icon: "refresh", enabled: !downloads.detectingLibraries) {
-                    Task { await downloads.detectLibraries(force: true) }
-                }
                 if downloads.items.contains(where: { $0.status == .completed }) {
                     pill(downloads.fetchingLyrics ? "Getting Lyrics..." : "Get Lyrics", icon: "lyrics", enabled: !downloads.fetchingLyrics) {
                         Task { await downloads.backfillLyrics() }
-                    }
-                }
-                if !downloads.libraries.isEmpty {
-                    pill("Download All", icon: "download") {
-                        downloads.downloadAllLibraries(downloads.libraries)
                     }
                 }
             }
@@ -648,37 +654,51 @@ struct DownloadsView: View {
         .disabled(!enabled)
     }
 
-    private func libraryRow(_ lib: DetectedLibrary, completedIds: Set<String>) -> some View {
+    /// Library card, same as desktop: big cover, centered title and progress, and a
+    /// Download button that turns into an outlined "Downloaded" when every song is saved.
+    private func libraryTile(_ lib: DetectedLibrary, completedIds: Set<String>) -> some View {
         let total = lib.tracks.count
         let done = lib.tracks.filter { completedIds.contains($0.videoId) }.count
-        let remaining = total - done
-        let allDone = total > 0 && remaining == 0
-        let label = allDone ? "Downloaded" : (done > 0 ? "Download (\(remaining) left)" : "Download All")
-        return HStack(spacing: DesignTokens.space12) {
-            ArtworkView(address: lib.artworkUrl, size: 56, corner: DesignTokens.radiusControl)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(lib.title)
-                    .font(.body(DesignTokens.text16, weight: .semibold))
-                    .foregroundStyle(Palette.text)
-                    .lineLimit(1)
-                Text(lib.subtitle)
-                    .font(.body(DesignTokens.text14))
-                    .foregroundStyle(Palette.textMuted)
-                    .lineLimit(1)
-                Text("\(done)/\(total) downloaded")
-                    .font(.body(DesignTokens.text14))
-                    .foregroundStyle(allDone ? Palette.accent : Palette.textMuted)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            pill(label, icon: allDone ? "check" : "download", highlighted: allDone) {
+        let allDone = total > 0 && done == total
+        let label = allDone ? "Downloaded" : "Download"
+        return VStack(spacing: DesignTokens.space8) {
+            ArtworkView(address: lib.artworkUrl, size: 140, corner: DesignTokens.radiusControl)
+            Text(lib.title)
+                .font(.body(DesignTokens.text16, weight: .semibold))
+                .foregroundStyle(Palette.text)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+            Text("\(lib.subtitle) \u{2022} \(done)/\(total)")
+                .font(.body(DesignTokens.text14))
+                .foregroundStyle(Palette.textMuted)
+                .lineLimit(1)
+            Button {
                 downloads.downloadBatch(title: lib.title, tracks: lib.tracks, library: lib)
+            } label: {
+                HStack(spacing: DesignTokens.space8) {
+                    Icon(name: allDone ? "check" : "download", size: 16)
+                    Text(label)
+                        .font(.body(DesignTokens.text14, weight: .semibold))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                }
+                .foregroundStyle(allDone ? Palette.text : Palette.onAccent)
+                .padding(.horizontal, DesignTokens.space12)
+                .frame(maxWidth: .infinity, minHeight: 40)
+                .background(allDone ? Palette.surface2 : Palette.accent, in: RoundedRectangle(cornerRadius: DesignTokens.radiusControl))
+                .overlay(RoundedRectangle(cornerRadius: DesignTokens.radiusControl).stroke(allDone ? Palette.border : Palette.accent, lineWidth: 1))
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel(allDone ? "\(lib.title) already downloaded" : "Download \(lib.title)")
         }
         .padding(DesignTokens.space12)
-        .background(Palette.surface, in: RoundedRectangle(cornerRadius: DesignTokens.radiusCard))
-        .overlay(RoundedRectangle(cornerRadius: DesignTokens.radiusCard).stroke(Palette.border, lineWidth: 1))
+        .frame(maxWidth: .infinity)
+        .background(allDone ? Palette.surface2 : Palette.surface, in: RoundedRectangle(cornerRadius: DesignTokens.radiusCard))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.radiusCard)
+                .stroke(allDone ? Palette.accent.opacity(0.6) : Palette.border, lineWidth: 1)
+        )
     }
 
     private func librariesEmptyText(_ needle: String) -> String {

@@ -530,6 +530,70 @@ private fun DownloadTile(
     }
 }
 
+/** Library card, same as desktop: big cover, centered title and progress, Download button. */
+@Composable
+private fun LibraryTile(
+    lib: DetectedLibrary,
+    done: Int,
+    artwork: android.net.Uri?,
+    onDownload: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = Musix.colors
+    val total = lib.tracks.size
+    val allDone = total > 0 && done == total
+    val shape = RoundedCornerShape(DesignTokens.RadiusCard)
+    val buttonShape = RoundedCornerShape(DesignTokens.RadiusControl)
+    Column(
+        modifier =
+            modifier
+                .background(if (allDone) colors.surface2 else colors.surface, shape)
+                .border(1.dp, if (allDone) colors.accent.copy(alpha = 0.6f) else colors.border, shape)
+                .padding(DesignTokens.Space12),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
+    ) {
+        Artwork(artwork, 140.dp, fallback = R.drawable.ic_list_music)
+        Text(
+            lib.title,
+            style = MaterialTheme.typography.titleSmall,
+            color = colors.text,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            "${lib.subtitle} • $done/$total",
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textMuted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 40.dp)
+                    .background(if (allDone) colors.surface2 else colors.accent, buttonShape)
+                    .border(1.dp, if (allDone) colors.border else colors.accent, buttonShape)
+                    .clickable(role = Role.Button, onClick = onDownload)
+                    .padding(horizontal = DesignTokens.Space12),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val tint = if (allDone) colors.text else colors.onAccent
+            MusixIcon(if (allDone) R.drawable.ic_check else R.drawable.ic_download, null, tint = tint, size = 16.dp)
+            Spacer(Modifier.width(DesignTokens.Space8))
+            Text(
+                if (allDone) "Downloaded" else "Download",
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = tint,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
 @Composable
 private fun AllSongsCollage(covers: List<DownloadItem>) {
     Column {
@@ -616,6 +680,23 @@ fun DownloadsScreen(
             }
         }
     LazyColumn(modifier = modifier.fillMaxSize().background(colors.bg)) {
+        item(key = "title") {
+            Column(
+                modifier = Modifier.padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.Space4),
+            ) {
+                Text(
+                    "Downloads",
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    color = colors.text,
+                )
+                Text(
+                    "${completedIds.size} MP3 ${if (completedIds.size == 1) "track" else "tracks"} saved for offline playback.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textMuted,
+                )
+            }
+        }
         item(key = "search") {
             DownloadsSearchField(query) { query = it.take(200) }
         }
@@ -656,7 +737,6 @@ fun DownloadsScreen(
                         { logsOpen = !logsOpen },
                         highlighted = logsOpen,
                     )
-                    DownloadPill("Refresh", R.drawable.ic_refresh, onRefreshLibraries, enabled = !librariesLoading)
                     if (completedIds.isNotEmpty()) {
                         DownloadPill(
                             if (fetchingLyrics) "Getting Lyrics..." else "Get Lyrics",
@@ -664,9 +744,6 @@ fun DownloadsScreen(
                             onGetLyrics,
                             enabled = !fetchingLyrics,
                         )
-                    }
-                    if (libraries.isNotEmpty()) {
-                        DownloadPill("Download All", R.drawable.ic_download, onDownloadAllLibraries)
                     }
                 }
             }
@@ -763,7 +840,23 @@ fun DownloadsScreen(
                 }
             }
             item(key = "libs-header") {
-                SectionHeader(if (librariesLoading && libraries.isEmpty()) "Libraries (detecting...)" else "Libraries")
+                SectionHeader("Auto-Detected Libraries")
+            }
+            item(key = "libs-actions") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space4),
+                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
+                ) {
+                    DownloadPill(
+                        if (librariesLoading) "Detecting..." else "Refresh",
+                        R.drawable.ic_refresh,
+                        onRefreshLibraries,
+                        enabled = !librariesLoading,
+                    )
+                    if (libraries.isNotEmpty()) {
+                        DownloadPill("Download All Libraries", R.drawable.ic_download, onDownloadAllLibraries)
+                    }
+                }
             }
             if (filteredLibs.isEmpty()) {
                 item(key = "libs-empty") {
@@ -780,46 +873,23 @@ fun DownloadsScreen(
                     )
                 }
             }
-            items(filteredLibs, key = { "lib:${it.id}" }) { lib ->
-                val done = lib.tracks.count { it.videoId in completedIds }
-                val total = lib.tracks.size
-                val remaining = total - done
+            items(filteredLibs.chunked(2), key = { row -> row.joinToString { "lib:${it.id}" } }) { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
-                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space12),
                 ) {
-                    Artwork(lib.artworkUrl.takeIf { it.isNotEmpty() }?.let(artworkFor), 56.dp, fallback = R.drawable.ic_list_music)
-                    Spacer(Modifier.width(DesignTokens.Space12))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            lib.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = colors.text,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            "$done/$total downloaded",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.textMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                    row.forEach { lib ->
+                        LibraryTile(
+                            lib = lib,
+                            done = lib.tracks.count { it.videoId in completedIds },
+                            artwork = lib.artworkUrl.takeIf { it.isNotEmpty() }?.let(artworkFor),
+                            onDownload = { onDownloadLibrary(lib) },
+                            modifier = Modifier.weight(1f),
                         )
                     }
-                    Spacer(Modifier.width(DesignTokens.Space8))
-                    val allDone = total > 0 && remaining == 0
-                    val label =
-                        when {
-                            allDone -> "Downloaded"
-                            done > 0 -> "Download ($remaining left)"
-                            else -> "Download All"
-                        }
-                    DownloadPill(
-                        label,
-                        if (allDone) R.drawable.ic_check else R.drawable.ic_download,
-                        { onDownloadLibrary(lib) },
-                        highlighted = allDone,
-                    )
+                    if (row.size == 1) {
+                        Spacer(Modifier.weight(1f))
+                    }
                 }
             }
             if (needle.isNotEmpty()) {
