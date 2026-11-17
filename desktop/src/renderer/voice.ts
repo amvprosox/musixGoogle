@@ -243,8 +243,14 @@ export class VoiceController {
   }
 
   async update(patch: VoiceConfigPatch): Promise<void> {
+    const micChanged = patch.mic !== undefined && patch.mic !== (this.config?.mic ?? 'default');
     this.config = await this.ctx.api.invoke('voice:set', patch);
     this.emit();
+    if (micChanged && this.stream) {
+      // Switch to the newly chosen microphone (or back to Automatic) right away.
+      await this.restartCapture();
+      return;
+    }
     await this.syncCapture();
   }
 
@@ -367,6 +373,13 @@ export class VoiceController {
       } catch {
         delete constraints.deviceId;
         stream = await navigator.mediaDevices.getUserMedia({ audio: constraints, video: false });
+        if (wanted !== 'default' && wanted !== '') {
+          this.ctx.toasts.show({
+            variant: 'info',
+            title: 'Microphone unavailable',
+            message: 'Could not open the chosen microphone, so Musix is using the default one.',
+          });
+        }
       }
       const context = new AudioContext({ sampleRate: SAMPLE_RATE });
       await context.audioWorklet.addModule('musix-asset://voice/mic-worklet.js');
