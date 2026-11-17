@@ -45,7 +45,7 @@ import type { AdblockManager } from './adblock';
 import { paths } from './config';
 import type { DownloadManager } from './downloads';
 import type { VoiceManager } from './voice';
-import { checkForUpdate, downloadUpdate } from './updates';
+import { checkForUpdate, downloadUpdate, installUpdate, prepareUpdate } from './updates';
 import { logWarn } from './log';
 import type { OverlayLayers } from './overlay';
 import type { AppStore } from './store';
@@ -548,6 +548,24 @@ export function registerIpc(ctx: IpcContext): () => void {
           return Promise.reject(new Error('Invalid request'));
         }
         return downloadUpdate(payload);
+      },
+    ],
+    [
+      'updates:prepare',
+      (event) => {
+        if (!fromShell(event)) {
+          return Promise.reject(new Error('Unauthorized sender'));
+        }
+        return prepareUpdate();
+      },
+    ],
+    [
+      'updates:install',
+      (event, payload) => {
+        if (!fromShell(event) || typeof payload !== 'boolean') {
+          return Promise.reject(new Error('Invalid request'));
+        }
+        return Promise.resolve(installUpdate(payload));
       },
     ],
     [

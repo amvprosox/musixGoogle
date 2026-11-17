@@ -122,7 +122,7 @@ struct RootView: View {
             }
         }
         .alert("Update available", isPresented: $updates.showPrompt) {
-            Button("Download") { openURL(UpdateChecker.releaseURL) }
+            Button("Update in SideStore") { openURL(UpdateChecker.sideStoreSourceURL) }
             Button("Later", role: .cancel) {}
         } message: {
             Text(updates.status)

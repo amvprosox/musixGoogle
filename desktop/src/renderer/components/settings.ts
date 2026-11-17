@@ -583,27 +583,61 @@ function updatesCard(ctx: AppContext): HTMLElement {
       );
     });
   });
-  downloadButton.addEventListener('click', () => {
-    if (!found || found.fileName === '') {
-      return;
-    }
+  const isPlaying = (): boolean => ctx.store.getState().player?.isPlaying ?? false;
+  /**
+   * Automatic update: download in the background, then install. If nothing is playing,
+   * Musix restarts into the new version right away; otherwise it updates when it closes
+   * (or when "Restart now" is pressed). Falls back to opening the installer when this copy
+   * cannot replace itself (for example a .deb install on Linux).
+   */
+  const installAutomatically = async (info: UpdateInfo, manual: boolean): Promise<void> => {
+    setText(status, `Downloading Musix ${info.version} in the background...`);
     downloadButton.disabled = true;
-    setText(status, `Downloading ${found.fileName}...`);
-    ctx.api.invoke('updates:download', found.fileName).then(
-      () => {
-        setText(status, 'Downloaded to your Downloads folder and opened. Install it to update Musix.');
-        actions.hidden = true;
-        downloadButton.disabled = false;
-      },
-      () => {
-        setText(status, 'Download failed. Check your connection and try again.');
-        downloadButton.disabled = false;
-      },
-    );
+    try {
+      const ready = await ctx.api.invoke('updates:prepare', null);
+      if (!ready) {
+        if (manual && info.fileName !== '') {
+          await ctx.api.invoke('updates:download', info.fileName);
+          setText(status, 'Downloaded to your Downloads folder and opened. Install it to update Musix.');
+        } else {
+          setText(status, `Musix ${info.version} is available. Download it below.`);
+          actions.hidden = false;
+        }
+        return;
+      }
+      if (manual || !isPlaying()) {
+        setText(status, 'Installing the update. Musix will reopen in a moment.');
+        ctx.toasts.show({
+          variant: 'info',
+          title: 'Updating Musix',
+          message: 'Musix will reopen in a moment.',
+        });
+        await ctx.api.invoke('updates:install', true);
+        return;
+      }
+      await ctx.api.invoke('updates:install', false);
+      setText(status, `Musix ${info.version} is ready. It installs when you close Musix, or restart now.`);
+      setText(downloadButton.querySelector('span:last-child') ?? downloadButton, 'Restart now');
+      actions.hidden = false;
+      ctx.toasts.show({
+        variant: 'info',
+        title: `Musix ${info.version} is ready`,
+        message: 'It installs when you close Musix, or restart now in Settings, Updates.',
+      });
+    } catch {
+      setText(status, 'The update could not be downloaded. Musix will try again later.');
+    } finally {
+      downloadButton.disabled = false;
+    }
+  };
+  downloadButton.addEventListener('click', () => {
+    if (found?.available) {
+      void installAutomatically(found, true);
+    }
   });
   laterButton.addEventListener('click', () => {
     actions.hidden = true;
-    setText(status, 'Okay, you can update any time from here.');
+    setText(status, 'Okay, Musix will update when you close it.');
   });
   // Online apps pick up new releases by themselves: shortly after start, then every 6 hours.
   const autoCheck = (): void => {
@@ -614,11 +648,7 @@ function updatesCard(ctx: AppContext): HTMLElement {
       (info) => {
         show(info);
         if (info.available) {
-          ctx.toasts.show({
-            variant: 'info',
-            title: `Musix ${info.version} is available`,
-            message: 'Open Settings, Updates to download it.',
-          });
+          void installAutomatically(info, false);
         }
       },
       () => undefined,

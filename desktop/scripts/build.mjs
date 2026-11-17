@@ -67,6 +67,9 @@ async function copyFonts() {
 
 /** Build stamp used by the in-app update check: the commit time of the code being built. */
 function buildStamp() {
+  if (process.env.MUSIX_BUILD_STAMP) {
+    return Number(process.env.MUSIX_BUILD_STAMP) || 0;
+  }
   try {
     return Number(execSync('git log -1 --format=%ct', { encoding: 'utf8' }).trim()) || 0;
   } catch {

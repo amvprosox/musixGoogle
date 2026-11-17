@@ -219,15 +219,23 @@ fun MusixApp(viewModel: MainViewModel) {
     val availableUpdate by viewModel.graph.updates.update
         .collectAsState()
     var updatePrompt by remember { mutableStateOf(false) }
-    val openUpdate: () -> Unit = {
-        availableUpdate?.let { found ->
-            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, found.apkUrl.toUri())) }
+    val updates = viewModel.graph.updates
+    val installUpdate: () -> Unit = {
+        scope.launch {
+            val found = availableUpdate ?: return@launch
+            val apk = updates.readyApk.value ?: updates.download(context, found)
+            if (apk != null) {
+                runCatching { context.startActivity(updates.installIntent(context, apk)) }
+                    .onFailure { context.startActivity(Intent(Intent.ACTION_VIEW, found.apkUrl.toUri())) }
+            }
         }
     }
     LaunchedEffect(online) {
-        // Online apps pick up new releases by themselves: at launch, then every 6 hours.
+        // Online apps pick up new releases by themselves (at launch, then every 6 hours) and
+        // download them in the background, so installing takes a single tap.
         while (online) {
-            if (viewModel.graph.updates.autoCheck() != null) {
+            val found = updates.autoCheck()
+            if (found != null && updates.download(context, found) != null) {
                 updatePrompt = true
             }
             delay(UpdateChecker.AUTO_INTERVAL_MS)
@@ -236,16 +244,16 @@ fun MusixApp(viewModel: MainViewModel) {
     if (updatePrompt) {
         AlertDialog(
             onDismissRequest = { updatePrompt = false },
-            title = { Text("Update available") },
+            title = { Text("Update ready") },
             text = { Text(updateStatus) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         updatePrompt = false
-                        openUpdate()
+                        installUpdate()
                     },
                 ) {
-                    Text("Download")
+                    Text("Install")
                 }
             },
             dismissButton = {
@@ -608,7 +616,7 @@ fun MusixApp(viewModel: MainViewModel) {
                             onVoice = { viewModel.navigate(Route.Voice) },
                             updateStatus = updateStatus,
                             onCheckUpdates = { scope.launch { viewModel.graph.updates.check(manual = true) } },
-                            onDownloadUpdate = if (availableUpdate != null) openUpdate else null,
+                            onDownloadUpdate = if (availableUpdate != null) installUpdate else null,
                             onClearCache = {
                                 viewModel.graph.clearCaches()
                                 viewModel.refreshAll()

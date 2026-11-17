@@ -61,6 +61,8 @@ export interface ShellInvokeChannels {
   'downloads:get-lyrics': { request: null; response: { saved: number; missing: number } };
   'updates:check': { request: null; response: UpdateInfo };
   'updates:download': { request: string; response: string };
+  'updates:prepare': { request: null; response: boolean };
+  'updates:install': { request: boolean; response: boolean };
   'voice:get': { request: null; response: { config: VoiceConfigView; status: VoiceStatus } };
   'voice:set': { request: VoiceConfigPatch; response: VoiceConfigView };
   'voice:set-ai-key': { request: string | null; response: VoiceConfigView };

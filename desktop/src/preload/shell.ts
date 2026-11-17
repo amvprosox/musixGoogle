@@ -35,6 +35,8 @@ const INVOKE_CHANNELS: Readonly<Record<ShellInvokeChannel, true>> = {
   'downloads:get-lyrics': true,
   'updates:check': true,
   'updates:download': true,
+  'updates:prepare': true,
+  'updates:install': true,
   'voice:get': true,
   'voice:set': true,
   'voice:set-ai-key': true,

@@ -180,7 +180,7 @@ fun SettingsScreen(
                 SecondaryButton("Check for updates", onCheckUpdates, icon = R.drawable.ic_refresh)
                 if (onDownloadUpdate != null) {
                     Spacer(Modifier.height(DesignTokens.Space8))
-                    PrimaryButton("Download", onDownloadUpdate, icon = R.drawable.ic_download)
+                    PrimaryButton("Install update", onDownloadUpdate, icon = R.drawable.ic_download)
                 }
             }
             SettingsSection(stringResource(R.string.settings_account)) {

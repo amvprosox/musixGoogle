@@ -130,10 +130,16 @@ struct SettingsView: View {
                         Task { await updates.check(manual: true) }
                     }
                     if updates.available != nil {
-                        Button("Download") {
-                            openURL(UpdateChecker.releaseURL)
+                        Button("Update in SideStore") {
+                            openURL(UpdateChecker.sideStoreSourceURL)
                         }
                     }
+                    Button("Add Musix to SideStore (automatic updates)") {
+                        openURL(UpdateChecker.sideStoreSourceURL)
+                    }
+                    Text("SideStore installs and refreshes Musix from the iPhone itself, no computer needed after setup. It shows Musix updates as soon as they are released.")
+                        .font(.body(DesignTokens.text14))
+                        .foregroundStyle(Palette.textMuted)
                 } header: {
                     Text("Updates").font(.body(DesignTokens.text14, weight: .semibold))
                 }
@@ -304,6 +310,10 @@ struct SettingsView: View {
 final class UpdateChecker: ObservableObject {
     static let shared = UpdateChecker()
     static let releaseURL = URL(string: "https://github.com/amvprosox/musixGoogle/releases/latest")!
+    /// Opens SideStore and adds the Musix source, which keeps Musix updated from the iPhone.
+    static let sideStoreSourceURL = URL(
+        string: "sidestore://source?url=https%3A%2F%2Fgithub.com%2Famvprosox%2FmusixGoogle%2Freleases%2Flatest%2Fdownload%2Fsidestore.json"
+    )!
     private static let latestFile = URL(string: "https://github.com/amvprosox/musixGoogle/releases/latest/download/latest.json")!
 
     @Published private(set) var available: String?
@@ -327,7 +337,7 @@ final class UpdateChecker: ObservableObject {
             let currentBuild = Int(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "") ?? 0
             if latestBuild > currentBuild {
                 available = version
-                status = "Musix \(version) (build \(latestBuild)) is available. Install the new .ipa with Impactor from your computer."
+                status = "Musix \(version) (build \(latestBuild)) is available. Update it in SideStore."
                 if !manual {
                     showPrompt = true
                 }
