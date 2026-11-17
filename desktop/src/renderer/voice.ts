@@ -18,6 +18,8 @@ import type { AppContext } from './context';
  * Mac, Musix always listens with a real wired or built-in microphone instead.
  */
 const WIRELESS_MIC = /\(bluetooth\)|bluetooth|airpods|beats|hands-?free|buds|bose|sony wh|jabra/i;
+const LOOPBACK_ONLY =
+  /blackhole|loopback|soundflower|aggregate|multi-output|background music|eqmac|vb-audio|cable output|stereo mix|what u hear|monitor of|zoomaudio|teams audio|virtual/i;
 const LOOPBACK_MIC =
   /blackhole|loopback|soundflower|aggregate|multi-output|background music|eqmac|vb-audio|cable output|stereo mix|what u hear|monitor of|zoomaudio|teams audio|virtual/i;
 
@@ -28,8 +30,6 @@ export function isAvoidedMic(label: string): boolean {
 const SAMPLE_RATE = 16000;
 const CHUNK = 1600;
 const YES_URL = 'musix-asset://voice/yes.wav';
-/** Time Bluetooth earbuds need to switch from hands-free back to music mode. */
-const EARBUD_SWITCH_MS = 1000;
 
 export interface MicDevice {
   id: string;
@@ -196,11 +196,6 @@ export class VoiceController {
   private stream: MediaStream | null = null;
   private context: AudioContext | null = null;
   private processor: AudioWorkletNode | null = null;
-  /** Earbud mic opened only while a command is spoken (hands-free only for that moment). */
-  private commandMic: { stream: MediaStream; context: AudioContext; processor: AudioWorkletNode } | null =
-    null;
-  private commandMicLive = false;
-  private commandMicWanted = false;
   private pending: number[] = [];
   private recording: number[] | null = null;
   private yes: HTMLAudioElement | null = null;
@@ -218,26 +213,15 @@ export class VoiceController {
       if (status.state === 'awake' && !wasAwake) {
         this.playYes();
         this.ctx.actions.duckOffline(true);
-        void this.openCommandMicWhenQuiet();
       }
       if (status.state === 'listening' || status.state === 'off') {
-        this.closeCommandMic();
         this.ctx.actions.duckOffline(false);
       }
       this.emit();
     });
     api.on('voice:command', (command) => {
-      // You are done talking: hand the earbuds straight back to music mode. Music stays
-      // low while they switch and then fades up, and Lauren answers after the switch, so
-      // nothing sounds cut off.
-      const usedEarbuds = this.commandMic !== null || this.commandMicWanted;
-      this.closeCommandMic();
       this.ctx.actions.duckOffline(false);
-      if (usedEarbuds) {
-        window.setTimeout(() => void this.execute(command), EARBUD_SWITCH_MS);
-      } else {
-        void this.execute(command);
-      }
+      void this.execute(command);
     });
     navigator.mediaDevices.addEventListener('devicechange', () => {
       void this.refreshDevices(true, true);
@@ -395,9 +379,7 @@ export class VoiceController {
           ? ''
           : ((await navigator.mediaDevices.enumerateDevices()).find((device) => device.deviceId === wanted)
               ?.label ?? '');
-      // Earbud mics are opened only while you speak a command (see openCommandMic), so the
-      // earbuds stay in full-quality music mode the rest of the time.
-      const useWanted = wanted !== 'default' && wanted !== '' && !isAvoidedMic(wantedLabel);
+      const useWanted = wanted !== 'default' && wanted !== '' && !LOOPBACK_ONLY.test(wantedLabel);
       if (useWanted) {
         constraints.deviceId = { exact: wanted };
       } else {
@@ -425,7 +407,7 @@ export class VoiceController {
       const source = context.createMediaStreamSource(stream);
       const processor = new AudioWorkletNode(context, 'musix-mic');
       processor.port.onmessage = (event: MessageEvent<unknown>) => {
-        if (event.data instanceof Float32Array && !this.commandMicLive) {
+        if (event.data instanceof Float32Array) {
           this.onAudio(event.data);
         }
       };
@@ -440,10 +422,7 @@ export class VoiceController {
       this.context = context;
       this.processor = processor;
       const listening = stream.getAudioTracks()[0]?.label ?? '';
-      this.activeMic =
-        wantedLabel !== '' && WIRELESS_MIC.test(wantedLabel)
-          ? `${listening} (your ${wantedLabel} mic turns on only while you give a command)`
-          : listening;
+      this.activeMic = listening;
       stream.getAudioTracks()[0]?.addEventListener('ended', () => {
         void this.restartCapture();
       });
@@ -460,92 +439,7 @@ export class VoiceController {
     this.emit();
   }
 
-  /**
-   * If a Bluetooth mic is chosen, open it only while a command is being spoken. Earbuds
-   * switch to call mode just for that moment (music is dipped anyway), then go straight
-   * back to full-quality music. Until it is live, the Mac's mic keeps listening.
-   */
-  private async openCommandMic(): Promise<void> {
-    const wanted = this.config?.mic ?? 'default';
-    if (this.commandMic || this.commandMicWanted || wanted === 'default' || wanted === '') {
-      return;
-    }
-    const label =
-      (await navigator.mediaDevices.enumerateDevices()).find((device) => device.deviceId === wanted)?.label ??
-      '';
-    if (!WIRELESS_MIC.test(label)) {
-      return;
-    }
-    this.commandMicWanted = true;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: { exact: wanted },
-          channelCount: 1,
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: true,
-        },
-        video: false,
-      });
-      const context = new AudioContext({ sampleRate: SAMPLE_RATE });
-      await context.audioWorklet.addModule('musix-asset://voice/mic-worklet.js');
-      const processor = new AudioWorkletNode(context, 'musix-mic');
-      processor.port.onmessage = (event: MessageEvent<unknown>) => {
-        if (event.data instanceof Float32Array && this.commandMicWanted) {
-          this.commandMicLive = true;
-          this.onAudio(event.data);
-        }
-      };
-      const sink = context.createGain();
-      sink.gain.value = 0;
-      context.createMediaStreamSource(stream).connect(processor);
-      processor.connect(sink);
-      sink.connect(context.createMediaStreamDestination());
-      this.commandMic = { stream, context, processor };
-      if (!this.stillWantsCommandMic()) {
-        // The command finished while the earbuds were still connecting.
-        this.closeCommandMic();
-      }
-    } catch {
-      this.commandMicWanted = false;
-    }
-  }
-
-  /** Waits for "Yes?" (and any reply) to finish before switching earbuds to call mode. */
-  private async openCommandMicWhenQuiet(): Promise<void> {
-    const deadline = Date.now() + 3000;
-    await new Promise((resolve) => window.setTimeout(resolve, 150));
-    while (Date.now() < deadline && (this.speaking > 0 || (this.yes !== null && !this.yes.paused))) {
-      await new Promise((resolve) => window.setTimeout(resolve, 100));
-    }
-    if (this.status.state === 'awake' || this.status.state === 'thinking') {
-      await this.openCommandMic();
-    }
-  }
-
-  private stillWantsCommandMic(): boolean {
-    return this.commandMicWanted;
-  }
-
-  private closeCommandMic(): void {
-    this.commandMicWanted = false;
-    this.commandMicLive = false;
-    const mic = this.commandMic;
-    this.commandMic = null;
-    if (!mic) {
-      return;
-    }
-    mic.processor.port.close();
-    mic.processor.disconnect();
-    void mic.context.close().catch(() => undefined);
-    for (const track of mic.stream.getTracks()) {
-      track.stop();
-    }
-  }
-
   private stopCapture(): void {
-    this.closeCommandMic();
     this.processor?.port.close();
     this.processor?.disconnect();
     this.processor = null;
