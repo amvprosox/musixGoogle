@@ -203,8 +203,10 @@ async function start(): Promise<void> {
         mediaTypes.every((type) => type === 'audio'),
     );
   });
+  // Musix's own window may always see microphone names (for the picker); actually
+  // opening a microphone still needs voice control to be on (request handler above).
   session.defaultSession.setPermissionCheckHandler(
-    (wc, permission) => micAllowed && permission === 'media' && wc !== null && wc.id === shellContentsId,
+    (wc, permission) => permission === 'media' && wc !== null && wc.id === shellContentsId,
   );
 
   const store = new AppStore();

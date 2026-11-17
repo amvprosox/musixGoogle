@@ -331,13 +331,15 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
     );
   };
 
+  // The microphone picker is always visible, even while voice control is off.
+  const micRow = row(
+    'Microphone',
+    'Musix listens for Veru with your computer or wired mic, so earbuds keep full-quality music. Pick AirPods or other Bluetooth earbuds to use them for the command after Veru, like Siri.',
+    micSelect,
+    micActive,
+  );
+
   const details = h('div', { className: 'voice-details' }, [
-    row(
-      'Microphone',
-      'Musix listens for Veru with your computer or wired mic, so earbuds keep full-quality music. Pick AirPods or other Bluetooth earbuds to use them for the command after Veru, like Siri.',
-      micSelect,
-      micActive,
-    ),
     row('Noise reduction', 'Cleans background noise so Musix hears you from across the room.', noiseSwitch),
     row(
       'Mic boost',
@@ -485,6 +487,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
         statusText,
         heardText,
         h('div', { className: 'button-row' }, [downloadButton]),
+        micRow,
         details,
       ]),
     ],

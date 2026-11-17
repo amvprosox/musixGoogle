@@ -246,6 +246,8 @@ export class VoiceController {
         this.config = config;
         this.status = status;
         this.emit();
+        // Fill the microphone list even while voice control is off.
+        void this.refreshDevices(false);
         void this.syncCapture();
       })
       .catch(() => undefined);
