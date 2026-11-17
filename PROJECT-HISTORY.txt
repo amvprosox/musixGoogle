@@ -11,7 +11,8 @@ To continue (e.g. 1.0.9), just say "start 1.0.9" and point Claude at this file.
 
 1. WHERE WE ARE NOW
 -------------------
-- Version: 1.0.8, published as a GitHub PRERELEASE titled "Musix 1.0.8 - alpha testing" (tag v1.0.8).
+- Version: 1.0.8 is the STABLE latest release ("Musix 1.0.8", tag v1.0.8 -> 6ef4e28), all 9 files.
+  Released for all devices on 2026-11-17 at the owner's request. Next work is 1.0.9.
 - Build numbers in this round: iOS CURRENT_PROJECT_VERSION 20, Android versionCode 19.
 - Last stable release: 1.0.7 (all platforms).
 - Release status of this round: see section 9 (filled in when the release was uploaded).
@@ -156,7 +157,7 @@ Voice assistant ("Veru")
             (commit b9b3300) passed on all 5 platforms; all 9 files replaced on the prerelease.
 2026-11-17  Fix round: echo cancellation removed (caused voice-call sound), Siri-style ducking, mic never
             reaches the output. iOS build 20, Android versionCode 19. All 9 files replaced on the prerelease.
-            Still an alpha (prerelease). The stable 1.0.8 happens when the owner says "release it for all devices".
+            Then published as the stable latest release (alpha label removed) on 2026-11-17. The stable 1.0.8 happens when the owner says "release it for all devices".
 
 
 10. HOW TO PICK THIS UP ON ANOTHER DEVICE OR ACCOUNT
