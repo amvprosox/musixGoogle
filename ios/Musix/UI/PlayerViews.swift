@@ -312,11 +312,16 @@ struct DownloadsView: View {
     @State private var selectedLibraryId: String?
     @FocusState private var searchFocused: Bool
 
+    /// Same layout as desktop: playlist tiles first (All Songs + each downloaded playlist);
+    /// tapping a tile opens its songs on their own page with a Back button.
+    private static let allSongsId = "__all_songs__"
+
     var body: some View {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let completedIds = Set(downloads.items.filter { $0.status == .completed }.map(\.videoId))
         let libs = filteredLibraries(needle)
         let selected = downloads.savedLibraries.first { $0.id == selectedLibraryId }
+        let inDetail = selectedLibraryId != nil
         let base = selected.map { downloads.savedItems(for: $0) } ?? downloads.items
         let scope = selected.map { _ in base.filter { $0.status == .completed }.map(\.videoId) }
         let tracks = filteredItems(needle, in: base)
@@ -325,51 +330,54 @@ struct DownloadsView: View {
             LazyVStack(alignment: .leading, spacing: DesignTokens.space8) {
                 header
                 searchField
-                toolbar
-                if showLogs {
-                    logsPanel
-                }
-                if let notice = downloads.notice {
-                    noticeBanner(notice)
-                }
-                if !saved.isEmpty {
-                    sectionTitle("Downloaded Playlists")
-                    ForEach(saved) { library in
-                        savedRow(library, completedIds: completedIds)
-                    }
-                }
-                sectionTitle(downloads.detectingLibraries && downloads.libraries.isEmpty ? "Libraries (detecting...)" : "Libraries")
-                if libs.isEmpty {
-                    Text(librariesEmptyText(needle))
-                        .font(.body(DesignTokens.text14))
-                        .foregroundStyle(Palette.textMuted)
-                        .padding(.vertical, DesignTokens.space8)
-                } else {
-                    ForEach(libs) { lib in
-                        libraryRow(lib, completedIds: completedIds)
-                    }
-                }
-                HStack(spacing: DesignTokens.space8) {
-                    let name = selected?.title ?? "Downloaded Tracks"
-                    sectionTitle(needle.isEmpty ? "\(name) (\(base.count))" : "\(name) (\(tracks.count)/\(base.count))")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if selected != nil {
-                        pill("Show all", icon: "close") {
+                if inDetail {
+                    HStack(spacing: DesignTokens.space8) {
+                        pill("Back", icon: "back") {
                             selectedLibraryId = nil
                         }
+                        let name = selected?.title ?? "All Songs"
+                        Text(needle.isEmpty ? "\(name) (\(base.count))" : "\(name) (\(tracks.count)/\(base.count))")
+                            .font(.body(DesignTokens.text16, weight: .bold))
+                            .foregroundStyle(Palette.text)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                }
-                if tracks.isEmpty {
-                    StateMessage(
-                        icon: "download",
-                        title: needle.isEmpty ? "No downloads yet" : "No matching downloads",
-                        detail: needle.isEmpty
-                            ? "Tap the download icon on any playing song, or download a whole library above, to save MP3s for offline playback."
-                            : "Try a different search term."
-                    )
+                    .padding(.top, DesignTokens.space8)
+                    trackList(tracks, scope: scope, needle: needle)
                 } else {
-                    ForEach(tracks) { item in
-                        row(item, scope: scope)
+                    toolbar
+                    if showLogs {
+                        logsPanel
+                    }
+                    if let notice = downloads.notice {
+                        noticeBanner(notice)
+                    }
+                    sectionTitle("Downloaded Playlists")
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 150, maximum: 220), spacing: DesignTokens.space12)],
+                        spacing: DesignTokens.space12
+                    ) {
+                        if !downloads.items.isEmpty {
+                            allSongsTile(completedIds: completedIds)
+                        }
+                        ForEach(saved) { library in
+                            savedTile(library)
+                        }
+                    }
+                    sectionTitle(downloads.detectingLibraries && downloads.libraries.isEmpty ? "Libraries (detecting...)" : "Libraries")
+                    if libs.isEmpty {
+                        Text(librariesEmptyText(needle))
+                            .font(.body(DesignTokens.text14))
+                            .foregroundStyle(Palette.textMuted)
+                            .padding(.vertical, DesignTokens.space8)
+                    } else {
+                        ForEach(libs) { lib in
+                            libraryRow(lib, completedIds: completedIds)
+                        }
+                    }
+                    if !needle.isEmpty {
+                        sectionTitle("Matching songs (\(tracks.count))")
+                        trackList(tracks, scope: nil, needle: needle)
                     }
                 }
             }
@@ -381,6 +389,113 @@ struct DownloadsView: View {
         .background(Palette.bg)
         .task(id: account) {
             await downloads.detectLibraries()
+        }
+    }
+
+    @ViewBuilder
+    private func trackList(_ tracks: [DownloadItem], scope: [String]?, needle: String) -> some View {
+        if tracks.isEmpty {
+            StateMessage(
+                icon: "download",
+                title: needle.isEmpty ? "No downloads yet" : "No matching downloads",
+                detail: needle.isEmpty
+                    ? "Tap the download icon on any playing song, or download a whole library, to save MP3s for offline playback."
+                    : "Try a different search term."
+            )
+        } else {
+            ForEach(tracks) { item in
+                row(item, scope: scope)
+            }
+        }
+    }
+
+    private func tile<Artwork: View>(
+        title: String,
+        subtitle: String,
+        artwork: Artwork,
+        playable: [DownloadItem],
+        scope: [String]?,
+        open: @escaping () -> Void
+    ) -> some View {
+        VStack(spacing: DesignTokens.space8) {
+            Button(action: open) {
+                VStack(spacing: DesignTokens.space8) {
+                    artwork
+                        .frame(width: 140, height: 140)
+                        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.radiusControl))
+                    Text(title)
+                        .font(.body(DesignTokens.text16, weight: .semibold))
+                        .foregroundStyle(Palette.text)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                    Text(subtitle)
+                        .font(.body(DesignTokens.text14))
+                        .foregroundStyle(Palette.textMuted)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open \(title)")
+            HStack(spacing: DesignTokens.space4) {
+                IconButton(icon: "play_filled", label: "Play \(title) offline", enabled: !playable.isEmpty) {
+                    if let first = playable.first {
+                        player.playOffline(item: first, downloads: downloads, scope: scope, shuffle: false)
+                    }
+                }
+                IconButton(icon: "shuffle", label: "Shuffle \(title) offline", enabled: !playable.isEmpty) {
+                    if let pick = playable.randomElement() {
+                        player.playOffline(item: pick, downloads: downloads, scope: scope, shuffle: true)
+                    }
+                }
+            }
+        }
+        .padding(DesignTokens.space12)
+        .frame(maxWidth: .infinity)
+        .background(Palette.surface, in: RoundedRectangle(cornerRadius: DesignTokens.radiusCard))
+        .overlay(RoundedRectangle(cornerRadius: DesignTokens.radiusCard).stroke(Palette.border, lineWidth: 1))
+    }
+
+    private func allSongsTile(completedIds: Set<String>) -> some View {
+        let playable = downloads.items.filter { $0.status == .completed }
+        let covers = Array(playable.prefix(4))
+        let collage = VStack(spacing: 0) {
+            ForEach(0 ..< 2, id: \.self) { rowIndex in
+                HStack(spacing: 0) {
+                    ForEach(0 ..< 2, id: \.self) { column in
+                        let index = rowIndex * 2 + column
+                        ArtworkView(
+                            address: index < covers.count ? downloads.artworkAddress(for: covers[index]) : "",
+                            size: 70,
+                            corner: 0
+                        )
+                    }
+                }
+            }
+        }
+        return tile(
+            title: "All Songs",
+            subtitle: "\(completedIds.count) songs downloaded",
+            artwork: collage,
+            playable: playable,
+            scope: nil
+        ) {
+            selectedLibraryId = Self.allSongsId
+        }
+    }
+
+    private func savedTile(_ library: SavedLibrary) -> some View {
+        let playable = downloads.savedItems(for: library).filter { $0.status == .completed }
+        return tile(
+            title: library.title,
+            subtitle: "\(library.kind) \u{2022} \(playable.count)/\(library.videoIds.count) songs offline",
+            artwork: ArtworkView(address: library.artworkUrl, size: 140, corner: 0),
+            playable: playable,
+            scope: playable.map(\.videoId)
+        ) {
+            selectedLibraryId = library.id
         }
     }
 
@@ -606,51 +721,6 @@ struct DownloadsView: View {
                 $0.title.lowercased().contains(needle) || $0.artist.lowercased().contains(needle)
             }
         }
-    }
-
-    private func savedRow(_ library: SavedLibrary, completedIds: Set<String>) -> some View {
-        let playable = downloads.savedItems(for: library).filter { $0.status == .completed }
-        let scope = playable.map(\.videoId)
-        let isSelected = library.id == selectedLibraryId
-        return HStack(spacing: DesignTokens.space8) {
-            Button {
-                selectedLibraryId = isSelected ? nil : library.id
-            } label: {
-                HStack(spacing: DesignTokens.space12) {
-                    ArtworkView(address: library.artworkUrl, size: 56, corner: DesignTokens.radiusControl)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(library.title)
-                            .font(.body(DesignTokens.text16, weight: .semibold))
-                            .foregroundStyle(isSelected ? Palette.accent : Palette.text)
-                            .lineLimit(2)
-                        Text("\(library.kind) \u{2022} \(playable.count)/\(library.videoIds.count) songs offline")
-                            .font(.body(DesignTokens.text14))
-                            .foregroundStyle(Palette.textMuted)
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isSelected ? "Show all downloads" : "Show songs in \(library.title)")
-            IconButton(icon: "play_filled", label: "Play \(library.title) offline", enabled: !playable.isEmpty) {
-                if let first = playable.first {
-                    player.playOffline(item: first, downloads: downloads, scope: scope, shuffle: false)
-                }
-            }
-            IconButton(icon: "shuffle", label: "Shuffle \(library.title) offline", enabled: !playable.isEmpty) {
-                if let pick = playable.randomElement() {
-                    player.playOffline(item: pick, downloads: downloads, scope: scope, shuffle: true)
-                }
-            }
-        }
-        .padding(DesignTokens.space12)
-        .background(isSelected ? Palette.accentSoft : Palette.surface, in: RoundedRectangle(cornerRadius: DesignTokens.radiusCard))
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignTokens.radiusCard)
-                .stroke(isSelected ? Palette.accent : Palette.border, lineWidth: 1)
-        )
     }
 
     private func filteredItems(_ needle: String, in base: [DownloadItem]) -> [DownloadItem] {
