@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.FrameLayout
+import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
@@ -24,7 +25,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -708,12 +708,13 @@ fun DownloadsScreen(
             item(key = "saved-header") {
                 SectionHeader("Downloaded Playlists")
             }
-            val tiles = buildList {
-                if (items.isNotEmpty()) {
-                    add(null)
+            val tiles =
+                buildList {
+                    if (items.isNotEmpty()) {
+                        add(null)
+                    }
+                    addAll(visibleSaved)
                 }
-                addAll(visibleSaved)
-            }
             items(tiles.chunked(2), key = { row -> row.joinToString { it?.id ?: ALL_SONGS_ID } }) { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
