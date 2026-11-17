@@ -8,8 +8,12 @@ import path from 'node:path';
 const out = process.argv[2] ?? '.';
 const repo = 'https://github.com/amvprosox/musixGoogle';
 const version = JSON.parse(readFileSync('desktop/package.json', 'utf8')).version;
-const iosBuild = Number(/CURRENT_PROJECT_VERSION: "(\d+)"/.exec(readFileSync('ios/project.yml', 'utf8'))?.[1] ?? 0);
-const androidVersionCode = Number(/versionCode = (\d+)/.exec(readFileSync('android/app/build.gradle.kts', 'utf8'))?.[1] ?? 0);
+const iosBuild = Number(
+  /CURRENT_PROJECT_VERSION: "(\d+)"/.exec(readFileSync('ios/project.yml', 'utf8'))?.[1] ?? 0,
+);
+const androidVersionCode = Number(
+  /versionCode = (\d+)/.exec(readFileSync('android/app/build.gradle.kts', 'utf8'))?.[1] ?? 0,
+);
 const desktopBuild = Number(execSync('git log -1 --format=%ct', { encoding: 'utf8' }).trim());
 const files = {
   mac: `Musix-${version}-mac.dmg`,
@@ -28,7 +32,8 @@ try {
 } catch {
   // The .ipa is not in the folder; SideStore still works without the size.
 }
-const icon = 'https://raw.githubusercontent.com/amvprosox/musixGoogle/main/ios/Musix/Resources/Assets.xcassets/Logo.imageset/Logo.png';
+const icon =
+  'https://raw.githubusercontent.com/amvprosox/musixGoogle/main/ios/Musix/Resources/Assets.xcassets/Logo.imageset/Logo.png';
 write('sidestore.json', {
   name: 'Musix',
   identifier: 'com.realmadhoney.musix.source',
@@ -42,7 +47,8 @@ write('sidestore.json', {
       bundleIdentifier: 'com.realmadhoney.musix',
       developerName: 'amvprosox',
       subtitle: 'Music without ads, online and offline',
-      localizedDescription: 'Musix plays YouTube Music without ads, downloads songs for offline listening, and has the Veru voice assistant.',
+      localizedDescription:
+        'Musix plays YouTube Music without ads, downloads songs for offline listening, and has the Veru voice assistant.',
       iconURL: icon,
       tintColor: '4F46E5',
       category: 'entertainment',
