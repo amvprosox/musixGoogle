@@ -367,10 +367,11 @@ export class VoiceController {
     try {
       const constraints: MediaTrackConstraints = {
         channelCount: 1,
-        // Echo cancellation removes everything Musix itself plays (music, Lauren) from what
-        // the mic hears, so the mic never picks up the app's own sound. This is the
-        // browser's software canceller ("true"), not macOS voice processing ("all").
-        echoCancellation: true,
+        // Echo cancellation is off: it removed the music but also squashed your voice, so
+        // Veru was hard to wake over music. The on-device noise remover (GTCRN) does the
+        // job instead: measured on real music it cuts music by 33 dB and leaves speech
+        // untouched. Lauren's own voice is muted from the mic while she talks.
+        echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: true,
       };
