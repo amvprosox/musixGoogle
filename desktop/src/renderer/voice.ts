@@ -18,15 +18,13 @@ import type { AppContext } from './context';
  * Mac, Musix always listens with a real wired or built-in microphone instead.
  */
 const WIRELESS_MIC = /\(bluetooth\)|bluetooth|airpods|beats|hands-?free|buds|bose|sony wh|jabra/i;
+const LOOPBACK_ONLY =
+  /blackhole|loopback|soundflower|aggregate|multi-output|background music|eqmac|vb-audio|cable output|stereo mix|what u hear|monitor of|zoomaudio|teams audio|virtual/i;
 const LOOPBACK_MIC =
   /blackhole|loopback|soundflower|aggregate|multi-output|background music|eqmac|vb-audio|cable output|stereo mix|what u hear|monitor of|zoomaudio|teams audio|virtual/i;
 
 export function isAvoidedMic(label: string): boolean {
   return WIRELESS_MIC.test(label) || LOOPBACK_MIC.test(label);
-}
-
-export function isWirelessMic(label: string): boolean {
-  return WIRELESS_MIC.test(label) && !LOOPBACK_MIC.test(label);
 }
 
 const SAMPLE_RATE = 16000;
@@ -199,10 +197,6 @@ export class VoiceController {
   private context: AudioContext | null = null;
   private processor: AudioWorkletNode | null = null;
   private pending: number[] = [];
-  /** True while Musix plays music; Bluetooth mics are not used then (no hands-free mode). */
-  private musicPlaying = false;
-  private playbackTimer: number | null = null;
-  private micSwitchPending = false;
   private recording: number[] | null = null;
   private yes: HTMLAudioElement | null = null;
   private replyAudio: HTMLAudioElement | null = null;
@@ -220,10 +214,6 @@ export class VoiceController {
         this.playYes();
         this.ctx.actions.duckOffline(true);
       }
-      if (status.state === 'listening' && this.micSwitchPending) {
-        this.micSwitchPending = false;
-        void this.restartCapture();
-      }
       if (status.state === 'listening' || status.state === 'off') {
         this.ctx.actions.duckOffline(false);
       }
@@ -236,12 +226,6 @@ export class VoiceController {
     navigator.mediaDevices.addEventListener('devicechange', () => {
       void this.refreshDevices(true, true);
     });
-    ctx.store.select(
-      (state) => state.player?.isPlaying ?? false,
-      (playing) => {
-        this.onPlaybackChanged(playing);
-      },
-    );
     api
       .invoke('voice:get', null)
       .then(({ config, status }) => {
@@ -395,10 +379,7 @@ export class VoiceController {
           ? ''
           : ((await navigator.mediaDevices.enumerateDevices()).find((device) => device.deviceId === wanted)
               ?.label ?? '');
-      const useWanted =
-        wanted !== 'default' &&
-        wanted !== '' &&
-        (!isAvoidedMic(wantedLabel) || (isWirelessMic(wantedLabel) && !this.musicPlaying));
+      const useWanted = wanted !== 'default' && wanted !== '' && !LOOPBACK_ONLY.test(wantedLabel);
       if (useWanted) {
         constraints.deviceId = { exact: wanted };
       } else {
@@ -441,10 +422,7 @@ export class VoiceController {
       this.context = context;
       this.processor = processor;
       const listening = stream.getAudioTracks()[0]?.label ?? '';
-      this.activeMic =
-        wantedLabel !== '' && !useWanted && isWirelessMic(wantedLabel)
-          ? `${listening} while music plays (${wantedLabel} is used when music is paused)`
-          : listening;
+      this.activeMic = listening;
       stream.getAudioTracks()[0]?.addEventListener('ended', () => {
         void this.restartCapture();
       });
@@ -459,40 +437,6 @@ export class VoiceController {
       });
     }
     this.emit();
-  }
-
-  /**
-   * With Bluetooth earbuds chosen as the mic: switch to the Mac's mic the moment music
-   * starts (so music never drops to hands-free), and back to the earbuds once music has
-   * stayed paused for a moment (song changes do not count).
-   */
-  private onPlaybackChanged(playing: boolean): void {
-    if (this.playbackTimer !== null) {
-      window.clearTimeout(this.playbackTimer);
-      this.playbackTimer = null;
-    }
-    const apply = (): void => {
-      if (this.musicPlaying === playing) {
-        return;
-      }
-      this.musicPlaying = playing;
-      const wanted = this.config?.mic ?? 'default';
-      const label = this.devices.find((device) => device.id === wanted)?.label ?? '';
-      const busy = this.status.state === 'awake' || this.status.state === 'thinking';
-      if (this.stream && isWirelessMic(label)) {
-        if (busy) {
-          // Switch right after the current command finishes.
-          this.micSwitchPending = true;
-        } else {
-          void this.restartCapture();
-        }
-      }
-    };
-    if (playing) {
-      apply();
-    } else {
-      this.playbackTimer = window.setTimeout(apply, 2500);
-    }
   }
 
   private stopCapture(): void {

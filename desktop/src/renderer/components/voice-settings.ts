@@ -334,7 +334,7 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
   // The microphone picker is always visible, even while voice control is off.
   const micRow = row(
     'Microphone',
-    'With AirPods or other Bluetooth earbuds, Musix uses their mic only while music is paused. While music plays it listens through your computer mic, so your earbuds never drop to hands-free sound.',
+    'Musix uses the mic you pick. Automatic uses your computer mic when Bluetooth earbuds are connected, so music stays full quality. Picking AirPods or other earbuds hears you from farther away, but Bluetooth plays music in hands-free quality while their mic is on.',
     micSelect,
     micActive,
   );
