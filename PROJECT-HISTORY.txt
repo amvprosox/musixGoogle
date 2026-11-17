@@ -55,14 +55,18 @@ Voice assistant ("Veru")
   - Learned phrases cache (skips the AI for repeated commands) and wake-word spelling learning.
   - Mic boost (1-12x), GTCRN noise reduction, Automatic mic avoids Bluetooth mics (keeps music quality).
   - Like Siri: music dips to 12% while you speak a command after "Veru", then comes back.
-  - The mic is never played to the speakers (silent internal sink). Echo cancellation is ON (browser
-    software canceller, echoCancellation: true - NOT "all"/macOS voice processing) so the mic never hears
-    Musix's own music or Lauren. The "phone call" sound the owner heard earlier was Bluetooth hands-free
-    mode from picking an earbud mic, not echo cancellation.
+  - The mic is never played to the speakers (silent internal sink).
+  - Echo cancellation is OFF: it removed music but also squashed the owner's voice, so Veru missed the
+    wake word over music. The GTCRN noise remover is used instead (measured on real music: music -33 dB,
+    speech unchanged). Lauren's voice is muted from the mic while she talks.
   - OWNER'S MIC RULE (do not change without asking): Musix uses EXACTLY the mic the owner picks.
-    Only "Automatic" decides by itself (it uses the computer mic when Bluetooth earbuds are connected).
-    Picking AirPods/FreeBuds = their mic always (hears you far away; Bluetooth plays music in hands-free
-    quality while their mic is on - Apple/Bluetooth limit, cannot be avoided).
+    Only "Automatic" decides by itself (computer mic when Bluetooth earbuds are connected).
+    Picking AirPods/FreeBuds = their mic always; Bluetooth then plays music in hands-free quality while
+    the mic is on. The owner wants hands-free off when not talking but the earbud mic still listening:
+    that is impossible over Bluetooth (verified by measurement + web sources). Offered idea, not built:
+    squeeze-the-AirPods-stem to talk.
+  - Exact voice volume/position: "set volume to 50%", "lower it by 20", "forward to 1:00",
+    "rewind 30 seconds" (actions setVolume, seekTo, seekForward/seekBack with seconds), offline + AI.
   - Microphone picker and all voice settings are always visible, even when voice is off.
   - Unverified: owner reported mic feedback with WIRED headsets too; not reproduced yet (no wired
     headset tested). Check this first in 1.0.9.
@@ -148,6 +152,7 @@ Voice assistant ("Veru")
               Musix-1.0.8-ios.ipa, Musix-1.0.8-android.apk, Musix-1.0.8-android-automotive.apk,
               Musix-1.0.8-mac.dmg, Musix-1.0.8-mac.zip, Musix-Setup-1.0.8.exe, Musix-Portable-1.0.8.exe,
               Musix-1.0.8-x86_64.AppImage, Musix-1.0.8-amd64.deb
+2026-11-17  Mic + voice round (see section 2), iOS build 20, Android versionCode 19.
 2026-11-17  Fix round: echo cancellation removed (caused voice-call sound), Siri-style ducking, mic never
             reaches the output. iOS build 20, Android versionCode 19. All 9 files replaced on the prerelease.
             Still an alpha (prerelease). The stable 1.0.8 happens when the owner says "release it for all devices".
