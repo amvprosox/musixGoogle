@@ -11,7 +11,7 @@ To continue (e.g. 1.0.9), just say "start 1.0.9" and point Claude at this file.
 
 1. WHERE WE ARE NOW
 -------------------
-- Version: 1.0.8 is the STABLE latest release, titled "Musix 1.0.8 - hot fix" (tag -> edb96cc, iOS 26, Android 25) ("Musix 1.0.8", tag v1.0.8 -> 3fcfb11), all 9 files.
+- Version: 1.0.8 is the STABLE latest release, titled "Musix 1.0.8 - hot fix" (tag -> 7eec1a1, iOS 27, Android 26) ("Musix 1.0.8", tag v1.0.8 -> 3fcfb11), all 9 files.
   Last rebuild: iPhone/Android Downloads use the desktop card layout (All Songs card, playlist page with
   Back) and desktop phone-size layout matches the phone apps. iOS build 23, Android 22, tag -> 3fcfb11.
   Downloads on all devices: desktop-style header, library cards under Auto-Detected Libraries, buttons say
@@ -135,7 +135,7 @@ Voice assistant ("Veru")
 - Push to main -> GitHub Actions (.github/workflows/build.yml) builds Linux, Windows, macOS, Android, iOS.
 - Download artifacts: gh run download <run id> -n <artifact>
   Musix-Linux, Musix-Windows, Musix-macOS, Musix-Android-APKs, Musix-iOS-unsigned-ipa
-- ALSO upload latest.json (node scripts/latest-json.mjs > latest.json) - the in-app update check
+- ALSO run `node scripts/latest-json.mjs <release-folder>` and upload latest.json + sidestore.json - the update check
   (desktop, iPhone, Android: at start + every 6 h, Settings > Updates at the top) reads it from
   releases/latest/download/latest.json and compares desktopBuild (commit time), iosBuild, androidVersionCode.
 - Rename to: Musix-X-amd64.deb, Musix-X-x86_64.AppImage, Musix-Setup-X.exe, Musix-Portable-X.exe,
@@ -177,3 +177,9 @@ Claude then follows section 6 (setup) and section 5 (house rules).
             in-app updates (OTA check + Download). Verified on Mac: update detected, automatic notice shown,
             Download saved the exact 242,102,251-byte dmg and opened it. Age-restricted songs download on desktop
             only (phones are refused by YouTube even when signed in).
+2026-11-18  Hot fix rebuilt with AUTOMATIC UPDATES: desktop downloads, swaps itself (Mac: replaces Musix.app,
+            Windows: silent NSIS /S, Linux: replaces AppImage) and restarts (waits for app close if music is
+            playing); Android downloads in background + one-tap Install (FileProvider, REQUEST_INSTALL_PACKAGES);
+            iPhone: SideStore source at releases/latest/download/sidestore.json ("Add Musix to SideStore" in
+            Settings > Updates). Verified on Mac twice: an older copy updated and reopened itself in ~35 s.
+            iPhone cannot self-install without a paid Apple account; SideStore is the free route.
