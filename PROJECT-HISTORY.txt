@@ -11,9 +11,10 @@ To continue (e.g. 1.0.9), just say "start 1.0.9" and point Claude at this file.
 
 1. WHERE WE ARE NOW
 -------------------
-- Version: 1.0.8 is the STABLE latest release ("Musix 1.0.8", tag v1.0.8 -> 6ef4e28), all 9 files.
+- Version: 1.0.8 is the STABLE latest release ("Musix 1.0.8", tag v1.0.8 -> 60eb2bd), all 9 files.
+  Last rebuild: desktop phone-size layout matches the iPhone/Android apps (iOS build 21, Android 20).
   Released for all devices on 2026-11-17 at the owner's request. Next work is 1.0.9.
-- Build numbers in this round: iOS CURRENT_PROJECT_VERSION 20, Android versionCode 19.
+- Build numbers in this round: iOS CURRENT_PROJECT_VERSION 21, Android versionCode 20.
 - Last stable release: 1.0.7 (all platforms).
 - Release status of this round: see section 9 (filled in when the release was uploaded).
 
