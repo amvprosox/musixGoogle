@@ -55,6 +55,12 @@ import { startListRefreshSchedule } from './updater-lists';
 import { ASSET_SCHEME, configureAssetProtocol, configureYtmSession, YtmView } from './view';
 import { createMainWindow, currentTheme, showWindow, toggleWindow, WindowChrome } from './window';
 
+/** Music level while you talk to Veru, and how it comes back afterwards. */
+const DUCK_LEVEL = 0.12;
+const DUCK_RETURN_DELAY_MS = 1000;
+const DUCK_FADE_MS = 800;
+const DUCK_FADE_STEPS = 10;
+
 const LYRICS_TIMEOUT_MS = 30_000;
 const SUGGEST_TIMEOUT_MS = 5_000;
 const BROWSE_TIMEOUT_MS = 12_000;
@@ -273,6 +279,7 @@ async function start(): Promise<void> {
   });
   const overlays = new OverlayLayers(win, () => currentTheme(store), devMode);
   const voiceGlow = new VoiceGlow(win, devMode);
+  let duckFade: { start: NodeJS.Timeout; interval: NodeJS.Timeout | undefined } | null = null;
   view.setTheme(currentTheme(store));
 
   const voice = new VoiceManager({
@@ -307,7 +314,35 @@ async function start(): Promise<void> {
       }
     },
     onDuck: (ducked) => {
-      view.sendBridge({ v: 1, type: 'duck', requestId: view.nextRequestId(), level: ducked ? 0.12 : 1 });
+      // Turn music down instantly when you speak; bring it back smoothly afterwards. The
+      // short wait covers Bluetooth earbuds switching back from hands-free to music mode.
+      if (duckFade) {
+        clearInterval(duckFade.interval);
+        clearTimeout(duckFade.start);
+        duckFade = null;
+      }
+      const send = (level: number): void => {
+        view.sendBridge({ v: 1, type: 'duck', requestId: view.nextRequestId(), level });
+      };
+      if (ducked) {
+        send(DUCK_LEVEL);
+        return;
+      }
+      const fade: { start: NodeJS.Timeout; interval: NodeJS.Timeout | undefined } = {
+        start: setTimeout(() => {
+          let step = 0;
+          fade.interval = setInterval(() => {
+            step += 1;
+            send(DUCK_LEVEL + ((1 - DUCK_LEVEL) * step) / DUCK_FADE_STEPS);
+            if (step >= DUCK_FADE_STEPS) {
+              clearInterval(fade.interval);
+              duckFade = null;
+            }
+          }, DUCK_FADE_MS / DUCK_FADE_STEPS);
+        }, DUCK_RETURN_DELAY_MS),
+        interval: undefined,
+      };
+      duckFade = fade;
     },
     isOnline: () => net.isOnline(),
     openExternal: (url) => shell.openExternal(url),

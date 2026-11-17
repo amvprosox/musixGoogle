@@ -73,19 +73,37 @@ export class PlayerActions {
   }
 
   private duckedFrom: number | null = null;
+  private duckFade: number | null = null;
 
   duckOffline(ducked: boolean): void {
     const audio = this.offlineAudio;
+    if (this.duckFade !== null) {
+      window.clearInterval(this.duckFade);
+      this.duckFade = null;
+    }
     if (!audio || this.offlineVideoId === null) {
       this.duckedFrom = null;
       return;
     }
-    if (ducked && this.duckedFrom === null) {
-      this.duckedFrom = audio.volume;
-      audio.volume = Math.min(audio.volume, 0.12);
-    } else if (!ducked && this.duckedFrom !== null) {
-      audio.volume = this.duckedFrom;
-      this.duckedFrom = null;
+    if (ducked) {
+      if (this.duckedFrom === null) {
+        this.duckedFrom = audio.volume;
+      }
+      audio.volume = Math.min(this.duckedFrom, 0.12);
+    } else if (this.duckedFrom !== null) {
+      // Wait for Bluetooth earbuds to leave hands-free mode, then fade back in smoothly.
+      const target = this.duckedFrom;
+      const from = audio.volume;
+      const startAt = Date.now() + 1000;
+      this.duckFade = window.setInterval(() => {
+        const progress = Math.min(1, Math.max(0, (Date.now() - startAt) / 800));
+        audio.volume = from + (target - from) * progress;
+        if (progress >= 1 && this.duckFade !== null) {
+          window.clearInterval(this.duckFade);
+          this.duckFade = null;
+          this.duckedFrom = null;
+        }
+      }, 80);
     }
   }
 
