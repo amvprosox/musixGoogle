@@ -174,6 +174,15 @@ fun SettingsScreen(
             )
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = DesignTokens.Space32)) {
+            SettingsSection("Updates") {
+                Text(updateStatus, style = MaterialTheme.typography.bodyMedium, color = colors.textMuted)
+                Spacer(Modifier.height(DesignTokens.Space12))
+                SecondaryButton("Check for updates", onCheckUpdates, icon = R.drawable.ic_refresh)
+                if (onDownloadUpdate != null) {
+                    Spacer(Modifier.height(DesignTokens.Space8))
+                    PrimaryButton("Download", onDownloadUpdate, icon = R.drawable.ic_download)
+                }
+            }
             SettingsSection(stringResource(R.string.settings_account)) {
                 val accountText =
                     when (account) {
@@ -283,15 +292,6 @@ fun SettingsScreen(
                 Text(stringResource(R.string.settings_cache_body), style = MaterialTheme.typography.bodyMedium, color = colors.textMuted)
                 Spacer(Modifier.height(DesignTokens.Space12))
                 SecondaryButton(stringResource(R.string.action_clear_cache), onClearCache, icon = R.drawable.ic_trash)
-            }
-            SettingsSection("Updates") {
-                Text(updateStatus, style = MaterialTheme.typography.bodyMedium, color = colors.textMuted)
-                Spacer(Modifier.height(DesignTokens.Space12))
-                SecondaryButton("Check for updates", onCheckUpdates, icon = R.drawable.ic_refresh)
-                if (onDownloadUpdate != null) {
-                    Spacer(Modifier.height(DesignTokens.Space8))
-                    PrimaryButton("Download", onDownloadUpdate, icon = R.drawable.ic_download)
-                }
             }
             SettingsSection(stringResource(R.string.settings_about)) {
                 Text(

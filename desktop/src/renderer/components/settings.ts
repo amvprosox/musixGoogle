@@ -346,6 +346,7 @@ export function mountSettings(root: HTMLElement, ctx: AppContext, voice?: VoiceC
   );
 
   const grid = h('div', { className: 'settings-grid' }, [
+    updatesCard(ctx),
     card('settings-playback', 'music', 'Playback', [
       toggleRow(
         'notifyOnTrackChange',
@@ -419,7 +420,6 @@ export function mountSettings(root: HTMLElement, ctx: AppContext, voice?: VoiceC
       ],
       'span-2',
     ),
-    updatesCard(ctx),
     card('settings-about', 'info', 'About', [
       h('div', { className: 'stat' }, [h('span', { className: 'stat-label', text: 'Version' }), versionText]),
       h('p', {

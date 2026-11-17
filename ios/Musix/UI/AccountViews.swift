@@ -123,6 +123,21 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
+                    Text(updates.status)
+                        .font(.body(DesignTokens.text14))
+                        .foregroundStyle(Palette.textMuted)
+                    Button("Check for updates") {
+                        Task { await updates.check(manual: true) }
+                    }
+                    if updates.available != nil {
+                        Button("Download") {
+                            openURL(UpdateChecker.releaseURL)
+                        }
+                    }
+                } header: {
+                    Text("Updates").font(.body(DesignTokens.text14, weight: .semibold))
+                }
+                Section {
                     HStack(spacing: DesignTokens.space12) {
                         Icon(name: "user", size: 24).foregroundStyle(Palette.textMuted)
                         Text(accountText)
@@ -240,21 +255,6 @@ struct SettingsView: View {
                         .foregroundStyle(Palette.textMuted)
                 } header: {
                     Text("Troubleshooting").font(.body(DesignTokens.text14, weight: .semibold))
-                }
-                Section {
-                    Text(updates.status)
-                        .font(.body(DesignTokens.text14))
-                        .foregroundStyle(Palette.textMuted)
-                    Button("Check for updates") {
-                        Task { await updates.check(manual: true) }
-                    }
-                    if updates.available != nil {
-                        Button("Download") {
-                            openURL(UpdateChecker.releaseURL)
-                        }
-                    }
-                } header: {
-                    Text("Updates").font(.body(DesignTokens.text14, weight: .semibold))
                 }
                 Section {
                     Text("Musix \(Self.version)").font(.body(DesignTokens.text16))
