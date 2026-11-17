@@ -27,6 +27,7 @@ export class LyricsError extends Error {
 }
 
 export const LRCLIB_BASE = 'https://lrclib.net/api';
+const TITLE_ONLY_TOLERANCE_SEC = 3;
 export const SYNC_TOLERANCE_SEC = 2;
 const MAX_LINES = 1000;
 const MAX_LINE_CHARS = 500;
@@ -36,7 +37,7 @@ const LEADING_TAG = /^\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/;
 const OFFSET_TAG = /^\[offset:\s*([+-]?\d+)\s*\]/im;
 const WORD_TAG = /<\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?>/g;
 const NOISE_WORDS =
-  /\b(official|video|audio|lyrics?|visuali[sz]er|mv|m\/v|hd|hq|4k|explicit|clean|remaster(ed)?|color coded|from|soundtrack)\b/i;
+  /\b(official|video|audio|lyrics?|visuali[sz]er|mv|m\/v|hd|hq|4k|explicit|clean|remaster(ed)?|color coded|from|soundtrack|prod|produced by)\b/i;
 const FEATURE = /\b(feat|ft|featuring)\b\.?/i;
 
 function fractionMs(text: string | undefined): number {
@@ -248,6 +249,60 @@ function url(path: string, params: Record<string, string>): string {
   return `${LRCLIB_BASE}/${path}?${search.toString()}`;
 }
 
+function recordsFrom(response: unknown): LrclibRecord[] {
+  return Array.isArray(response)
+    ? response.map(toRecord).filter((record): record is LrclibRecord => record !== null)
+    : [];
+}
+
+/**
+ * YouTube re-uploads often list the uploader as the artist ("Face Down With Lyrics" by a
+ * fan channel, "27CLUB - Groupie" by "SwagyTracks"). When the normal search finds
+ * nothing: try "Artist - Song" from the title, then the song title alone, accepting only
+ * a same-titled song whose length is within a few seconds.
+ */
+async function fallbackRecord(
+  query: LyricsQuery,
+  load: (target: string) => Promise<unknown>,
+): Promise<LrclibRecord | null> {
+  const parts = query.title.split(/\s[-–—]\s/);
+  const left = (parts[0] ?? '').trim();
+  const right = (parts[1] ?? '').trim();
+  if (
+    parts.length === 2 &&
+    left !== '' &&
+    right !== '' &&
+    normalize(left) !== normalize(primaryArtist(query.artist))
+  ) {
+    const alt: LyricsQuery = { ...query, artist: left, title: right };
+    const best = pickRecord(
+      recordsFrom(await load(url('search', { track_name: cleanTitle(right, left), artist_name: left }))),
+      alt,
+    );
+    if (best) {
+      return best;
+    }
+  }
+  if (query.durationSec <= 0) {
+    return null;
+  }
+  const bare = normalize(cleanTitle(query.title.replace(/\s+(with\s+)?lyrics?\s*$/i, ''), query.artist));
+  if (bare === '') {
+    return null;
+  }
+  const candidates = recordsFrom(await load(url('search', { track_name: bare })))
+    .filter(
+      (record) =>
+        (normalize(cleanTitle(record.trackName, record.artistName)) === bare ||
+          normalize(record.trackName) === bare) &&
+        record.duration > 0 &&
+        Math.abs(record.duration - query.durationSec) <= TITLE_ONLY_TOLERANCE_SEC &&
+        (record.syncedLyrics !== null || record.plainLyrics !== null),
+    )
+    .sort((a, b) => Math.abs(a.duration - query.durationSec) - Math.abs(b.duration - query.durationSec));
+  return candidates[0] ?? null;
+}
+
 export async function findLyrics(query: LyricsQuery, deps: LyricsDeps): Promise<Lyrics | null> {
   let failures = 0;
   let attempts = 0;
@@ -301,6 +356,16 @@ export async function findLyrics(query: LyricsQuery, deps: LyricsDeps): Promise<
     return lyricsFromRecord(synced, query);
   }
   plain.push(...found);
+
+  if (plain.length === 0) {
+    const fallback = await fallbackRecord(query, load);
+    if (fallback) {
+      if (canSync(fallback, query)) {
+        return lyricsFromRecord(fallback, query);
+      }
+      plain.push(fallback);
+    }
+  }
 
   for (const record of plain) {
     const lyrics = lyricsFromRecord(record, query);

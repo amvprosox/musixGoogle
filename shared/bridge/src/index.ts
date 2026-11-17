@@ -23,6 +23,8 @@ export interface MusixBridge {
 
 const READY_POLL_MS = 250;
 const LYRICS_TIMEOUT_MS = 6000;
+const LYRICS_MIN_GAP_MS = 450;
+const LYRICS_RETRY_WAITS_MS = [3000, 6000];
 const LYRICS_CACHE_SIZE = 64;
 
 export function installBridge(win: Window, doc: Document): MusixBridge | null {
@@ -89,27 +91,50 @@ export function installBridge(win: Window, doc: Document): MusixBridge | null {
     },
   });
   observer.setGuard(guard);
+  // LRCLIB rate-limits by IP: space requests out and wait and retry when it says it is
+  // busy, instead of treating "Too many requests" as "no lyrics".
+  let nextLyricsSlot = 0;
+  const pause = (ms: number): Promise<void> =>
+    new Promise((resolve) => {
+      win.setTimeout(resolve, ms);
+    });
   const fetchJson = async (url: string): Promise<unknown> => {
-    const controller = new AbortController();
-    const timer = win.setTimeout(() => {
-      controller.abort();
-    }, LYRICS_TIMEOUT_MS);
-    try {
-      const response = await win.fetch(url, {
-        credentials: 'omit',
-        referrerPolicy: 'no-referrer',
-        headers: { accept: 'application/json' },
-        signal: controller.signal,
-      });
-      if (response.status === 404) {
-        return null;
+    for (let attempt = 0; ; attempt += 1) {
+      const now = Date.now();
+      const at = Math.max(now, nextLyricsSlot);
+      nextLyricsSlot = at + LYRICS_MIN_GAP_MS;
+      if (at > now) {
+        await pause(at - now);
       }
-      if (!response.ok) {
-        throw new LyricsError(`Lyrics request failed with status ${response.status}`);
+      const controller = new AbortController();
+      const timer = win.setTimeout(() => {
+        controller.abort();
+      }, LYRICS_TIMEOUT_MS);
+      try {
+        const response = await win.fetch(url, {
+          credentials: 'omit',
+          referrerPolicy: 'no-referrer',
+          headers: { accept: 'application/json' },
+          signal: controller.signal,
+        });
+        if (response.status === 404) {
+          return null;
+        }
+        if (response.status === 429 || response.status === 503) {
+          const wait = LYRICS_RETRY_WAITS_MS[attempt];
+          if (wait === undefined) {
+            throw new LyricsError('The lyrics service is busy');
+          }
+          nextLyricsSlot = Math.max(nextLyricsSlot, Date.now() + wait);
+          continue;
+        }
+        if (!response.ok) {
+          throw new LyricsError(`Lyrics request failed with status ${response.status}`);
+        }
+        return (await response.json()) as unknown;
+      } finally {
+        win.clearTimeout(timer);
       }
-      return (await response.json()) as unknown;
-    } finally {
-      win.clearTimeout(timer);
     }
   };
   const lyricsCache = new Map<string, Promise<Lyrics | null>>();

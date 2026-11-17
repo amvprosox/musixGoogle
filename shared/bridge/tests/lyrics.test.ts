@@ -117,3 +117,66 @@ describe('youtube music responses', () => {
     expect(isSearchSuggestions(suggestions)).toBe(true);
   });
 });
+
+describe('findLyrics re-upload fallbacks', () => {
+  const lrc = '[00:01.00]first line\n[00:05.00]second line';
+  const search = (records: unknown[]) => (url: string) => {
+    if (url.includes('/get?')) {
+      return Promise.resolve(null);
+    }
+    return Promise.resolve(records.filter((r) => (r as { match: (u: string) => boolean }).match(url)));
+  };
+
+  it('uses "Artist - Song" from the title when the uploader is listed as the artist', async () => {
+    const record = {
+      trackName: 'Groupie',
+      artistName: '27CLUB',
+      duration: 202,
+      syncedLyrics: lrc,
+      match: (u: string) => u.includes('artist_name=27CLUB'),
+    };
+    const lyrics = await findLyrics(
+      {
+        videoId: 'AU382pMO6RI',
+        title: '27CLUB - Groupie (Prod. Steezefield)',
+        artist: 'SwagyTracks',
+        album: '',
+        durationSec: 203,
+      },
+      { fetchJson: search([record]) },
+    );
+    expect(lyrics?.synced).toBe(true);
+  });
+
+  it('matches the song title alone when the length is within a few seconds', async () => {
+    const record = {
+      trackName: 'The Red Jumpsuit Apparatus - Face Down',
+      artistName: 'The Red Jumpsuit Apparatus',
+      duration: 192,
+      syncedLyrics: lrc,
+      match: (u: string) => u.includes('track_name=face+down') && !u.includes('artist_name'),
+    };
+    const lyrics = await findLyrics(
+      {
+        videoId: 'W8wvyPDZo_w',
+        title: 'Face Down With Lyrics',
+        artist: 'Shiina Kurisu',
+        album: '',
+        durationSec: 193,
+      },
+      { fetchJson: search([record]) },
+    );
+    expect(lyrics?.synced).toBe(true);
+    const wrongLength = await findLyrics(
+      {
+        videoId: 'W8wvyPDZo_w',
+        title: 'Face Down With Lyrics',
+        artist: 'Shiina Kurisu',
+        album: '',
+        durationSec: 240,
+      },
+      { fetchJson: search([record]) },
+    );
+    expect(wrongLength).toBeNull();
+  });
+});

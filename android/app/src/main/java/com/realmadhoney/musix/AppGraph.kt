@@ -81,7 +81,10 @@ class AppGraph(
                 engineFlow.value?.queue?.slow {
                     BridgeCommand.FetchLyrics(it, item.videoId, item.title, item.artist, item.album, item.durationSec.toDouble())
                 }
-            (result as? CommandResult.LyricsFound)?.lyrics
+            when (result) {
+                is CommandResult.LyricsFound -> result.lyrics
+                else -> throw IllegalStateException("Lyrics service busy")
+            }
         }
     }
 

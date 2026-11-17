@@ -27,14 +27,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -99,6 +102,11 @@ enum class ShellTab(
     Library(R.string.tab_library, R.drawable.ic_library, WebRoute.Library),
     Downloads(R.string.tab_downloads, R.drawable.ic_download, null),
     Settings(R.string.action_settings, R.drawable.ic_settings, null),
+    ;
+
+    /** Tabs that need the internet; they are dimmed while offline, like on desktop. */
+    val needsInternet: Boolean
+        get() = this == Home || this == Explore || this == Search || this == Library
 }
 
 @Composable
@@ -253,6 +261,7 @@ fun WebContent(
 fun ShellTabBar(
     selected: ShellTab,
     onSelect: (ShellTab) -> Unit,
+    online: Boolean = true,
 ) {
     val colors = Musix.colors
     Column(Modifier.fillMaxWidth().background(colors.surface)) {
@@ -262,7 +271,13 @@ fun ShellTabBar(
             Row(Modifier.fillMaxWidth().padding(top = DesignTokens.Space4)) {
                 ShellTab.entries.forEach { tab ->
                     val active = tab == selected
-                    val tint = if (active) colors.accent else colors.textMuted
+                    val dimmed = !online && tab.needsInternet
+                    val tint =
+                        when {
+                            dimmed -> colors.textMuted.copy(alpha = 0.38f)
+                            active -> colors.accent
+                            else -> colors.textMuted
+                        }
                     val label = stringResource(tab.label)
                     Column(
                         modifier =
@@ -607,6 +622,7 @@ private fun AllSongsCollage(covers: List<DownloadItem>) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(
     items: List<DownloadItem>,
@@ -679,313 +695,325 @@ fun DownloadsScreen(
                     it.album.lowercase().contains(needle)
             }
         }
-    LazyColumn(modifier = modifier.fillMaxSize().background(colors.bg)) {
-        item(key = "title") {
-            Column(
-                modifier = Modifier.padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
-                verticalArrangement = Arrangement.spacedBy(DesignTokens.Space4),
-            ) {
-                Text(
-                    "Downloads",
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                    color = colors.text,
-                )
-                Text(
-                    "${completedIds.size} MP3 ${if (completedIds.size == 1) "track" else "tracks"} saved for offline playback.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.textMuted,
-                )
-            }
-        }
-        item(key = "search") {
-            DownloadsSearchField(query) { query = it.take(200) }
-        }
-        if (inDetail) {
-            item(key = "detail-header") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
+    // Pull down from the top to refresh libraries and downloads.
+    PullToRefreshBox(
+        isRefreshing = librariesLoading,
+        onRefresh = onRefreshLibraries,
+        modifier = modifier.fillMaxSize(),
+    ) {
+        LazyColumn(modifier = Modifier.fillMaxSize().background(colors.bg)) {
+            item(key = "title") {
+                Column(
+                    modifier = Modifier.padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
+                    verticalArrangement = Arrangement.spacedBy(DesignTokens.Space4),
                 ) {
-                    DownloadPill("Back", R.drawable.ic_back, { selectedLibraryId = null })
-                    val name = selectedLibrary?.title ?: "All Songs"
                     Text(
-                        if (needle.isEmpty()) "$name (${baseItems.size})" else "$name (${filteredItems.size}/${baseItems.size})",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        "Downloads",
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                         color = colors.text,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
                     )
-                }
-            }
-        }
-        if (!inDetail) {
-            item(key = "toolbar") {
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space4),
-                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    DownloadPill(
-                        if (logsOpen) "Hide Logs" else "Logs",
-                        R.drawable.ic_lyrics,
-                        { logsOpen = !logsOpen },
-                        highlighted = logsOpen,
-                    )
-                    if (completedIds.isNotEmpty()) {
-                        DownloadPill(
-                            if (fetchingLyrics) "Getting Lyrics..." else "Get Lyrics",
-                            R.drawable.ic_lyrics,
-                            onGetLyrics,
-                            enabled = !fetchingLyrics,
-                        )
-                    }
-                }
-            }
-            if (logsOpen) {
-                item(key = "logs") {
-                    val shape = RoundedCornerShape(DesignTokens.RadiusCard)
-                    Column(
-                        modifier =
-                            Modifier
-                                .padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8)
-                                .fillMaxWidth()
-                                .background(colors.surface, shape)
-                                .border(1.dp, colors.border, shape)
-                                .padding(DesignTokens.Space12),
-                        verticalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
-                        ) {
-                            Text(
-                                "Download Logs",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colors.text,
-                                modifier = Modifier.weight(1f),
-                            )
-                            DownloadPill("Copy", R.drawable.ic_check, { copyToClipboard(context, logs.joinToString("\n")) })
-                            DownloadPill("Clear", R.drawable.ic_trash, onClearLogs)
-                        }
-                        Text(
-                            text = if (logs.isEmpty()) "No download logs yet." else logs.takeLast(150).joinToString("\n"),
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                            color = colors.textMuted,
-                            modifier = Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()),
-                        )
-                    }
-                }
-            }
-            item(key = "saved-header") {
-                SectionHeader("Downloaded Playlists")
-            }
-            val tiles =
-                buildList {
-                    if (items.isNotEmpty()) {
-                        add(null)
-                    }
-                    addAll(visibleSaved)
-                }
-            items(tiles.chunked(2), key = { row -> row.joinToString { it?.id ?: ALL_SONGS_ID } }) { row ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
-                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space12),
-                ) {
-                    row.forEach { saved ->
-                        val playable =
-                            saved?.videoIds?.filter { it in completedIds }
-                                ?: items.filter { it.status == DownloadStatus.COMPLETED }.map { it.videoId }
-                        val scopeIds = if (saved == null) null else playable
-                        DownloadTile(
-                            title = saved?.title ?: "All Songs",
-                            subtitle =
-                                if (saved == null) {
-                                    "${completedIds.size} songs downloaded"
-                                } else {
-                                    "${saved.kind} • ${playable.size}/${saved.videoIds.size} songs offline"
-                                },
-                            playEnabled = playable.isNotEmpty(),
-                            onOpen = { selectedLibraryId = saved?.id ?: ALL_SONGS_ID },
-                            onPlay = {
-                                itemsById[playable.firstOrNull()]?.let { first ->
-                                    if (scopeIds == null) onPlay(first) else onPlayScoped(first, scopeIds, false)
-                                }
-                            },
-                            onShuffle = {
-                                itemsById[playable.randomOrNull()]?.let { onPlayScoped(it, playable, true) }
-                            },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            if (saved == null) {
-                                AllSongsCollage(items.filter { it.status == DownloadStatus.COMPLETED }.take(4))
-                            } else {
-                                Artwork(
-                                    saved.artworkUrl.takeIf { it.isNotEmpty() }?.let(artworkFor),
-                                    140.dp,
-                                    fallback = R.drawable.ic_list_music,
-                                    corner = 0.dp,
-                                )
-                            }
-                        }
-                    }
-                    if (row.size == 1) {
-                        Spacer(Modifier.weight(1f))
-                    }
-                }
-            }
-            item(key = "libs-header") {
-                SectionHeader("Auto-Detected Libraries")
-            }
-            item(key = "libs-actions") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space4),
-                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
-                ) {
-                    DownloadPill(
-                        if (librariesLoading) "Detecting..." else "Refresh",
-                        R.drawable.ic_refresh,
-                        onRefreshLibraries,
-                        enabled = !librariesLoading,
-                    )
-                    if (libraries.isNotEmpty()) {
-                        DownloadPill("Download All Libraries", R.drawable.ic_download, onDownloadAllLibraries)
-                    }
-                }
-            }
-            if (filteredLibs.isEmpty()) {
-                item(key = "libs-empty") {
                     Text(
-                        text =
-                            when {
-                                librariesLoading -> "Detecting your YouTube Music libraries..."
-                                needle.isNotEmpty() -> "No libraries match your search."
-                                else -> "No libraries detected yet. Sign in and tap Refresh."
-                            },
+                        "${completedIds.size} MP3 ${if (completedIds.size == 1) "track" else "tracks"} saved for offline playback.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.textMuted,
-                        modifier = Modifier.padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
                     )
                 }
             }
-            items(filteredLibs.chunked(2), key = { row -> row.joinToString { "lib:${it.id}" } }) { row ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
-                    horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space12),
-                ) {
-                    row.forEach { lib ->
-                        LibraryTile(
-                            lib = lib,
-                            done = lib.tracks.count { it.videoId in completedIds },
-                            artwork = lib.artworkUrl.takeIf { it.isNotEmpty() }?.let(artworkFor),
-                            onDownload = { onDownloadLibrary(lib) },
+            item(key = "search") {
+                DownloadsSearchField(query) { query = it.take(200) }
+            }
+            if (inDetail) {
+                item(key = "detail-header") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
+                    ) {
+                        DownloadPill("Back", R.drawable.ic_back, { selectedLibraryId = null })
+                        val name = selectedLibrary?.title ?: "All Songs"
+                        Text(
+                            if (needle.isEmpty()) "$name (${baseItems.size})" else "$name (${filteredItems.size}/${baseItems.size})",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = colors.text,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
                     }
-                    if (row.size == 1) {
-                        Spacer(Modifier.weight(1f))
-                    }
                 }
             }
-            if (needle.isNotEmpty()) {
-                item(key = "matching-header") {
-                    SectionHeader("Matching songs (${filteredItems.size})")
-                }
-            }
-        }
-        if (inDetail || needle.isNotEmpty()) {
-            if (filteredItems.isEmpty()) {
-                item(key = "tracks-empty") {
-                    Box(Modifier.fillMaxWidth().padding(vertical = DesignTokens.Space24), contentAlignment = Alignment.Center) {
-                        StateMessage(
-                            icon = R.drawable.ic_download,
-                            title = if (needle.isEmpty()) stringResource(R.string.downloads_empty) else "No matching downloads",
-                            body = if (needle.isEmpty()) stringResource(R.string.downloads_empty_body) else "Try a different search term.",
+            if (!inDetail) {
+                item(key = "toolbar") {
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space4),
+                        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        DownloadPill(
+                            if (logsOpen) "Hide Logs" else "Logs",
+                            R.drawable.ic_lyrics,
+                            { logsOpen = !logsOpen },
+                            highlighted = logsOpen,
                         )
+                        if (completedIds.isNotEmpty()) {
+                            DownloadPill(
+                                if (fetchingLyrics) "Getting Lyrics..." else "Get Lyrics",
+                                R.drawable.ic_lyrics,
+                                onGetLyrics,
+                                enabled = !fetchingLyrics,
+                            )
+                        }
                     }
                 }
-            }
-            items(filteredItems, key = { it.videoId }) { item ->
-                val active = item.videoId == currentVideoId
-                val playingThis = active && isPlaying
-                val description =
-                    listOf(item.artist, item.album)
-                        .filter { it.isNotBlank() }
-                        .joinToString(" • ")
-                        .ifEmpty { "Offline MP3" }
-                val pct = (item.progress * 100).toInt()
-                val statusText =
-                    when (item.status) {
-                        DownloadStatus.DOWNLOADING -> if (item.progress <= 0f) "Queued..." else "Downloading MP3 • $pct%"
-                        DownloadStatus.FAILED -> item.error ?: "Download failed"
-                        DownloadStatus.COMPLETED -> "MP3 • ${formatTime(item.durationSec * 1000L)}"
+                if (logsOpen) {
+                    item(key = "logs") {
+                        val shape = RoundedCornerShape(DesignTokens.RadiusCard)
+                        Column(
+                            modifier =
+                                Modifier
+                                    .padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8)
+                                    .fillMaxWidth()
+                                    .background(colors.surface, shape)
+                                    .border(1.dp, colors.border, shape)
+                                    .padding(DesignTokens.Space12),
+                            verticalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
+                            ) {
+                                Text(
+                                    "Download Logs",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.text,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                DownloadPill("Copy", R.drawable.ic_check, { copyToClipboard(context, logs.joinToString("\n")) })
+                                DownloadPill("Clear", R.drawable.ic_trash, onClearLogs)
+                            }
+                            Text(
+                                text = if (logs.isEmpty()) "No download logs yet." else logs.takeLast(150).joinToString("\n"),
+                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                color = colors.textMuted,
+                                modifier = Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()),
+                            )
+                        }
                     }
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable(
-                                enabled = item.status == DownloadStatus.COMPLETED,
-                                role = Role.Button,
-                                onClick = { if (scope != null && !active) onPlayScoped(item, scope, null) else onPlay(item) },
-                            ).padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space12),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Artwork(item.artworkUri(), 56.dp)
-                    Spacer(Modifier.width(DesignTokens.Space12))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = item.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = if (active) colors.accent else colors.text,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                }
+                item(key = "saved-header") {
+                    SectionHeader("Downloaded Playlists")
+                }
+                val tiles =
+                    buildList {
+                        if (items.isNotEmpty()) {
+                            add(null)
+                        }
+                        addAll(visibleSaved)
+                    }
+                itemsIndexed(tiles.chunked(2), key = { index, _ -> "tiles-row-$index" }) { _, row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
+                        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space12),
+                    ) {
+                        row.forEach { saved ->
+                            val playable =
+                                saved?.videoIds?.filter { it in completedIds }
+                                    ?: items.filter { it.status == DownloadStatus.COMPLETED }.map { it.videoId }
+                            val scopeIds = if (saved == null) null else playable
+                            DownloadTile(
+                                title = saved?.title ?: "All Songs",
+                                subtitle =
+                                    if (saved == null) {
+                                        "${completedIds.size} songs downloaded"
+                                    } else {
+                                        "${saved.kind} • ${playable.size}/${saved.videoIds.size} songs offline"
+                                    },
+                                playEnabled = playable.isNotEmpty(),
+                                onOpen = { selectedLibraryId = saved?.id ?: ALL_SONGS_ID },
+                                onPlay = {
+                                    itemsById[playable.firstOrNull()]?.let { first ->
+                                        if (scopeIds == null) onPlay(first) else onPlayScoped(first, scopeIds, false)
+                                    }
+                                },
+                                onShuffle = {
+                                    itemsById[playable.randomOrNull()]?.let { onPlayScoped(it, playable, true) }
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                if (saved == null) {
+                                    AllSongsCollage(items.filter { it.status == DownloadStatus.COMPLETED }.take(4))
+                                } else {
+                                    Artwork(
+                                        saved.artworkUrl.takeIf { it.isNotEmpty() }?.let(artworkFor),
+                                        140.dp,
+                                        fallback = R.drawable.ic_list_music,
+                                        corner = 0.dp,
+                                    )
+                                }
+                            }
+                        }
+                        if (row.size == 1) {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+                item(key = "libs-header") {
+                    SectionHeader("Auto-Detected Libraries")
+                }
+                item(key = "libs-actions") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space4),
+                        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space8),
+                    ) {
+                        DownloadPill(
+                            if (librariesLoading) "Detecting..." else "Refresh",
+                            R.drawable.ic_refresh,
+                            onRefreshLibraries,
+                            enabled = !librariesLoading,
                         )
+                        if (libraries.isNotEmpty()) {
+                            DownloadPill("Download All Libraries", R.drawable.ic_download, onDownloadAllLibraries)
+                        }
+                    }
+                }
+                if (filteredLibs.isEmpty()) {
+                    item(key = "libs-empty") {
                         Text(
-                            text = description,
+                            text =
+                                when {
+                                    librariesLoading -> "Detecting your YouTube Music libraries..."
+                                    needle.isNotEmpty() -> "No libraries match your search."
+                                    else -> "No libraries detected yet. Sign in and tap Refresh."
+                                },
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.textMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = statusText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (item.status == DownloadStatus.FAILED) colors.danger else colors.textMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
                         )
                     }
-                    when (item.status) {
-                        DownloadStatus.COMPLETED -> {
-                            IconAction(
-                                icon = if (playingThis) R.drawable.ic_pause_filled else R.drawable.ic_play_filled,
-                                label = stringResource(if (playingThis) R.string.action_pause else R.string.action_play),
-                                onClick = { if (scope != null && !active) onPlayScoped(item, scope, null) else onPlay(item) },
-                                active = active,
+                }
+                itemsIndexed(filteredLibs.chunked(2), key = { index, _ -> "libs-row-$index" }) { _, row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space8),
+                        horizontalArrangement = Arrangement.spacedBy(DesignTokens.Space12),
+                    ) {
+                        row.forEach { lib ->
+                            LibraryTile(
+                                lib = lib,
+                                done = lib.tracks.count { it.videoId in completedIds },
+                                artwork = lib.artworkUrl.takeIf { it.isNotEmpty() }?.let(artworkFor),
+                                onDownload = { onDownloadLibrary(lib) },
+                                modifier = Modifier.weight(1f),
                             )
                         }
-
-                        DownloadStatus.FAILED -> {
-                            IconAction(
-                                icon = R.drawable.ic_refresh,
-                                label = stringResource(R.string.action_retry),
-                                onClick = { onRetry(item) },
-                            )
+                        if (row.size == 1) {
+                            Spacer(Modifier.weight(1f))
                         }
-
-                        DownloadStatus.DOWNLOADING -> {}
                     }
-                    IconAction(
-                        icon = R.drawable.ic_trash,
-                        label = stringResource(R.string.action_delete_download),
-                        onClick = { onDelete(item.videoId) },
-                    )
+                }
+                if (needle.isNotEmpty()) {
+                    item(key = "matching-header") {
+                        SectionHeader("Matching songs (${filteredItems.size})")
+                    }
+                }
+            }
+            if (inDetail || needle.isNotEmpty()) {
+                if (filteredItems.isEmpty()) {
+                    item(key = "tracks-empty") {
+                        Box(Modifier.fillMaxWidth().padding(vertical = DesignTokens.Space24), contentAlignment = Alignment.Center) {
+                            StateMessage(
+                                icon = R.drawable.ic_download,
+                                title = if (needle.isEmpty()) stringResource(R.string.downloads_empty) else "No matching downloads",
+                                body =
+                                    if (needle.isEmpty()) {
+                                        stringResource(R.string.downloads_empty_body)
+                                    } else {
+                                        "Try a different search term."
+                                    },
+                            )
+                        }
+                    }
+                }
+                items(filteredItems, key = { it.videoId }) { item ->
+                    val active = item.videoId == currentVideoId
+                    val playingThis = active && isPlaying
+                    val description =
+                        listOf(item.artist, item.album)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" • ")
+                            .ifEmpty { "Offline MP3" }
+                    val pct = (item.progress * 100).toInt()
+                    val statusText =
+                        when (item.status) {
+                            DownloadStatus.DOWNLOADING -> if (item.progress <= 0f) "Queued..." else "Downloading MP3 • $pct%"
+                            DownloadStatus.FAILED -> item.error ?: "Download failed"
+                            DownloadStatus.COMPLETED -> "MP3 • ${formatTime(item.durationSec * 1000L)}"
+                        }
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    enabled = item.status == DownloadStatus.COMPLETED,
+                                    role = Role.Button,
+                                    onClick = { if (scope != null && !active) onPlayScoped(item, scope, null) else onPlay(item) },
+                                ).padding(horizontal = DesignTokens.Space16, vertical = DesignTokens.Space12),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Artwork(item.artworkUri(), 56.dp)
+                        Spacer(Modifier.width(DesignTokens.Space12))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = item.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = if (active) colors.accent else colors.text,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = description,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = statusText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (item.status == DownloadStatus.FAILED) colors.danger else colors.textMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        when (item.status) {
+                            DownloadStatus.COMPLETED -> {
+                                IconAction(
+                                    icon = if (playingThis) R.drawable.ic_pause_filled else R.drawable.ic_play_filled,
+                                    label = stringResource(if (playingThis) R.string.action_pause else R.string.action_play),
+                                    onClick = { if (scope != null && !active) onPlayScoped(item, scope, null) else onPlay(item) },
+                                    active = active,
+                                )
+                            }
+
+                            DownloadStatus.FAILED -> {
+                                IconAction(
+                                    icon = R.drawable.ic_refresh,
+                                    label = stringResource(R.string.action_retry),
+                                    onClick = { onRetry(item) },
+                                )
+                            }
+
+                            DownloadStatus.DOWNLOADING -> {}
+                        }
+                        IconAction(
+                            icon = R.drawable.ic_trash,
+                            label = stringResource(R.string.action_delete_download),
+                            onClick = { onDelete(item.videoId) },
+                        )
+                    }
                 }
             }
         }

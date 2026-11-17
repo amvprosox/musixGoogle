@@ -1,4 +1,5 @@
 import MusixCore
+import Network
 import SwiftUI
 
 enum ShellTab: CaseIterable {
@@ -51,6 +52,7 @@ struct RootView: View {
     @ObservedObject var suggester: SearchSuggester
 
     @State private var tab: ShellTab = .home
+    @StateObject private var network = NetworkMonitor()
     @State private var showPlayer = false
     @State private var showSettings = false
     @State private var query = ""
@@ -252,6 +254,7 @@ struct RootView: View {
                             }
                         }
                         .foregroundStyle(tab == item ? Palette.accent : Palette.textMuted)
+                        .opacity(!network.online && item.needsInternet ? 0.38 : 1)
                         .padding(.horizontal, DesignTokens.space4)
                         .frame(maxWidth: .infinity, minHeight: 56)
                         .contentShape(Rectangle())
@@ -268,6 +271,11 @@ struct RootView: View {
     }
 
     private func select(_ item: ShellTab) {
+        if !network.online, item.needsInternet {
+            // Same as desktop: online-only tabs explain where offline music is.
+            player.message = "You're offline. Open Downloads to play your offline music."
+            return
+        }
         switch item {
         case .settings:
             showSettings = true
@@ -377,6 +385,35 @@ struct EngineHost: UIViewRepresentable {
     static func dismantleUIView(_ holder: UIView, coordinator: ()) {
         for subview in holder.subviews {
             subview.removeFromSuperview()
+        }
+    }
+}
+
+/// Tracks whether the phone is online, so online-only tabs can be dimmed like on desktop.
+@MainActor
+final class NetworkMonitor: ObservableObject {
+    @Published private(set) var online = true
+    private let monitor = NWPathMonitor()
+
+    init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            let reachable = path.status == .satisfied
+            Task { @MainActor in
+                self?.online = reachable
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "musix.network"))
+    }
+}
+
+extension ShellTab {
+    /// Tabs that need the internet; dimmed while offline.
+    var needsInternet: Bool {
+        switch self {
+        case .home, .explore, .search, .library:
+            return true
+        default:
+            return false
         }
     }
 }

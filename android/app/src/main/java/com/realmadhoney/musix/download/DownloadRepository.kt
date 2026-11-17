@@ -417,7 +417,8 @@ class DownloadRepository(
                 throw cancelled
             } catch (error: Exception) {
                 Log.w(TAG, "Lyrics lookup failed", error)
-                null
+                appendLog("Lyrics service busy for ${item.title} (${item.videoId}); tap Get Lyrics later to retry")
+                return false
             }
         if (lyrics == null || (!lyrics.instrumental && lyrics.lines.isEmpty())) {
             appendLog("No lyrics found for ${item.title} (${item.videoId})")

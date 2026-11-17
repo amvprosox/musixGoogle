@@ -207,6 +207,8 @@ fun MusixApp(viewModel: MainViewModel) {
     LaunchedEffect(Unit) {
         merge(viewModel.connection.messages, viewModel.graph.messages).collect { snackbar.showSnackbar(it) }
     }
+    val online by viewModel.graph.connectivity.isOnline
+        .collectAsState()
     var shellTab by rememberSaveable { mutableStateOf(ShellTab.Home) }
     var webQuery by rememberSaveable { mutableStateOf("") }
     var suggesting by rememberSaveable { mutableStateOf(false) }
@@ -224,24 +226,29 @@ fun MusixApp(viewModel: MainViewModel) {
         engine?.goBack()
     }
     val selectShell: (ShellTab) -> Unit = { next ->
-        when (next) {
-            ShellTab.Settings -> {
-                viewModel.navigate(Route.Settings)
-            }
+        if (!online && next.needsInternet) {
+            // Same as desktop: online-only tabs explain where offline music is.
+            scope.launch { snackbar.showSnackbar("You're offline. Open Downloads to play your offline music.") }
+        } else {
+            when (next) {
+                ShellTab.Settings -> {
+                    viewModel.navigate(Route.Settings)
+                }
 
-            ShellTab.Search -> {
-                shellTab = ShellTab.Search
-            }
+                ShellTab.Search -> {
+                    shellTab = ShellTab.Search
+                }
 
-            ShellTab.Downloads -> {
-                suggesting = false
-                shellTab = ShellTab.Downloads
-            }
+                ShellTab.Downloads -> {
+                    suggesting = false
+                    shellTab = ShellTab.Downloads
+                }
 
-            else -> {
-                suggesting = false
-                shellTab = next
-                next.route?.let { target -> engine?.navigate(target) }
+                else -> {
+                    suggesting = false
+                    shellTab = next
+                    next.route?.let { target -> engine?.navigate(target) }
+                }
             }
         }
     }
@@ -573,7 +580,7 @@ fun MusixApp(viewModel: MainViewModel) {
                 )
             }
             if (route == Route.Home) {
-                ShellTabBar(shellTab, selectShell)
+                ShellTabBar(shellTab, selectShell, online = online)
             }
         }
         val voiceLevels by viewModel.graph.voice.levels

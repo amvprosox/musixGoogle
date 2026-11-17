@@ -324,10 +324,11 @@ export class VoiceManager {
         return { ...DEFAULTS, commands: sanitizeVoiceCommands(undefined) };
       }
       const raw = JSON.parse(readFileSync(this.configPath, 'utf8')) as Partial<
-        Record<keyof StoredVoiceConfig, unknown>
+        Record<keyof StoredVoiceConfig | 'offByDefault108', unknown>
       >;
       return {
-        enabled: raw.enabled === true,
+        // Voice control starts off after this update (once); it stays however the user sets it.
+        enabled: raw.enabled === true && raw.offByDefault108 === true,
         mic: typeof raw.mic === 'string' && raw.mic.length < 300 ? raw.mic : 'default',
         commands: sanitizeVoiceCommands(raw.commands),
         speakerCheck: raw.speakerCheck !== false,
@@ -363,7 +364,7 @@ export class VoiceManager {
     try {
       mkdirSync(this.voiceDir, { recursive: true });
       const tmp = `${this.configPath}.tmp`;
-      writeFileSync(tmp, JSON.stringify(this.config, null, 2), 'utf8');
+      writeFileSync(tmp, JSON.stringify({ ...this.config, offByDefault108: true }, null, 2), 'utf8');
       renameSync(tmp, this.configPath);
     } catch (error) {
       logError('voice', 'Could not save voice settings', error);

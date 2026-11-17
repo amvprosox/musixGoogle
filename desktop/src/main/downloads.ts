@@ -24,6 +24,7 @@ import type {
   SavedLibrary,
 } from '../shared/types';
 import { isVideoId } from '../shared/validators';
+import { fetchLrclibJson, LyricsBusyError } from './lrclib-fetch';
 import { logError, logWarn } from './log';
 
 const STORE_FILE = 'downloads.json';
@@ -381,6 +382,7 @@ export class DownloadManager {
       return false;
     }
     let lyrics: Lyrics | null = null;
+    let busy = false;
     try {
       lyrics = await findLyrics(
         {
@@ -390,24 +392,17 @@ export class DownloadManager {
           album: item.album,
           durationSec: item.durationSec,
         },
-        {
-          fetchJson: async (url) => {
-            const response = await fetch(url, {
-              headers: { 'User-Agent': 'Musix', Accept: 'application/json' },
-              signal: AbortSignal.timeout(10_000),
-            });
-            if (response.status === 404) {
-              return null;
-            }
-            if (!response.ok) {
-              throw new Error(`HTTP ${response.status}`);
-            }
-            return (await response.json()) as unknown;
-          },
-        },
+        { fetchJson: fetchLrclibJson },
       );
     } catch (error) {
+      busy = error instanceof LyricsBusyError || (error instanceof Error && error.name === 'LyricsError');
       logWarn('downloads', 'Lyrics lookup failed', error);
+    }
+    if (busy) {
+      this.appendLog(
+        `Lyrics service busy for "${item.title}" (${item.videoId}); tap Get Lyrics later to retry`,
+      );
+      return false;
     }
     if (!lyrics || (!lyrics.instrumental && lyrics.lines.length === 0)) {
       this.appendLog(`No lyrics found for "${item.title}" (${item.videoId})`);

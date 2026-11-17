@@ -207,6 +207,7 @@ final class VoiceController: ObservableObject {
 
     private enum Keys {
         static let enabled = "musix.voice.enabled"
+        static let offByDefaultApplied = "musix.voice.offByDefault.108"
         static let microphone = "musix.voice.microphone"
         static let commands = "musix.voice.commands"
         static let speakerCheck = "musix.voice.speakerCheck"
@@ -243,6 +244,11 @@ final class VoiceController: ObservableObject {
         self.downloads = downloads
         self.library = library
         self.settings = settings
+        // Voice control starts off after this update (once); it stays however the user sets it.
+        if !defaults.bool(forKey: Keys.offByDefaultApplied) {
+            defaults.set(false, forKey: Keys.enabled)
+            defaults.set(true, forKey: Keys.offByDefaultApplied)
+        }
         enabled = defaults.bool(forKey: Keys.enabled)
         microphone = defaults.string(forKey: Keys.microphone) ?? "auto"
         if let data = defaults.data(forKey: Keys.commands), let saved = try? JSONDecoder().decode([VoiceCommand].self, from: data) {

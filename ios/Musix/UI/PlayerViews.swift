@@ -327,7 +327,9 @@ struct DownloadsView: View {
         let tracks = filteredItems(needle, in: base)
         let saved = visibleSaved(needle, completedIds: completedIds)
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: DesignTokens.space8) {
+            // A plain stack keeps the page height stable while downloads update (the lazy
+            // stack re-measured on every progress tick and flashed blank space at the bottom).
+            VStack(alignment: .leading, spacing: DesignTokens.space8) {
                 header
                 if !inDetail {
                     toolbar
@@ -403,6 +405,10 @@ struct DownloadsView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
+        .refreshable {
+            // Pull down from the top to refresh libraries and downloads.
+            await downloads.detectLibraries(force: true)
+        }
         .background(Palette.bg)
         .task(id: account) {
             await downloads.detectLibraries()
@@ -420,8 +426,10 @@ struct DownloadsView: View {
                     : "Try a different search term."
             )
         } else {
-            ForEach(tracks) { item in
-                row(item, scope: scope)
+            LazyVStack(alignment: .leading, spacing: DesignTokens.space8) {
+                ForEach(tracks) { item in
+                    row(item, scope: scope)
+                }
             }
         }
     }

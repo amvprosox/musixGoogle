@@ -33,6 +33,16 @@ class VoiceStore(
     private val prefs = context.getSharedPreferences("musix_voice", Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true }
 
+    init {
+        // Voice control starts off after this update (once); it stays however the user sets it.
+        if (!prefs.getBoolean(OFF_BY_DEFAULT_APPLIED, false)) {
+            prefs.edit {
+                putBoolean(ENABLED, false)
+                putBoolean(OFF_BY_DEFAULT_APPLIED, true)
+            }
+        }
+    }
+
     var enabled: Boolean
         get() = prefs.getBoolean(ENABLED, false)
         set(value) = prefs.edit { putBoolean(ENABLED, value) }
@@ -154,6 +164,7 @@ class VoiceStore(
         const val DEFAULT_SENSITIVITY = 0.5f
         private const val TAG = "MusixVoice"
         private const val ENABLED = "enabled"
+        private const val OFF_BY_DEFAULT_APPLIED = "off_by_default_108"
         private const val MICROPHONE = "microphone"
         private const val SPEAKER_CHECK = "speaker_check"
         private const val THRESHOLD = "threshold"

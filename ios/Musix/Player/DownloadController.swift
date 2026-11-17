@@ -274,7 +274,11 @@ final class DownloadController: ObservableObject {
                 durationSec: entry.durationSec
             )
         )
-        guard case let .lyrics(found) = result, let lyrics = found, lyrics.instrumental || !lyrics.lines.isEmpty else {
+        guard case let .lyrics(found) = result else {
+            appendLog("Lyrics service busy for \(entry.title) (\(entry.videoId)); tap Get Lyrics later to retry")
+            return false
+        }
+        guard let lyrics = found, lyrics.instrumental || !lyrics.lines.isEmpty else {
             appendLog("No lyrics found for \(entry.title) (\(entry.videoId))")
             return false
         }
