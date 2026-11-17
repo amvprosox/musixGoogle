@@ -16,6 +16,8 @@ export const VOICE_ACTIONS = [
   'unmute',
   'seekForward',
   'seekBack',
+  'seekTo',
+  'setVolume',
   'restart',
   'whatsPlaying',
   'showLyrics',
@@ -68,6 +70,8 @@ export const VOICE_ACTION_LABELS: Readonly<Record<VoiceAction, string>> = {
   unmute: 'Unmute',
   seekForward: 'Forward 10 seconds',
   seekBack: 'Back 10 seconds',
+  seekTo: 'Go to a time (e.g. 1:30)',
+  setVolume: 'Set volume (e.g. 50%)',
   restart: 'Restart song',
   whatsPlaying: "What's playing",
   showLyrics: 'Show lyrics',
@@ -602,6 +606,161 @@ function stripFiller(text: string): string {
   return text.replace(FILLER_PHRASES, ' ').replace(FILLER_WORDS, ' ').replace(/\s+/g, ' ').trim();
 }
 
+const NUMBER_WORDS: Readonly<Record<string, number>> = {
+  zero: 0,
+  one: 1,
+  a: 1,
+  an: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fifty: 50,
+  sixty: 60,
+  seventy: 70,
+  eighty: 80,
+  ninety: 90,
+};
+
+/** Turns "50", "fifty", "twenty five", "one hundred" into a number. */
+function readNumber(words: readonly string[], start: number): { value: number; next: number } | null {
+  const first = words[start] ?? '';
+  if (/^\d+$/.test(first)) {
+    return { value: Number(first), next: start + 1 };
+  }
+  let value = 0;
+  let index = start;
+  let found = false;
+  while (index < words.length) {
+    const word = words[index] ?? '';
+    if (word === 'hundred' && found) {
+      value *= 100;
+    } else if (word in NUMBER_WORDS && !(found && (word === 'a' || word === 'an'))) {
+      value += NUMBER_WORDS[word] ?? 0;
+    } else if (word === 'and' && found) {
+      // "one hundred and ten"
+    } else {
+      break;
+    }
+    found = true;
+    index += 1;
+  }
+  return found ? { value, next: index } : null;
+}
+
+/** Reads a spoken time like "1 30" (from 1:30), "2 minutes 15 seconds", "45 seconds", "half a minute". */
+function readDuration(words: readonly string[]): { seconds: number; hasUnit: boolean } | null {
+  if (
+    words.some(
+      (word, i) =>
+        word === 'half' &&
+        /^(a|an)?$/.test(words[i + 1] ?? '') &&
+        words.slice(i).some((w) => w.startsWith('min')),
+    )
+  ) {
+    return { seconds: 30, hasUnit: true };
+  }
+  for (let i = 0; i < words.length; i += 1) {
+    const first = readNumber(words, i);
+    if (!first) {
+      continue;
+    }
+    const unit = words[first.next] ?? '';
+    const after = words[first.next + 1] ?? '';
+    // "1 30" is what "1:30" becomes after punctuation is removed.
+    if (/^\d{2}$/.test(unit) && /^\d{1,2}$/.test(words[i] ?? '')) {
+      return { seconds: first.value * 60 + Number(unit), hasUnit: true };
+    }
+    if (/^(minute|minutes|min|mins|minuto)$/.test(unit)) {
+      let seconds = first.value * 60;
+      let j = first.next + 1;
+      if (after === 'and') {
+        j += 1;
+      }
+      const extra = readNumber(words, j);
+      if (extra && /^(second|seconds|sec|secs|segundo)?$/.test(words[extra.next] ?? '')) {
+        seconds += extra.value;
+      }
+      return { seconds, hasUnit: true };
+    }
+    if (/^(second|seconds|sec|secs|segundo)$/.test(unit)) {
+      return { seconds: first.value, hasUnit: true };
+    }
+    return { seconds: first.value, hasUnit: false };
+  }
+  return null;
+}
+
+/**
+ * Exact volume and playback position from speech, offline:
+ * "set volume to 50 percent", "half volume", "lower the volume by 20",
+ * "forward to 1:00", "go to 2 minutes 30", "rewind 15 seconds".
+ */
+export function matchLevelOrTime(text: string): { action: VoiceAction; query: string } | null {
+  const words = normalizeSpeech(text)
+    .split(' ')
+    .filter((word) => word !== '');
+  const joined = ` ${words.join(' ')} `;
+  if (/ (volume|vol|lakas|sound|loudness) /.test(joined) || / percent /.test(joined)) {
+    if (/ (max|maximum|full|loudest) /.test(joined)) {
+      return { action: 'setVolume', query: '100' };
+    }
+    if (/ half /.test(joined) && !/ \d/.test(joined)) {
+      return { action: 'setVolume', query: '50' };
+    }
+    const byIndex = words.indexOf('by');
+    const isNumber = (word: string): boolean =>
+      /^\d+$/.test(word) || (word in NUMBER_WORDS && word !== 'a' && word !== 'an');
+    // "from 100 to 50": the level after "to" is the one wanted.
+    const toIndex = words.lastIndexOf('to');
+    const afterTo = toIndex === -1 ? -1 : words.findIndex((word, k) => k > toIndex && isNumber(word));
+    const number = readNumber(words, afterTo !== -1 ? afterTo : words.findIndex(isNumber));
+    if (number && number.value >= 0 && number.value <= 100) {
+      if (byIndex !== -1 && byIndex < number.next) {
+        const down = / (lower|decrease|reduce|down|quieter|hinaan) /.test(joined);
+        return { action: 'setVolume', query: `${down ? '-' : '+'}${number.value}` };
+      }
+      return { action: 'setVolume', query: String(number.value) };
+    }
+    return null;
+  }
+  const seekWords = / (forward|skip|jump|go|seek|rewind|back|ahead|move|play|start|ilipat|balik) /;
+  if (!seekWords.test(joined)) {
+    return null;
+  }
+  const duration = readDuration(words);
+  if (!duration) {
+    return null;
+  }
+  const absolute = / (to|at|from|mark) /.test(joined) && !/ by /.test(joined);
+  if (absolute) {
+    const seconds = duration.hasUnit || duration.seconds > 10 ? duration.seconds : duration.seconds * 60;
+    return { action: 'seekTo', query: String(seconds) };
+  }
+  if (!duration.hasUnit) {
+    return null;
+  }
+  const backwards = / (rewind|back|backward|backwards|balik) /.test(joined);
+  return { action: backwards ? 'seekBack' : 'seekForward', query: String(duration.seconds) };
+}
+
 export function planLocally(
   text: string,
   commands: readonly VoiceCommand[] = DEFAULT_VOICE_COMMANDS,
@@ -615,6 +774,10 @@ export function planLocally(
     const collection = /^(?:play|shuffle|start|put on)\s+(.+)$/.exec(part);
     if (collection?.[1] && AMBIGUOUS_COLLECTION.test(collection[1])) {
       return { action: 'play', query: collection[1] };
+    }
+    const exact = matchLevelOrTime(part);
+    if (exact) {
+      return exact;
     }
     const direct = matchIntent(part, commands);
     if (direct) {

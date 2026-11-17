@@ -8,6 +8,7 @@ import {
   sanitizeVoiceCommands,
   similarity,
   stripWakeWord,
+  matchLevelOrTime,
   findWakeWord,
 } from '../../src/shared/voice-intent';
 
@@ -184,6 +185,51 @@ describe('planLocally filler words', () => {
     ]);
     expect(planLocally('can you please open the settings page')?.steps).toEqual([
       { action: 'openSettings', query: '' },
+    ]);
+  });
+});
+
+describe('matchLevelOrTime', () => {
+  it('sets an exact volume', () => {
+    expect(matchLevelOrTime('set the volume to 50%')).toEqual({ action: 'setVolume', query: '50' });
+    expect(matchLevelOrTime('volume 30')).toEqual({ action: 'setVolume', query: '30' });
+    expect(matchLevelOrTime('lower the volume from 100 to 50 percent')).toEqual({
+      action: 'setVolume',
+      query: '50',
+    });
+    expect(matchLevelOrTime('turn the volume down to twenty five')).toEqual({
+      action: 'setVolume',
+      query: '25',
+    });
+    expect(matchLevelOrTime('half volume')).toEqual({ action: 'setVolume', query: '50' });
+    expect(matchLevelOrTime('max volume')).toEqual({ action: 'setVolume', query: '100' });
+    expect(matchLevelOrTime('lower the volume by 20')).toEqual({ action: 'setVolume', query: '-20' });
+    expect(matchLevelOrTime('raise the volume by 10 percent')).toEqual({ action: 'setVolume', query: '+10' });
+    expect(matchLevelOrTime('volume up')).toBeNull();
+  });
+
+  it('jumps to an exact time', () => {
+    expect(matchLevelOrTime('forward it to 1:00')).toEqual({ action: 'seekTo', query: '60' });
+    expect(matchLevelOrTime('go to 2:30')).toEqual({ action: 'seekTo', query: '150' });
+    expect(matchLevelOrTime('skip to 1 minute')).toEqual({ action: 'seekTo', query: '60' });
+    expect(matchLevelOrTime('jump to 2 minutes and 15 seconds')).toEqual({ action: 'seekTo', query: '135' });
+    expect(matchLevelOrTime('play from 45 seconds')).toEqual({ action: 'seekTo', query: '45' });
+    expect(matchLevelOrTime('forward to one minute')).toEqual({ action: 'seekTo', query: '60' });
+  });
+
+  it('moves by an amount', () => {
+    expect(matchLevelOrTime('forward 30 seconds')).toEqual({ action: 'seekForward', query: '30' });
+    expect(matchLevelOrTime('rewind 1 minute')).toEqual({ action: 'seekBack', query: '60' });
+    expect(matchLevelOrTime('go back 15 seconds')).toEqual({ action: 'seekBack', query: '15' });
+    expect(matchLevelOrTime('skip ahead 2 minutes')).toEqual({ action: 'seekForward', query: '120' });
+    expect(matchLevelOrTime('next song')).toBeNull();
+    expect(matchLevelOrTime('play timeless by the weeknd')).toBeNull();
+  });
+
+  it('works inside a multi-step command', () => {
+    expect(planLocally('set the volume to 50 percent and forward to 1:00')?.steps).toEqual([
+      { action: 'setVolume', query: '50' },
+      { action: 'seekTo', query: '60' },
     ]);
   });
 });

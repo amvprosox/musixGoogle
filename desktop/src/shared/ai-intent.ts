@@ -157,6 +157,8 @@ export function intentPrompt(
         'Reply with only a JSON object {"steps": [{"action": string, "query": string}], "reply": string, "question": string, "choice": string}. ' +
         `Each action must be one of: ${actions}. ` +
         'steps lists every command to run, in the order spoken. query holds the song, artist, album, playlist or theme name for play, search, setTheme and playDownloadedPlaylist, otherwise an empty string. ' +
+        'For an exact volume use setVolume with query the percent as digits ("50"), or "+20"/"-20" to change it by that much. ' +
+        'To jump to a time use seekTo with query the position in seconds (1:30 is "90"). To move by an amount use seekForward or seekBack with query the seconds ("30"). ' +
         'Only one song, album or playlist can play at a time. If the user asks for something impossible or unclear, like playing all playlists at once or a playlist without a name, ' +
         'leave that part and everything after it out of steps, set question to one short question (at most 8 words), and set choice to "playlist", "song" or "other". Otherwise question and choice are empty strings. ' +
         (known === ''

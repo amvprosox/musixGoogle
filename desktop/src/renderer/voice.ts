@@ -159,6 +159,8 @@ const ACK_REPLY: Readonly<Record<VoiceAction, ReplyKey | null>> = {
   unmute: 'unmuted',
   seekForward: 'done',
   seekBack: 'done',
+  seekTo: 'done',
+  setVolume: 'done',
   restart: 'restart',
   whatsPlaying: null,
   showLyrics: 'lyrics',
@@ -741,11 +743,38 @@ export class VoiceController {
         }
         return;
       case 'seekForward':
-        actions.seekRelative(1);
+      case 'seekBack': {
+        const amount = Number(command.query);
+        if (Number.isFinite(amount) && amount > 0 && player) {
+          const direction = command.action === 'seekForward' ? 1 : -1;
+          actions.seekTo(player.currentTimeSec + direction * amount);
+        } else {
+          actions.seekRelative(command.action === 'seekForward' ? 1 : -1);
+        }
         return;
-      case 'seekBack':
-        actions.seekRelative(-1);
+      }
+      case 'seekTo': {
+        const target = Number(command.query);
+        if (Number.isFinite(target) && target >= 0) {
+          actions.seekTo(target);
+        }
         return;
+      }
+      case 'setVolume': {
+        const raw = command.query.trim();
+        const amount = Number(raw.replace(/^[+-]/, ''));
+        if (!Number.isFinite(amount)) {
+          return;
+        }
+        const current = player ? player.volume : 1;
+        const target = raw.startsWith('+')
+          ? current + amount / 100
+          : raw.startsWith('-')
+            ? current - amount / 100
+            : amount / 100;
+        actions.setVolume(Math.max(0, Math.min(1, target)));
+        return;
+      }
       case 'restart':
         actions.seekTo(0);
         return;
