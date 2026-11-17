@@ -7,7 +7,12 @@ import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.compose.foundation.Image
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,11 +56,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -70,6 +77,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.realmadhoney.musix.R
@@ -90,6 +98,8 @@ import com.realmadhoney.musix.ui.components.StateMessage
 import com.realmadhoney.musix.ui.components.formatTime
 import com.realmadhoney.musix.ui.theme.DesignTokens
 import com.realmadhoney.musix.ui.theme.Musix
+import kotlin.math.PI
+import kotlin.math.sin
 
 enum class ShellTab(
     @StringRes val label: Int,
@@ -135,19 +145,21 @@ fun ShellTopBar(
                     IconAction(R.drawable.ic_back, stringResource(R.string.action_back), onBack)
                 } else {
                     Spacer(Modifier.width(DesignTokens.Space16))
-                    Image(
-                        painter = painterResource(R.drawable.musix_logo),
-                        contentDescription = null,
-                        modifier = Modifier.size(32.dp),
-                    )
+                    AnimatedMusixLogo(32.dp)
                     Spacer(Modifier.width(DesignTokens.Space12))
                 }
-                Text(
-                    stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = colors.text,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                        color = colors.text,
+                    )
+                    Text(
+                        "by amvprosox",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textMuted,
+                    )
+                }
                 IconAction(R.drawable.ic_search, stringResource(R.string.action_search), onSearch)
                 if (signedIn) {
                     IconAction(R.drawable.ic_user, stringResource(R.string.action_account), onAccount)
@@ -604,6 +616,33 @@ private fun LibraryTile(
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                 color = tint,
                 maxLines = 1,
+            )
+        }
+    }
+}
+
+/** The Musix logo with its five bars gently bouncing like an equaliser. */
+@Composable
+private fun AnimatedMusixLogo(size: Dp) {
+    val transition = rememberInfiniteTransition(label = "logo")
+    val time by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 1100, easing = LinearEasing)),
+        label = "logo-time",
+    )
+    val bars = listOf(90f to 120f, 162f to 232f, 234f to 320f, 306f to 232f, 378f to 120f)
+    Canvas(Modifier.size(size)) {
+        val unit = this.size.width / 512f
+        drawRoundRect(color = Color(0xFF4F46E5), cornerRadius = CornerRadius(112f * unit))
+        bars.forEachIndexed { index, (x, height) ->
+            val phase = (sin((time + index * 0.18f) * 2f * PI.toFloat()) + 1f) / 2f
+            val barHeight = height * (1f - 0.45f * phase)
+            drawRoundRect(
+                color = Color.White,
+                topLeft = Offset(x * unit, (256f - barHeight / 2f) * unit),
+                size = Size(44f * unit, barHeight * unit),
+                cornerRadius = CornerRadius(22f * unit),
             )
         }
     }

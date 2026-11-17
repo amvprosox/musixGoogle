@@ -198,17 +198,19 @@ struct RootView: View {
                 if engine.canNavigateBack {
                     IconButton(icon: "back", label: "Back") { engine.goBack() }
                 } else {
-                    Image("Logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 32, height: 32)
+                    AnimatedLogo(size: 32)
                         .padding(.leading, DesignTokens.space16)
                         .padding(.trailing, DesignTokens.space8)
                         .accessibilityHidden(true)
                 }
-                Text("Musix")
-                    .font(.heading(DesignTokens.text20, weight: .bold))
-                    .foregroundStyle(Palette.text)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Musix")
+                        .font(.heading(DesignTokens.text20, weight: .bold))
+                        .foregroundStyle(Palette.text)
+                    Text("by amvprosox")
+                        .font(.body(12))
+                        .foregroundStyle(Palette.textMuted)
+                }
                 Spacer(minLength: DesignTokens.space8)
                 IconButton(icon: "search", label: "Search") { select(.search) }
                 if engine.account == .signedIn {
@@ -415,5 +417,33 @@ extension ShellTab {
         default:
             return false
         }
+    }
+}
+
+/// The Musix logo with its five bars gently bouncing like an equaliser.
+struct AnimatedLogo: View {
+    let size: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let bars: [(x: CGFloat, height: CGFloat)] = [(90, 120), (162, 232), (234, 320), (306, 232), (378, 120)]
+
+    var body: some View {
+        TimelineView(.animation(paused: reduceMotion)) { context in
+            let time = context.date.timeIntervalSinceReferenceDate
+            Canvas { canvas, area in
+                let unit = area.width / 512
+                canvas.fill(
+                    Path(roundedRect: CGRect(origin: .zero, size: area), cornerRadius: 112 * unit),
+                    with: .color(Color(red: 79 / 255, green: 70 / 255, blue: 229 / 255))
+                )
+                for (index, bar) in bars.enumerated() {
+                    let phase = reduceMotion ? 0 : (sin((time / 1.1 + Double(index) * 0.18) * 2 * .pi) + 1) / 2
+                    let height = bar.height * (1 - 0.45 * CGFloat(phase))
+                    let rect = CGRect(x: bar.x * unit, y: (256 - height / 2) * unit, width: 44 * unit, height: height * unit)
+                    canvas.fill(Path(roundedRect: rect, cornerRadius: 22 * unit), with: .color(.white))
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }

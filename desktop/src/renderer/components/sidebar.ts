@@ -1,5 +1,6 @@
 import type { NavRoute, ShellRoute } from '../../shared/types';
 import type { AppContext } from '../context';
+import { brandMark, brandText } from './brand';
 import { h, hydrate, icon, setAttr, setButtonIcon, setLabel } from '../dom';
 import type { IconName } from '../icons';
 import { activeRoute } from '../state';
@@ -91,13 +92,7 @@ export function mountSidebar(root: HTMLElement, ctx: AppContext): void {
   collectionList.append(h('li', {}, [downloadsButton]));
 
   const inner = h('div', { className: 'sidebar-inner' }, [
-    h('div', { className: 'brand' }, [
-      h('img', {
-        className: 'brand-mark',
-        attrs: { src: 'logo.svg', alt: '', width: 32, height: 32, loading: 'lazy' },
-      }),
-      h('span', { className: 'brand-name', text: 'Musix' }),
-    ]),
+    h('div', { className: 'brand' }, [brandMark(), brandText()]),
     h('nav', { attrs: { 'aria-label': 'Primary' } }, [
       makeList(PRIMARY_NAV),
       h('div', { className: 'nav-group-label', text: 'Collection' }),

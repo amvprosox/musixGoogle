@@ -113,7 +113,7 @@
 /* Phone width matches the iPhone and Android apps: logo and the Musix name on the left,
    search and sign in on the right, theme choice lives in Settings. */
 .app[data-bp='xs'] .topbar-brand .brand-name {
-  display: inline;
+  display: block;
   font-size: var(--fs-20);
   font-weight: 700;
 }

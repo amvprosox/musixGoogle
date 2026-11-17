@@ -147,6 +147,44 @@
   white-space: nowrap;
 }
 
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.1;
+}
+
+.brand-by {
+  font-size: var(--fs-14);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* The logo bars bounce gently like an equaliser. */
+.brand-bar {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: brand-bounce 1.1s ease-in-out infinite;
+  animation-delay: var(--bar-delay, 0s);
+}
+
+@keyframes brand-bounce {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+
+  50% {
+    transform: scaleY(0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-bar {
+    animation: none;
+  }
+}
+
 .nav-list {
   list-style: none;
   margin: 0;
@@ -214,6 +252,7 @@
 
 .app[data-sidebar='rail'] .nav-label,
 .app[data-sidebar='rail'] .brand-name,
+.app[data-sidebar='rail'] .brand-text,
 .app[data-sidebar='rail'] .nav-group-label {
   display: none;
 }

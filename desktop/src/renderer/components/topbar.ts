@@ -1,5 +1,6 @@
 import { nextPalette, PALETTE_LABELS } from '../../shared/settings';
 import type { AppContext } from '../context';
+import { brandMark, brandText } from './brand';
 import { h, hydrate, icon, iconButton, setAttr, setButtonIcon, setLabel } from '../dom';
 import { attachSuggestions } from './suggest';
 
@@ -144,13 +145,7 @@ export function mountTopbar(root: HTMLElement, ctx: AppContext): { searchInput: 
     [icon('log-in'), h('span', { className: 'sign-in-label', text: 'Sign in' })],
   );
 
-  const brand = h('div', { className: 'topbar-brand' }, [
-    h('img', {
-      className: 'brand-mark',
-      attrs: { src: 'logo.svg', alt: '', width: 28, height: 28, loading: 'lazy' },
-    }),
-    h('span', { className: 'brand-name', text: 'Musix' }),
-  ]);
+  const brand = h('div', { className: 'topbar-brand' }, [brandMark(), brandText()]);
 
   const inner = h('div', { className: 'topbar-inner' }, [
     h('div', { className: 'topbar-group' }, [hamburger]),
