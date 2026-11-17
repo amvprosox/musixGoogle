@@ -28,6 +28,8 @@ export function isAvoidedMic(label: string): boolean {
 const SAMPLE_RATE = 16000;
 const CHUNK = 1600;
 const YES_URL = 'musix-asset://voice/yes.wav';
+/** Time Bluetooth earbuds need to switch from call mode back to music mode. */
+const EARBUD_SWITCH_MS = 900;
 
 export interface MicDevice {
   id: string;
@@ -216,7 +218,7 @@ export class VoiceController {
       if (status.state === 'awake' && !wasAwake) {
         this.playYes();
         this.ctx.actions.duckOffline(true);
-        void this.openCommandMic();
+        void this.openCommandMicWhenQuiet();
       }
       if (status.state === 'listening' || status.state === 'off') {
         this.ctx.actions.duckOffline(false);
@@ -226,7 +228,14 @@ export class VoiceController {
     });
     api.on('voice:command', (command) => {
       this.ctx.actions.duckOffline(false);
-      void this.execute(command);
+      // Hand the earbuds back to music mode before Lauren answers, so her reply is heard.
+      const usedEarbuds = this.commandMic !== null || this.commandMicWanted;
+      this.closeCommandMic();
+      if (usedEarbuds) {
+        window.setTimeout(() => void this.execute(command), EARBUD_SWITCH_MS);
+      } else {
+        void this.execute(command);
+      }
     });
     navigator.mediaDevices.addEventListener('devicechange', () => {
       void this.refreshDevices(true, true);
@@ -493,6 +502,18 @@ export class VoiceController {
       }
     } catch {
       this.commandMicWanted = false;
+    }
+  }
+
+  /** Waits for "Yes?" (and any reply) to finish before switching earbuds to call mode. */
+  private async openCommandMicWhenQuiet(): Promise<void> {
+    const deadline = Date.now() + 3000;
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
+    while (Date.now() < deadline && (this.speaking > 0 || (this.yes !== null && !this.yes.paused))) {
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    }
+    if (this.status.state === 'awake' || this.status.state === 'thinking') {
+      await this.openCommandMic();
     }
   }
 
