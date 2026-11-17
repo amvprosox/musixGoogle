@@ -367,10 +367,10 @@ export class VoiceController {
     try {
       const constraints: MediaTrackConstraints = {
         channelCount: 1,
-        // Echo cancellation stays off: on macOS it switches audio into voice-call mode,
-        // which makes music sound like it is coming through the mic. Like Siri, Musix
-        // instead turns the music down while you speak a command.
-        echoCancellation: false,
+        // Echo cancellation removes everything Musix itself plays (music, Lauren) from what
+        // the mic hears, so the mic never picks up the app's own sound. This is the
+        // browser's software canceller ("true"), not macOS voice processing ("all").
+        echoCancellation: true,
         noiseSuppression: false,
         autoGainControl: true,
       };

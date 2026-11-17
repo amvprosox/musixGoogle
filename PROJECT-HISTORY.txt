@@ -55,8 +55,10 @@ Voice assistant ("Veru")
   - Learned phrases cache (skips the AI for repeated commands) and wake-word spelling learning.
   - Mic boost (1-12x), GTCRN noise reduction, Automatic mic avoids Bluetooth mics (keeps music quality).
   - Like Siri: music dips to 12% while you speak a command after "Veru", then comes back.
-  - The mic is never played to the speakers (silent internal sink). Echo cancellation is OFF on purpose:
-    on macOS it switches audio into voice-call mode (owner hated it).
+  - The mic is never played to the speakers (silent internal sink). Echo cancellation is ON (browser
+    software canceller, echoCancellation: true - NOT "all"/macOS voice processing) so the mic never hears
+    Musix's own music or Lauren. The "phone call" sound the owner heard earlier was Bluetooth hands-free
+    mode from picking an earbud mic, not echo cancellation.
   - OWNER'S MIC RULE (do not change without asking): Musix uses EXACTLY the mic the owner picks.
     Only "Automatic" decides by itself (it uses the computer mic when Bluetooth earbuds are connected).
     Picking AirPods/FreeBuds = their mic always (hears you far away; Bluetooth plays music in hands-free
