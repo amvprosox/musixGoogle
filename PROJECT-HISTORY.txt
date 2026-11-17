@@ -1,0 +1,147 @@
+MUSIX - PROJECT HISTORY AND HANDOFF
+====================================
+Last updated: 2026-11-17 (end of the 1.0.8 alpha round)
+Owner: amvprosox (Eoin Villarin)
+Repo: https://github.com/amvprosox/musixGoogle (branch: main)
+Releases: https://github.com/amvprosox/musixGoogle/releases
+
+Everything below is already pushed to GitHub. Nothing exists only on this Mac.
+To continue (e.g. 1.0.9), just say "start 1.0.9" and point Claude at this file.
+
+
+1. WHERE WE ARE NOW
+-------------------
+- Version: 1.0.8, published as a GitHub PRERELEASE titled "Musix 1.0.8 - alpha testing" (tag v1.0.8).
+- Build numbers in this round: iOS CURRENT_PROJECT_VERSION 19, Android versionCode 18.
+- Last stable release: 1.0.7 (all platforms).
+- Release status of this round: see section 9 (filled in when the release was uploaded).
+
+
+2. WHAT 1.0.8 ADDED (all platforms unless marked)
+-------------------------------------------------
+Offline and downloads
+- Offline shuffle plays every song once; Previous goes back through what actually played.
+- Downloads remember which playlist each song came from; play or shuffle only that playlist offline;
+  "Download All" saves every library separately.
+- Offline lyrics: saved with each download; "Get Lyrics" fills in older downloads.
+- Desktop media keys and tray control the offline player.
+- Playlist button says "Downloaded" (was "Already Downloaded").
+- Offline mode (desktop): online-only tabs are dimmed; tapping one shows "You're offline - Open
+  Downloads to play your offline music"; the offline screen has an "Open Downloads" button.
+
+Themes and layout
+- Themes: Midnight, Graphite (now the DEFAULT on every platform), Slate Grey, AMOLED Black, Light.
+- Mobile layout fixes: no clipped text at large sizes, tab labels hide on narrow phones (icons stay),
+  Now Playing scrolls / goes side by side in landscape, iPad caps the Downloads width.
+- Desktop Downloads: album-style tiles in a responsive grid (2 columns on narrow windows), big centered
+  thumbnails with title below, an "All Songs" card, playlists open in their own page with a real
+  Back system (Back button, toolbar back, Esc, mouse back button).
+- Desktop narrow tab bar hides labels (never icons) before they collide.
+- About: "Built with love by amvprosox" plus creator info and links (Website, GitHub, YouTube,
+  Instagram, LinkedIn, Email). Phone number deliberately NOT included.
+
+Voice assistant ("Veru")
+- Wake word: Veru. Accepted: veru, beru, be-ru, veyru, vey-ru, biro, bi-ro, bero, be-ro, vero, peru,
+  bairu, veroo, barrow, and "hey/okay Veru". Denied: very, every, vary, berry, bury, pero, hero, zero.
+  (Wake word history: prosox -> Prosecs -> Veru.)
+- Fully offline engine: sherpa-onnx (keyword spotter, Silero VAD, speaker check "Only my voice").
+- Editable commands, microphone picker, free-only OpenRouter AI fallback for long/odd requests.
+
+  DESKTOP ONLY so far (Mac/Windows/Linux) - NOT yet ported to iPhone/Android:
+  - Whisper speech recognition packs (base English, base multilingual, small multilingual "High accuracy").
+  - 38 voice languages incl. Tagalog, Chinese, Korean, Hindi, Urdu, Russian, European languages.
+  - Lauren (ElevenLabs) voice for "Yes?" and 40 spoken confirmations.
+  - Multi-step commands ("play X and turn on shuffle"), follow-up questions ("which playlist?").
+  - Learned phrases cache (skips the AI for repeated commands) and wake-word spelling learning.
+  - Mic boost (1-12x), GTCRN noise reduction, Automatic mic avoids Bluetooth mics (keeps music quality).
+  - Echo cancellation: Musix's own music/replies are removed from the mic.
+  - Waits until you finish speaking (~1.5 s of silence), ignores chatter before "Veru".
+  - On-screen popup card showing the heard command, with smooth animated bars.
+  - Choosing a mic (or Automatic) switches immediately.
+  -> First job for 1.0.9 if wanted: port these to iOS and Android.
+
+
+3. OPENROUTER (AI) NOTES
+------------------------
+- Key was created by OAuth (PKCE) on the owner's OpenRouter account with credit limit 0.
+  It is stored ONLY as the GitHub secret OPENROUTER_KEY and injected at build time
+  (XOR "musix-voice" + base64). Never in the repo. Claude never sees or types the key.
+- Only ":free" models with zero price are ever called (enforced in code). Never pay a penny.
+- Free plan limit: 50 AI requests per day for the whole account (needs $10 credit for 1000/day;
+  owner chose not to). When the limit is hit, Musix pauses the AI until the reset and offline
+  commands keep working.
+
+
+4. VOICE MODEL PACKS (GitHub release assets, downloaded by the app at runtime)
+------------------------------------------------------------------------------
+- voice-pack-1 (keyword spotter, VAD, speaker model)
+- voice-whisper-1        sha256 9f2891a4c61723e407a3f14be5794ec9046ed00238c02987202168a4c875f1bc  94,129,407 B
+- voice-whisper-multi-1  sha256 8c72553ac09e849e9feb113a793c55496f1831e4a586433935783641b664a9f5  93,529,364 B
+- voice-whisper-small-1  sha256 aab3f9d774a56545ff36f75fcc1ffd685f82dac3991b6aa5c32dbd856df3c715  231,060,160 B
+- voice-tts-1 (Kokoro) - UNUSED now (owner rejected the Kokoro voice).
+- GTCRN noise model ships inside the desktop app (assets/voice/gtcrn_simple.onnx).
+- Lauren clips ship inside the app (desktop/assets/voice/yes.wav and replies/*.wav).
+
+
+5. HOUSE RULES (keep following these)
+-------------------------------------
+- Commits authored by amvprosox only (84389974+amvprosox@users.noreply.github.com), no co-author lines.
+- Test on the Mac FIRST; only then build iPhone/Android/others ("don't burn tokens").
+- Alpha rounds keep the same version (1.0.8) titled "<version> - alpha testing"; only build numbers
+  go up. Stable release only when the owner says "release it for all devices".
+- Ad blocker is frozen - do not change it.
+- No Android emulator on this Mac.
+- Never put the owner's personal info into requests to outside services.
+- Keep replies short and direct.
+
+
+6. HOW TO SET UP AGAIN (after local cleanup)
+--------------------------------------------
+- git clone https://github.com/amvprosox/musixGoogle.git ~/projects/musix
+- Node 24 (nodejs.org tarball into ~/.local/opt/node), then: npm ci && npm run build && npm run lint && npm test
+  (after npm run build: git checkout -- android/app/src/main/assets/adblock ios/Musix/Resources/Adblock)
+- GitHub CLI into ~/.local/opt/gh/bin/gh, log in as amvprosox.
+- Mac test build:
+    cd ~/projects/musix/desktop && npm run build && \
+    CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --config build/electron-builder.yml --mac dir --arm64
+  install: replace /Applications/Musix.app with desktop/release/mac-arm64/Musix.app
+- Android (only if needed): Temurin JDK 21 + Android cmdline-tools (platforms;android-35, build-tools;35.0.0),
+  sherpa-onnx-2.0.1.aar into android/app/libs (CI downloads it automatically).
+- iOS cannot be compiled on this Mac (no Xcode) - CI builds it.
+
+
+7. HOW TO RELEASE
+-----------------
+- Push to main -> GitHub Actions (.github/workflows/build.yml) builds Linux, Windows, macOS, Android, iOS.
+- Download artifacts: gh run download <run id> -n <artifact>
+  Musix-Linux, Musix-Windows, Musix-macOS, Musix-Android-APKs, Musix-iOS-unsigned-ipa
+- Rename to: Musix-X-amd64.deb, Musix-X-x86_64.AppImage, Musix-Setup-X.exe, Musix-Portable-X.exe,
+  Musix-X-mac.dmg, Musix-X-mac.zip, Musix-X-android.apk, Musix-X-android-automotive.apk, Musix-X-ios.ipa
+- Version bump for a new version: desktop/package.json, android/app/build.gradle.kts (versionName +
+  versionCode), ios/project.yml (MARKETING_VERSION + CURRENT_PROJECT_VERSION), README download lines.
+
+
+8. KNOWN ISSUES / IDEAS FOR 1.0.9
+---------------------------------
+- Port the desktop-only voice upgrades (section 2) to iPhone and Android.
+- Add the creator info/links to the iPhone and Android About screens.
+- The first voice command right after the app starts can be slow (engine warm-up); later ones are fast.
+- Free AI is capped at 50 requests/day; widen the offline command matcher to need the AI less.
+- Choosing a Bluetooth earbud as the mic lowers music quality (macOS limitation); Automatic avoids it.
+
+
+9. 1.0.8 ALPHA RELEASE LOG
+--------------------------
+2026-11-17  Round with CI run 43986356914 (commit 7ffe20d, iOS build 19, Android versionCode 18).
+            All 5 platforms passed CI. Prerelease "Musix 1.0.8 - alpha testing" now has 9 files:
+              Musix-1.0.8-ios.ipa, Musix-1.0.8-android.apk, Musix-1.0.8-android-automotive.apk,
+              Musix-1.0.8-mac.dmg, Musix-1.0.8-mac.zip, Musix-Setup-1.0.8.exe, Musix-Portable-1.0.8.exe,
+              Musix-1.0.8-x86_64.AppImage, Musix-1.0.8-amd64.deb
+            Still an alpha (prerelease). The stable 1.0.8 happens when the owner says "release it for all devices".
+
+
+10. HOW TO PICK THIS UP ON ANOTHER DEVICE OR ACCOUNT
+----------------------------------------------------
+This file lives in the repo root as PROJECT-HISTORY.txt. On any machine, tell Claude:
+  "Clone https://github.com/amvprosox/musixGoogle and read PROJECT-HISTORY.txt, then start 1.0.9."
+Claude then follows section 6 (setup) and section 5 (house rules).
