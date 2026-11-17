@@ -4,6 +4,9 @@ import type { AppContext } from '../context';
 import { h, hydrate, icon, setText } from '../dom';
 import type { VoiceController } from '../voice';
 
+/** Bluetooth headset mics switch the headphones into call mode, which degrades music. */
+const WIRELESS_MIC = /bluetooth|airpods|beats|hands-?free|headset|buds|bose|sony wh|jabra/i;
+
 const ENROLL_PHRASES = [
   'Veru, play my favorite songs.',
   'Veru, what is playing right now?',
@@ -412,7 +415,12 @@ export function voiceCard(ctx: AppContext, voice: VoiceController): HTMLElement 
         h('option', { attrs: { value: 'default' }, text: 'Automatic' }),
         ...voice.devices
           .filter((device) => device.id !== 'default')
-          .map((device) => h('option', { attrs: { value: device.id }, text: device.label })),
+          .map((device) =>
+            h('option', {
+              attrs: { value: device.id },
+              text: WIRELESS_MIC.test(device.label) ? `${device.label} (lowers music quality)` : device.label,
+            }),
+          ),
       );
     }
     const selected = voice.devices.some((device) => device.id === wanted) ? wanted : 'default';

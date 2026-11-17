@@ -305,7 +305,7 @@ async function start(): Promise<void> {
       }
     },
     onDuck: (ducked) => {
-      view.sendBridge({ v: 1, type: 'duck', requestId: view.nextRequestId(), level: ducked ? 0.2 : 1 });
+      view.sendBridge({ v: 1, type: 'duck', requestId: view.nextRequestId(), level: ducked ? 0.12 : 1 });
     },
     isOnline: () => net.isOnline(),
     openExternal: (url) => shell.openExternal(url),

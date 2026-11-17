@@ -353,9 +353,10 @@ export class VoiceController {
     try {
       const constraints: MediaTrackConstraints = {
         channelCount: 1,
-        // Chromium's own echo canceller removes everything Musix plays (music, Lauren's
-        // replies) from the mic without switching macOS into voice-call mode.
-        echoCancellation: true,
+        // Echo cancellation stays off: on macOS it switches audio into voice-call mode,
+        // which makes music sound like it is coming through the mic. Like Siri, Musix
+        // instead turns the music down while you speak a command.
+        echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: true,
       };

@@ -82,7 +82,7 @@ export class PlayerActions {
     }
     if (ducked && this.duckedFrom === null) {
       this.duckedFrom = audio.volume;
-      audio.volume = Math.min(audio.volume, 0.2);
+      audio.volume = Math.min(audio.volume, 0.12);
     } else if (!ducked && this.duckedFrom !== null) {
       audio.volume = this.duckedFrom;
       this.duckedFrom = null;
