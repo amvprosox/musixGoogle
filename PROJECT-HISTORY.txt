@@ -12,7 +12,7 @@ To continue (e.g. 1.0.9), just say "start 1.0.9" and point Claude at this file.
 1. WHERE WE ARE NOW
 -------------------
 - Version: 1.0.8, published as a GitHub PRERELEASE titled "Musix 1.0.8 - alpha testing" (tag v1.0.8).
-- Build numbers in this round: iOS CURRENT_PROJECT_VERSION 19, Android versionCode 18.
+- Build numbers in this round: iOS CURRENT_PROJECT_VERSION 20, Android versionCode 19.
 - Last stable release: 1.0.7 (all platforms).
 - Release status of this round: see section 9 (filled in when the release was uploaded).
 
@@ -54,7 +54,11 @@ Voice assistant ("Veru")
   - Multi-step commands ("play X and turn on shuffle"), follow-up questions ("which playlist?").
   - Learned phrases cache (skips the AI for repeated commands) and wake-word spelling learning.
   - Mic boost (1-12x), GTCRN noise reduction, Automatic mic avoids Bluetooth mics (keeps music quality).
-  - Echo cancellation: Musix's own music/replies are removed from the mic.
+  - Like Siri: music dips to 12% while you speak a command after "Veru", then comes back.
+  - The mic is never played to the speakers (silent internal sink). Echo cancellation is OFF on purpose:
+    on macOS it switches audio into voice-call mode (owner hated it). Choosing a Bluetooth earbud mic puts
+    the earbuds into call mode (low quality + hearing yourself), so Bluetooth mics are labelled
+    "(lowers music quality)" and Automatic always avoids them.
   - Waits until you finish speaking (~1.5 s of silence), ignores chatter before "Veru".
   - On-screen popup card showing the heard command, with smooth animated bars.
   - Choosing a mic (or Automatic) switches immediately.
@@ -137,6 +141,8 @@ Voice assistant ("Veru")
               Musix-1.0.8-ios.ipa, Musix-1.0.8-android.apk, Musix-1.0.8-android-automotive.apk,
               Musix-1.0.8-mac.dmg, Musix-1.0.8-mac.zip, Musix-Setup-1.0.8.exe, Musix-Portable-1.0.8.exe,
               Musix-1.0.8-x86_64.AppImage, Musix-1.0.8-amd64.deb
+2026-11-17  Fix round: echo cancellation removed (caused voice-call sound), Siri-style ducking, mic never
+            reaches the output. iOS build 20, Android versionCode 19. All 9 files replaced on the prerelease.
             Still an alpha (prerelease). The stable 1.0.8 happens when the owner says "release it for all devices".
 
 
