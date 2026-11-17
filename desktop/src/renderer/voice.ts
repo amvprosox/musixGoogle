@@ -197,6 +197,9 @@ export class VoiceController {
   private context: AudioContext | null = null;
   private processor: AudioWorkletNode | null = null;
   private pending: number[] = [];
+  /** Same mic without echo cancellation, only for catching "Veru" over loud music. */
+  private raw: { stream: MediaStream; context: AudioContext; processor: AudioWorkletNode } | null = null;
+  private rawPending: number[] = [];
   private recording: number[] | null = null;
   private yes: HTMLAudioElement | null = null;
   private replyAudio: HTMLAudioElement | null = null;
@@ -421,6 +424,7 @@ export class VoiceController {
       this.stream = stream;
       this.context = context;
       this.processor = processor;
+      await this.openRawMic(stream.getAudioTracks()[0]?.getSettings().deviceId ?? '');
       const listening = stream.getAudioTracks()[0]?.label ?? '';
       this.activeMic = listening;
       stream.getAudioTracks()[0]?.addEventListener('ended', () => {
@@ -439,7 +443,65 @@ export class VoiceController {
     this.emit();
   }
 
+  private async openRawMic(deviceId: string): Promise<void> {
+    this.closeRawMic();
+    if (deviceId === '') {
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: { exact: deviceId },
+          channelCount: 1,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: true,
+        },
+        video: false,
+      });
+      const context = new AudioContext({ sampleRate: SAMPLE_RATE });
+      await context.audioWorklet.addModule('musix-asset://voice/mic-worklet.js');
+      const processor = new AudioWorkletNode(context, 'musix-mic');
+      processor.port.onmessage = (event: MessageEvent<unknown>) => {
+        if (!(event.data instanceof Float32Array) || this.speaking > 0 || Date.now() < this.quietUntil) {
+          this.rawPending = [];
+          return;
+        }
+        for (const value of event.data) {
+          this.rawPending.push(value);
+        }
+        while (this.rawPending.length >= CHUNK) {
+          this.ctx.api.send('voice:audio-raw', Float32Array.from(this.rawPending.splice(0, CHUNK)));
+        }
+      };
+      const sink = context.createGain();
+      sink.gain.value = 0;
+      context.createMediaStreamSource(stream).connect(processor);
+      processor.connect(sink);
+      sink.connect(context.createMediaStreamDestination());
+      this.raw = { stream, context, processor };
+    } catch {
+      this.raw = null;
+    }
+  }
+
+  private closeRawMic(): void {
+    const raw = this.raw;
+    this.raw = null;
+    this.rawPending = [];
+    if (!raw) {
+      return;
+    }
+    raw.processor.port.close();
+    raw.processor.disconnect();
+    void raw.context.close().catch(() => undefined);
+    for (const track of raw.stream.getTracks()) {
+      track.stop();
+    }
+  }
+
   private stopCapture(): void {
+    this.closeRawMic();
     this.processor?.port.close();
     this.processor?.disconnect();
     this.processor = null;
