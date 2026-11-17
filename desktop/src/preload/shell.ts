@@ -57,7 +57,6 @@ const SEND_CHANNELS: Readonly<Record<ShellSendChannel, true>> = {
   'menu:open': true,
   'offline:active': true,
   'voice:audio': true,
-  'voice:audio-raw': true,
 };
 
 function parseBoot(argv: readonly string[]): BootInfo | null {

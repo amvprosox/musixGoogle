@@ -153,8 +153,6 @@ interface FollowUp {
 type Engines = {
   kws: InstanceType<SherpaModule['KeywordSpotter']>;
   kwsStream: SherpaStream;
-  /** Second wake-word listener on the uncancelled mic, for when music is loud. */
-  rawKwsStream: SherpaStream;
   asr: InstanceType<SherpaModule['OfflineRecognizer']>;
   speaker: InstanceType<SherpaModule['SpeakerEmbeddingExtractor']>;
   vad: InstanceType<SherpaModule['Vad']>;
@@ -635,15 +633,7 @@ export class VoiceManager {
             logWarn('voice', 'Noise reduction could not start', error);
           }
         }
-        this.engines = {
-          kws,
-          kwsStream: kws.createStream(),
-          rawKwsStream: kws.createStream(),
-          asr,
-          speaker,
-          vad,
-          denoiser,
-        };
+        this.engines = { kws, kwsStream: kws.createStream(), asr, speaker, vad, denoiser };
       })
       .catch((error: unknown) => {
         logError('voice', 'Voice engine failed to start', error);
@@ -728,39 +718,6 @@ export class VoiceManager {
       });
   }
 
-  private onKeyword(): void {
-    this.keywordHeard = true;
-    // Anything said before Veru is not part of the command.
-    this.utterance = [];
-    this.utteranceSamples = 0;
-    this.wake();
-  }
-
-  /**
-   * Echo cancellation keeps Musix's music out of the mic, but over loud music it also
-   * softens your voice. This second listener hears the original mic only for "Veru", so
-   * the name is caught either way; the command itself still comes from the clean audio.
-   */
-  acceptRawAudio(input: Float32Array): void {
-    const engines = this.engines;
-    if (!this.config.enabled || !engines || input.length === 0) {
-      return;
-    }
-    const dithered = new Float32Array(input.length);
-    for (let i = 0; i < input.length; i += 1) {
-      dithered[i] = (input[i] ?? 0) + (Math.random() - 0.5) * DITHER;
-    }
-    engines.rawKwsStream.acceptWaveform({ sampleRate: SAMPLE_RATE, samples: dithered });
-    while (engines.kws.isReady(engines.rawKwsStream)) {
-      engines.kws.decode(engines.rawKwsStream);
-      if (engines.kws.getResult(engines.rawKwsStream).keyword) {
-        engines.kws.reset(engines.rawKwsStream);
-        engines.kws.reset(engines.kwsStream);
-        this.onKeyword();
-      }
-    }
-  }
-
   acceptAudio(input: Float32Array): void {
     const engines = this.engines;
     if (!this.config.enabled || !engines || input.length === 0) {
@@ -795,7 +752,11 @@ export class VoiceManager {
       engines.kws.decode(engines.kwsStream);
       if (engines.kws.getResult(engines.kwsStream).keyword) {
         engines.kws.reset(engines.kwsStream);
-        this.onKeyword();
+        this.keywordHeard = true;
+        // Anything said before Veru is not part of the command.
+        this.utterance = [];
+        this.utteranceSamples = 0;
+        this.wake();
       }
     }
     for (let i = 0; i < dithered.length; i += 1) {

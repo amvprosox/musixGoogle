@@ -82,8 +82,6 @@ export interface ShellSendChannels {
   'menu:open': ShellMenuRequest;
   'offline:active': boolean;
   'voice:audio': Float32Array;
-  /** Uncancelled mic audio, used only to catch the wake word over loud music. */
-  'voice:audio-raw': Float32Array;
 }
 
 export interface ShellEventChannels {

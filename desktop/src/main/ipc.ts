@@ -167,15 +167,6 @@ export function registerIpc(ctx: IpcContext): () => void {
       },
     ],
     [
-      'voice:audio-raw',
-      (event, payload) => {
-        if (!fromShell(event) || !isAudioChunk(payload)) {
-          return;
-        }
-        ctx.voice.acceptRawAudio(payload);
-      },
-    ],
-    [
       'offline:active',
       (event, payload) => {
         if (!fromShell(event) || !isBoolean(payload)) {
