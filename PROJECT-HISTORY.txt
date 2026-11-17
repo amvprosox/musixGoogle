@@ -1,6 +1,6 @@
 MUSIX - PROJECT HISTORY AND HANDOFF
 ====================================
-Last updated: 2026-11-17 (end of the 1.0.8 alpha round)
+Last updated: 2026-11-17 (end of the 1.0.8 alpha mic/voice round)
 Owner: amvprosox (Eoin Villarin)
 Repo: https://github.com/amvprosox/musixGoogle (branch: main)
 Releases: https://github.com/amvprosox/musixGoogle/releases
@@ -152,7 +152,8 @@ Voice assistant ("Veru")
               Musix-1.0.8-ios.ipa, Musix-1.0.8-android.apk, Musix-1.0.8-android-automotive.apk,
               Musix-1.0.8-mac.dmg, Musix-1.0.8-mac.zip, Musix-Setup-1.0.8.exe, Musix-Portable-1.0.8.exe,
               Musix-1.0.8-x86_64.AppImage, Musix-1.0.8-amd64.deb
-2026-11-17  Mic + voice round (see section 2), iOS build 20, Android versionCode 19.
+2026-11-17  Mic + voice round (see section 2), iOS build 20, Android versionCode 19. CI run 44078178031
+            (commit b9b3300) passed on all 5 platforms; all 9 files replaced on the prerelease.
 2026-11-17  Fix round: echo cancellation removed (caused voice-call sound), Siri-style ducking, mic never
             reaches the output. iOS build 20, Android versionCode 19. All 9 files replaced on the prerelease.
             Still an alpha (prerelease). The stable 1.0.8 happens when the owner says "release it for all devices".
